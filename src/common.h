@@ -121,6 +121,99 @@ inline int irand(int min, int max)
     return (i == max) ? max - 1 : i;
 }
 
+/*inline double rand_norm(const double mean=0, const double sd=1) {
+  static bool gen_new=true;
+  static double y=0;
+  double x;
+  double pi = 3.1415926535897;
+  if (gen_new) {
+     double r1 = sqrt(-2.0*log(frand()));
+     double r2 = 2*pi*frand();
+     x = r1 * cos(r2);
+     y = r1 * sin(r2);
+     gen_new = false;
+  } else {
+     x = y;
+     gen_new = true;
+  }
+  x *= sd;
+  x += mean;
+  return x;
+}*/
+
+/* make a draw from an exponential distribution with parameter
+ *    (expected value) 'b' */
+inline double rand_exp(double b) {
+  return -log(frand()) * b; /* inversion method */
+}
+
+
+/* make a draw from a gamma distribution with parameters 'a' and
+ * 'b'. Be sure to call srandom externally.  If a == 1, exp_draw is
+ * called.  If a > 1, Best's (1978) rejection algorithm is used, and
+ * if a < 1, rejection sampling from the Weibull distribution is
+ * performed, both as described in "Non-Uniform Random Variate
+ * Generation" by Luc Devroye, available online at
+ * http://cgm.cs.mcgill.ca/~luc/rnbookindex.html */
+
+inline double rand_gamma(double a, double b) {
+  double retval = -1;
+
+  if (a <= 0) {
+    fprintf(stderr, "ERROR gamma_draw got a=%f\n", a);
+    exit(1);
+  }
+  if (a == 1) return rand_exp(b);
+
+  else if (a > 1) {
+    while (retval == -1) {
+      double U, V, W, X, Y, Z;
+      double d = a - 1, c = 3 * a - 0.75;
+
+      U = frand();          /* uniform on [0, 1]; used for draw */
+      V = frand();          /* also uniform on [0, 1]; used for
+                                       rejection/acceptance */
+      W = U * (1 - U);
+      Y = sqrt(c / W) * (U - 0.5);
+      X = d + Y;
+      /* Y is a scaled version of a random variate from a t distribution
+         with 2 dof; X is a random deviate from a shifted distribution
+         whose ratio with a gamma(a, 1) can be bounded by a constant */
+
+      if (X < 0) continue;      /* truncate because of nonnegativity
+                                   of gamma */
+
+      Z = 64 * W * W * W * V * V;
+      if (log(Z) <= 2 * (d * log(X / d) - Y))
+        retval = X;
+      /* there's some algebra behind this, but underneath it's just
+         the standard rejection sampling idea of accepting with
+         probability p(x)/(M*q(x)), where p(x) is the density of the
+         desired distrib, q(x) is the density of the distrib from which
+         you have sampled, and M is a constant such that p(x) / q(x) <=
+         M for all x */
+    }
+  }
+
+  else {                        /* use Weibull */
+    double c = 1/a, d = pow(a, a/(1-a)) * (1-a);
+    while (retval == -1) {
+      double E, Z, X;
+      E = rand_exp(1);
+      Z = rand_exp(1);
+      X = pow(Z, c);            /* X is Weibull(a) */
+      if (Z + E >= d + X)       /* note: wrong in book, correct
+                               formula in errata */
+        retval = X;
+    }
+  }
+
+  /* so far we only have a draw from gamma(a, 1); multiply by b to
+ *      obtain a draw from gamma(a, b) */
+  return retval * b;
+}
+
+
 inline double expovariate(double lambda)
 { return -log(frand()) / lambda; }
 
