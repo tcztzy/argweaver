@@ -38,6 +38,46 @@ void get_coal_time_steps(const double *times, int ntimes,
 
 
 
+//describe a set of time intervals with a single popsize, and whether
+// they should be sampled
+class PopsizeConfigParam
+{
+ public:
+     PopsizeConfigParam(string name, bool sample=true, int pop=-1) :
+         name(name),
+         sample(sample)
+    {
+	if (pop >= 0) pops.insert(pop);
+    }
+
+    void add_pop(int pop) {
+        pops.insert(pop);
+     }
+
+    string name;
+    set<int> pops;
+    bool sample;  //if false, hold constant to initial value
+};
+
+class PopsizeConfig
+{
+ public:
+    PopsizeConfig() :
+         sample(false),
+	popsize_prior_alpha(1.0),
+        popsize_prior_beta(1.0e-4) {}
+
+    PopsizeConfig(string filename, int ntimes, double *popsizes);
+
+    void addPop(const char *name, int pop, int sample=true);
+
+    bool sample;
+    double popsize_prior_alpha;
+    double popsize_prior_beta;
+    list<PopsizeConfigParam> params;
+};
+
+
 // The model parameters and time discretization scheme
 class ArgModel
 {
@@ -131,7 +171,8 @@ public:
 	infsites_penalty(other.infsites_penalty),
         unphased(other.unphased),
 	sample_phase(other.sample_phase),
-        unphased_file(other.unphased_file)
+        unphased_file(other.unphased_file),
+        popsize_config(other.popsize_config)
     {}
 
 
@@ -147,7 +188,8 @@ public:
         infsites_penalty(other.infsites_penalty),
 	unphased(other.unphased),
         sample_phase(other.sample_phase),
-        unphased_file(other.unphased_file)
+        unphased_file(other.unphased_file),
+	popsize_config(other.popsize_config)
     {
         copy(other);
     }
@@ -189,6 +231,7 @@ public:
         unphased = other.unphased;
 	sample_phase = other.sample_phase;
 	unphased_file = other.unphased_file;
+	popsize_config = other.popsize_config;
 
         // copy popsizes and times
         set_times(other.times, ntimes);
@@ -312,6 +355,11 @@ public:
         model.time_steps = time_steps;
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
+	model.popsize_config = popsize_config;
+    }
+
+    double get_local_rho(int pos) const {
+	return recombmap.find(pos, rho);
     }
 
     void get_local_model_index(int index, ArgModel &model) const {
@@ -326,6 +374,7 @@ public:
         model.unphased = unphased;
 	model.sample_phase = sample_phase;
 	model.unphased_file = unphased_file;
+	model.popsize_config = popsize_config;
 
         model.owned = false;
         model.times = times;
@@ -334,6 +383,8 @@ public:
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
     }
+
+    void set_popsize_config(string filename);
 
 protected:
 
@@ -368,6 +419,7 @@ public:
     bool unphased;
     int sample_phase;
     string unphased_file;
+    PopsizeConfig popsize_config;
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
 };

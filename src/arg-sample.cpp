@@ -18,7 +18,7 @@
 #include "sequences.h"
 #include "total_prob.h"
 #include "track.h"
-
+#include "est_popsize.h"
 
 using namespace argweaver;
 
@@ -91,6 +91,11 @@ public:
 	config.add(new ConfigParam<double>
 		   ("-N", "--popsize", "<population size>", &popsize, 1e4,
                     "effective population size (default=1e4)"));
+	config.add(new ConfigSwitch
+		   ("", "--sample-popsize", &sample_popsize, "sample population size for each time interval using Metropolis-Hastings update"));
+	config.add(new ConfigParam<string>
+		   ("", "--sample-popsize-config", "<popsize config file>", &popsize_config_file, "",
+		    "optional, for use with --sample-popsize: should have a line for each time interval, starting with the most recent. Each line can have up to three tab-separated columns, but only the first is required. The first column gives the name of the popsize parameter- any time intervals with the same entry here will be constrained to have the same popsize. The second line is the initial value for the parameter, and the third should be a 1 or 0 indicating whether to sample that parameter. The second and third columns are optional; by default all parameters will be sampled when --sample-popsize is used. For rows with the same value in the first column, the second and third columns should also be the same."));
 	config.add(new ConfigParam<double>
 		   ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
                     "mutations per site per generation (default=2.5e-8)"));
@@ -256,6 +261,8 @@ public:
     string recombmap;
     string maskmap;
     ArgModel model;
+    bool sample_popsize;
+    string popsize_config_file;
 
     // search
     int nclimb;
@@ -437,10 +444,17 @@ void compress_model(ArgModel *model, SitesMapping *sites_mapping,
 //=============================================================================
 // statistics output
 
-void print_stats_header(FILE *stats_file)
-{
-    fprintf(stats_file, "stage\titer\tprior\tlikelihood\tjoint\trecombs\tnoncompats\targlen\n");
-}
+void print_stats_header(Config *config) {
+    fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\trecombs\tnoncompats\targlen");
+    if (config->model.popsize_config.sample) {
+	list<PopsizeConfigParam> l = config->model.popsize_config.params;
+	for (list<PopsizeConfigParam>::iterator it=l.begin(); 
+	     it != l.end(); ++it) {
+	    fprintf(config->stats_file, "\t%s", it->name.c_str());
+	}
+    }
+    fprintf(config->stats_file, "\n");
+ }
 
 
 void print_stats(FILE *stats_file, const char *stage, int iter,
@@ -478,9 +492,25 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
         compress_local_trees(trees, sites_mapping);
 
     // output stats
-    fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f\n",
+    fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f",
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
+    if (model->popsize_config.sample) {
+	list<PopsizeConfigParam> l=model->popsize_config.params;
+	for (list<PopsizeConfigParam>::iterator it=l.begin();
+	     it != l.end(); ++it) {
+	    set<int>::iterator it2 = it->pops.begin();
+	    int val = *it2;
+	    fprintf(stats_file, "\t%f", model->popsizes[val]);
+	    it2++;
+	    //just checking here; can delete later
+	    while (it2 != it->pops.end()) {
+		assert(model->popsizes[*it2] == model->popsizes[*it2]);
+		it2++;
+	    }
+	}
+    }
+    fprintf(stats_file, "\n");
     fflush(stats_file);
 
     printLog(LOG_LOW, "\n"
@@ -652,6 +682,10 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         else
             resample_arg_mcmc_all(model, sequences, trees, frac_leaf,
                                   window, step, niters);
+
+	if (config->model.popsize_config.sample)
+	    resample_popsizes(model, trees);
+
         printTimerLog(timer, LOG_LOW, "sample time:");
 
 
@@ -675,7 +709,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                 SitesMapping* sites_mapping, Config *config)
 {
     if (!config->resume)
-        print_stats_header(config->stats_file);
+        print_stats_header(config);
 
     // build initial arg by sequential sampling
     seq_sample_arg(model, sequences, trees, sites_mapping, config);
@@ -712,7 +746,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 //=============================================================================
 
 bool parse_status_line(const char* line, const Config &config,
-                       string &stage, int &iter, string &arg_file)
+                       string &stage, int &iter, string &arg_file, vector<string> header)
 {
     // parse stage and last iter
     vector<string> tokens;
@@ -750,7 +784,36 @@ bool parse_status_line(const char* line, const Config &config,
         arg_file = out_arg_file;
     }
 
-
+    if (config.model.popsize_config.sample) {
+	list<PopsizeConfigParam> l=config.model.popsize_config.params;
+	for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
+	     ++it) {
+	    string popname=it->name;
+	    set<int> popset = it->pops;
+	    int found=false;
+	    for (unsigned int i=0; i < header.size(); i++) {
+		if (header[i] == popname) {
+		    found=true;
+		    double tempN;
+		    sscanf(tokens[i].c_str(), "%lf", &tempN);
+		    for (set<int>::iterator it2=popset.begin(); it2 != popset.end(); ++it2) {
+			int pop = *it2;
+			if (pop < 0 || pop >= config.model.ntimes) {
+			    printError("Error in resume: popsize config does not match previous run\n");
+			    exit(1);
+			}
+			config.model.popsizes[pop] = tempN;
+		    }
+		    break;
+		}
+	    }
+	    if (!found) {
+		printError("Error in resume: did not find pop %s in previous run stats file\n",
+			   popname.c_str());
+		exit(0);
+	    }
+	}
+    }
     return true;
 }
 
@@ -777,19 +840,21 @@ bool setup_resume(Config &config)
     // find last line of stats file that has a written ARG
     char *line = NULL;
 
-    // skip header line
     line = fgetline(stats_file);
     if (!line) {
         printError("status file is empty");
         return false;
     }
+    chomp(line);
+    vector<string> header;
+    split(line, "\t", header);
     delete [] line;
 
     // loop through status lines
     string arg_file = "";
     while ((line = fgetline(stats_file))) {
         if (!parse_status_line(
-            line, config, config.resume_stage, config.resume_iter, arg_file)) {
+             line, config, config.resume_stage, config.resume_iter, arg_file, header)) {
             delete [] line;
             return false;
         }
@@ -894,16 +959,6 @@ int main(int argc, char **argv)
     printLog(LOG_LOW, "random seed: %d\n", c.randseed);
 
 
-    // try to resume a previous run
-    if (!setup_resume(c)) {
-        printError("resume failed.");
-        if (c.overwrite) {
-            c.resume = false;
-            printLog(LOG_LOW, "Resume failed.  Sampling will start from scratch since overwrite is enabled.\n");
-        } else {
-            return EXIT_ERROR;
-        }
-    }
 
 
     // read sequences
@@ -986,7 +1041,6 @@ int main(int argc, char **argv)
     }
     seq_region_compress.set(seq_region.chrom, 0, sequences.length());
 
-
     // mask sequences
     TrackNullValue maskmap;
     if (c.maskmap != "") {
@@ -1039,6 +1093,8 @@ int main(int argc, char **argv)
     if (c.unphased)
 	c.model.unphased = true;
     c.model.sample_phase = c.sample_phase;
+    if (c.sample_popsize)
+	c.model.popsize_config = PopsizeConfig(c.popsize_config_file, c.model.ntimes, c.model.popsizes);
 
     // read model parameter maps if given
     if (c.mutmap != "") {
@@ -1055,6 +1111,17 @@ int main(int argc, char **argv)
             !read_track_filter(stream.stream, &c.model.recombmap, seq_region)) {
             printError("cannot read recombination rate map '%s'",
                        c.recombmap.c_str());
+            return EXIT_ERROR;
+        }
+    }
+
+    // try to resume a previous run
+    if (!setup_resume(c)) {
+        printError("resume failed.");
+        if (c.overwrite) {
+            c.resume = false;
+            printLog(LOG_LOW, "Resume failed.  Sampling will start from scratch since overwrite is enabled.\n");
+        } else {
             return EXIT_ERROR;
         }
     }

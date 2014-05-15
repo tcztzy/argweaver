@@ -1,4 +1,3 @@
-
 #include "model.h"
 
 
@@ -13,12 +12,17 @@ void get_coal_time_steps(const double *times, int ntimes,
     double times2[2*ntimes+1];
     for (int i=0; i<ntimes-1; i++) {
         times2[2*i] = times[i];
-        times2[2*i+1] = sqrt((times[i+1]+1.0)*(times[i]+1.0));
+	times2[2*i+1] = sqrt((times[i+1]+1.0)*(times[i]+1.0));
+	//	times2[2*i+1] = 0.5*(times[i+1] + times[i]);
     }
-    times2[2*ntimes] = times[ntimes-1];
+    times2[2*(ntimes-1)] = times[ntimes-1];
 
-    for (int i=0; i<2*ntimes-2; i++)
+    for (int i=0; i<2*ntimes-2; i++) {
         coal_time_steps[i] = times2[min(i+1, 2*ntimes)] - times2[i];
+	if (coal_time_steps[i] < 0) {
+	    assert(0);
+	}
+    }
     coal_time_steps[2*ntimes-2] = INFINITY;
 }
 
@@ -166,6 +170,74 @@ bool ArgModel::setup_maps(string chrom, int start, int end) {
     recombmap.insert(recombmap.begin(), recombmap2.begin(), recombmap2.end());
 
     return true;
+}
+
+
+void PopsizeConfig::addPop(const char *name, int pop, int sample) {
+    for (list<PopsizeConfigParam>::iterator it=params.begin(); 
+	 it != params.end(); ++it) {
+	if (strcmp(it->name.c_str(), name)==0) {
+	    it->add_pop(pop);
+	    if (it->sample != sample) {
+		printError("Error in PopsizeConfig.add: got conflicting info on whether to sample pop %s\n", name);
+		exit(1);
+	    }
+	    return;
+	}
+    }
+    // need to add new param
+    PopsizeConfigParam p(string(name), sample, pop);
+    params.push_back(p);
+}
+
+PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
+    sample(true),
+    popsize_prior_alpha(1.0),
+    popsize_prior_beta(1.0e-4)
+  {
+    if (filename=="") {
+	for (int i=0; i < ntimes; i++) {
+            char str[10];
+            sprintf(str,"N%d", i);
+	    addPop(str, i, true);
+	}
+    } else {
+	FILE *infile = fopen(filename.c_str(), "r");
+	if (infile == NULL) {
+	    fprintf(stderr, "Error opening popsize config file %s\n",
+		    filename.c_str());
+	    exit(0);
+	}
+	char *line;
+	for (int i=0; i < ntimes; i++) {
+	    line = fgetline(infile);
+	    if (line == NULL) {
+		printError("Error: Unexpected EOF reading popsize config file %s; expected ntimes=%i entries.\n", filename.c_str(), ntimes);
+		exit(0);
+	    }
+	    chomp(line);
+	    vector<string>tokens;
+	    split(line, '\t', tokens);
+	    string popname = tokens[0];
+	    bool sample=true;
+	    if (tokens.size() > 1) {
+		popsizes[i] = atof(tokens[1].c_str());
+		if (tokens.size() > 2) {
+		    sample = (atoi(tokens[2].c_str()) != 0);
+		}
+	    }
+	    addPop(popname.c_str(), i, sample);
+	    delete [] line;
+	}
+	while (NULL != (line = fgetline(infile))) {
+	    char *tline = trim(line);
+	    if (strlen(tline) != 0) {
+		fprintf(stderr, "Error: too many lines in popsize config file %s; expected ntimes=%i entries.\n", filename.c_str(), ntimes);
+		exit(0);
+	    }
+	}
+    }
+    printf("done set_popsize_config num_n_params=%i\n", (int)params.size());
 }
 
 
