@@ -145,7 +145,6 @@ void get_possible_recomb(const LocalTree *tree,
         for (int k=0; k<=end_time; k++)
             candidates.push_back(NodePoint(new_node, k));
     }
->>>>>>> 55519cf125636381fcbfdbc2bf34dd65ade7c458
 }
 
 
