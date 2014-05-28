@@ -14,14 +14,16 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
     int num_accept=0, total=0;
     list<PopsizeConfigParam> l = model->popsize_config.params;
     double *num_coal, *num_nocoal;
-    vector<double> lrs(model->ntimes), trans(model->ntimes), prior(model->ntimes), oldN(model->ntimes), newN(model->ntimes), oldn(model->ntimes), newn(model->ntimes);
+    vector<double> lrs(model->ntimes), trans(model->ntimes), 
+	prior(model->ntimes), oldn(model->ntimes), newn(model->ntimes),
+	praccept(model->ntimes);
     vector<int> accepted(model->ntimes);
-    vector<double>praccept(model->ntimes);
 
     num_coal = (double*)malloc(model->ntimes*sizeof(double));
     num_nocoal = (double*)malloc(model->ntimes * sizeof(double));
 
     double curr_like = calc_arg_prior(model, trees, num_coal, num_nocoal);
+
     for (list<PopsizeConfigParam>::iterator it=l.begin(); 
 	 it != l.end(); it++) {
 	if (it->sample == false) continue;
@@ -42,23 +44,14 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
 	    - npsquare/sp*log(sp) + nsquare/s*log(s)
 	    - lgamma(npsquare/sp) + lgamma(nsquare/s);
 
-	// this is a nice uninformative gamma prior just slowly goes to zero as you move out to infinity, still allows N to be at least a million (maybe this is too big?)
-	//has mean of 200000 (k*theta) and sd of 200000, and is pretty flat from 0 to 400k or so
-	//double priork = 1.0;  // this is k for the prior, but cancels out in math
+	// using an uninformative gamma prior which slowly goes to zero as 
+        // you move out to infinity, still allows N to be at least a million 
+        // (maybe this is too big?)
+	// has mean of 200000 (k*theta) and sd of 200000, and is pretty flat 
+        //from 0 to 400k or so
 	double prior_theta = 200000;
 	double prior_ratio = (old_popsize-new_popsize)/prior_theta;
 
-	/*	double old_popsize = model->popsizes[k];
-	double update_k = 10.0e1;
-        double update_theta = old_popsize/update_k;
-        double new_popsize = rand_gamma(update_k, update_theta);*/
-	/*	double new_popsize = old_popsize + frand()*2000.0-1000.0;
-	double ln_accept = 0.0;  //using uniform prior and symmetric proposal distribution
-	if (new_popsize <= 0.0) continue;  //automatic reject*/
-
-	//	double ln_accept = (2.0*update_k-1)*log(old_popsize/new_popsize) - old_popsize*update_k/new_popsize + new_popsize*update_k/old_popsize;
-
-	//        double ln_accept = (model->popsize_prior_alpha-2.0 + 2.0*update_k)*log(new_popsize/old_popsize) - model->popsize_prior_beta*(new_popsize - old_popsize) - new_popsize*update_k/old_popsize + old_popsize*update_k/new_popsize;
 	int numint=0;
 	for (set<int>::iterator it2 = it->pops.begin(); it2 != it->pops.end(); it2++) {
 	    model->popsizes[*it2] = new_popsize;
@@ -66,16 +59,6 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
 	}
 	double new_like = calc_arg_prior(model, trees);
 	double lr = new_like - curr_like;
-	/*        printLog(LOG_LOW, "%f %f popsize=%f,%f lr=%f %f %f curr_like=%f new_like=%f numint=%i\n",
-                ln_accept + new_like - curr_like,
-                exp(ln_accept+new_like - curr_like),
-                old_popsize, new_popsize,
-                new_like - curr_like,
-	       //                (model->popsize_prior_alpha-1)*log(new_popsize/old_popsize) - model->popsize_prior_beta*(new_popsize - old_popsize),
-	       //0.0,
-	       (2.0*update_k-1)*log(new_popsize/old_popsize) - new_popsize*update_k/old_popsize + old_popsize*update_k/new_popsize, 
-	       0.0,
-	       curr_like, new_like, numint);*/
 	double ln_accept = trans_ratio + prior_ratio + lr;
 	double pr_accept = (ln_accept > 0 ? 1.0 : exp(ln_accept));
 	bool accept = (ln_accept > 0 || frand() < pr_accept);
@@ -99,7 +82,8 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
 	}
 	total++;
     }
-    printLog(LOG_LOW, "done resample_popsizes num_accept=%i/%i\n", num_accept, total);
+    printLog(LOG_LOW, "done resample_popsizes num_accept=%i/%i\n", 
+	     num_accept, total);
     for (int i=0; i < model->ntimes; i++) {
 	int found=0;
 	for (list<PopsizeConfigParam>::iterator it=l.begin(); 
@@ -107,12 +91,16 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
 	    if (it->pops.find(i) != it->pops.end()) {
 		found=1;
 		if (it->sample) {
-		    printLog(LOG_LOW, "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%f\t%f\t%s\n", 
+		    printLog(LOG_LOW, 
+			     "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%f\t%f\t%s\n", 
 			     i, num_coal[i], num_nocoal[i], oldn[i], newn[i],
 			     lrs[i], trans[i], prior[i],
 			     accepted[i]==1 ? "accept" : "reject");
 		} else {
-		    printLog(LOG_LOW, "%i\t%.1f\t%.1f\t%f\tnot_sampled\n", i, num_coal[i], num_nocoal[i], model->popsizes[i]);
+		    printLog(LOG_LOW, 
+			     "%i\t%.1f\t%.1f\t%f\tnot_sampled\n", 
+			     i, num_coal[i], num_nocoal[i], 
+			     model->popsizes[i]);
 		}
 	    }
 	}
@@ -121,6 +109,7 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
     free(num_coal);
     free(num_nocoal);
 }
+
 
 void est_popsize_arg(const ArgModel *model, const LocalTrees *trees,
                      double *popsizes)
