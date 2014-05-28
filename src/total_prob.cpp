@@ -241,13 +241,12 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 
     // add to counts of coal/no_coal events, if not null
     if (num_coal != NULL) {
-	if (j == k) num_coal[j]++;
+	if (k == j)
+	    num_coal[j] += 0.5;
 	else {
-	    assert(j > 0);
-	    num_coal[j]+=0.5;
-	    num_coal[j-1]+=0.5;
-	    num_nocoal[j-1]+=0.5;
-	    for (int i=k; i < j-1; i++)
+	    num_coal[j]++;
+	    num_nocoal[k] += 0.5;
+	    for (int i=k+1; i < j; i++)
 		num_nocoal[i]++;
 	}
     }
