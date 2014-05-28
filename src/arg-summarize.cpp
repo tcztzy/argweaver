@@ -968,6 +968,7 @@ int main(int argc, char *argv[]) {
       {"quantile", 1, 0, 'Q'},
       {"tabix-dir", 1, 0, 't'},
       {"no-header",0,0,'n'},
+      {"zero-len",0,0,'Z'},
       {"help", 0, 0, 'h'},
       {0,0,0,0}};
 
