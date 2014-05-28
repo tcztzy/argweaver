@@ -134,7 +134,6 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
     lineages.count(tree);
     int nleaves = tree->get_num_leaves();
     double lnl = 0.0;
-    double times[model->ntimes];
 
     for (int i=0; i<model->ntimes-1; i++) {
         int a = (i == 0 ? nleaves : lineages.nbranches[i-1]);
