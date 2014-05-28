@@ -17,7 +17,7 @@ void calc_coal_rates_partial_tree(const ArgModel *model, const LocalTree *tree,
     coal_rates[-1] = 0.0;
     for (int i=0; i<2*model->ntimes; i++)
         coal_rates[i] = model->coal_time_steps[i] * lineages->nbranches[i/2] /
-            (2.0 * model->popsizes[i/2]);
+            (2.0 * model->popsizes[(i+1)/2]);
 }
 
 
@@ -425,14 +425,15 @@ void calc_recoal_sums(const ArgModel *model, const LineageCounts *lineages,
     double sum = 0.0;
     for (int m=2*k; m<2*j-1; m++) {
         int nbranches_m = nbranches[m/2] - int(m/2<recomb_parent_age);
-        sum += model->coal_time_steps[m] * nbranches_m / (2.0 * model->popsizes[m/2]);
+        sum += (model->coal_time_steps[m] * nbranches_m 
+		/ (2.0 * model->popsizes[(m+1)/2]));
     }
     *sums = sum;
 
     sum = 0.0;
     sums2[2*k] = sum;
     for (int m=2*k; m<2*j-1; m++) {
-        sum += model->coal_time_steps[m] / (2.0 * model->popsizes[m/2]);
+        sum += model->coal_time_steps[m] / (2.0 * model->popsizes[(m+1)/2]);
         sums2[m+1] = sum;
     }
 }
@@ -480,12 +481,11 @@ double calc_recoal(
                 int(j-1 < a);
             if (over)
                 b1 = 1;
-            Z = model->coal_time_steps[2*j-1] *  b1 /
-                (2.0*model->popsizes[j-1]);
+            Z = model->coal_time_steps[2*j-1] *  b1;
         }
 
-        p *= 1.0 - exp(- model->coal_time_steps[2*j] * nbranches_j /
-                       (2.0*model->popsizes[j]) - Z);
+        p *= 1.0 - exp(- (model->coal_time_steps[2*j] * nbranches_j + Z)/
+                       (2.0*model->popsizes[j]));
     }
 
     // asserts
@@ -522,7 +522,7 @@ double calc_recomb_recoal(
     for (int m=2*k; m<2*j-1; m++) {
         int nbranches_m = lineages->nbranches[m/2] - int(m/2<recomb_parent_age)
             + int(m/2 < a);
-        sum += model->coal_time_steps[m] * nbranches_m / (2.0 * model->popsizes[m/2]);
+        sum += model->coal_time_steps[m] * nbranches_m / (2.0 * model->popsizes[(m+1)/2]);
     }
     p *= exp(-sum);
 
@@ -792,16 +792,16 @@ double calc_state_priors(
     // probability of not coalescing before time b
     double sum = 0.0;
     for (int m=2*minage; m<2*b-1; m++)
-        sum += coal_time_steps[m] * nbranches[m/2] / (2.0 * popsizes[m/2]);
+        sum += coal_time_steps[m] * nbranches[m/2] / (2.0 * popsizes[(m+1)/2]);
     double p = exp(-sum) / ncoals[b];
 
     // probability of coalescing in time interval b
     if (b < ntimes - 2) {
         double Z = 0.0;
         if (b>minage)
-            Z = coal_time_steps[2*b-1]*nbranches[b-1]/(2.0*popsizes[b-1]);
-        p *= 1.0 - exp(-coal_time_steps[2*b] * nbranches[b] /
-                       (2.0*popsizes[b]) - Z);
+            Z = coal_time_steps[2*b-1]*nbranches[b-1];
+        p *= 1.0 - exp(- (coal_time_steps[2*b] * nbranches[b] + Z )/
+                       (2.0*popsizes[b]));
     } else {
         // b = ntimes -1, guaranteed coalescence
     }
