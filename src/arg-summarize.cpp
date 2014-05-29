@@ -45,6 +45,7 @@ int header=true;
 char version[10]="0.2";
 vector<string> node_dist_leaf1;
 vector<string> node_dist_leaf2;
+bool use_stdin=false;
 
 int print_help() {
     printf("usage: ./arg-summarize [OPTIONS] <file.bed.gz>\n"
@@ -540,31 +541,37 @@ int summarizeRegionBySnp(char *snpFilename, char *filename,
 			 set<string> inds, vector<string> statname,
 			 vector<double> times) {
   TabixStream *snp_infile;
-  TabixStream *infile;
+  TabixStream *arg_infile=NULL;
   vector<string> token;
   map<int,BedLine*> last_entry;
   map<int,BedLine*>::iterator it;
   char chrom[1000], c;
   int start, end, sample;
   BedLine *l=NULL;
+  FILE *infile;
 
   snp_infile = new TabixStream(snpFilename, region, tabix_dir);
   if (snp_infile->stream == NULL) return 1;
 
-  infile = new TabixStream(filename, region, tabix_dir);
-  if (infile->stream == NULL) return 1;
-  while (EOF != (c=fgetc(infile->stream))) {
-    ungetc(c, infile->stream);
+  if (use_stdin) {
+      infile = stdin;
+  } else {
+      arg_infile = new TabixStream(filename, region, tabix_dir);
+      infile = arg_infile->stream;
+      if (infile == NULL) return 1;
+  }
+  while (EOF != (c=fgetc(infile))) {
+    ungetc(c, infile);
     if (c != '#') break;
-    while ('\n' != (c=fgetc(infile->stream))) {
+    while ('\n' != (c=fgetc(infile))) {
       if (c==EOF) return 0;
     }
   }
   SnpStream snpStream = SnpStream(snp_infile);
-  if (EOF==fscanf(infile->stream, "%s %i %i %i", 
+  if (EOF==fscanf(infile, "%s %i %i %i", 
 		  chrom, &start, &end, &sample)) return 0;
-  assert('\t' == fgetc(infile->stream));
-  char *newick = fgetline(infile->stream);
+  assert('\t' == fgetc(infile));
+  char *newick = fgetline(infile);
   chomp(newick);
   
   while (1) {
@@ -616,12 +623,12 @@ int summarizeRegionBySnp(char *snpFilename, char *filename,
 	snpStream.scoreAlleleAge(l, statname, times);
 	bedlist.push_back(l);
       }
-      if (4 != fscanf(infile->stream, "%s %i %i %i", chrom, &start, &end, &sample))
+      if (4 != fscanf(infile, "%s %i %i %i", chrom, &start, &end, &sample))
 	start = -1;
       else {
-	assert('\t' == fgetc(infile->stream));
+	assert('\t' == fgetc(infile));
 	delete [] newick;
-	newick = fgetline(infile->stream);
+	newick = fgetline(infile);
 	chomp(newick);
       }
     }
@@ -705,7 +712,9 @@ int summarizeRegionBySnp(char *snpFilename, char *filename,
     }
   }
   delete snp_infile;
-  delete infile;
+  if (arg_infile != NULL) {
+      delete arg_infile;
+  } else fclose(infile);
   delete [] newick;
 
   for (map<int,BedLine*>::iterator it=last_entry.begin(); it != last_entry.end(); ++it) {
@@ -720,7 +729,8 @@ int summarizeRegionBySnp(char *snpFilename, char *filename,
 int summarizeRegionNoSnp(char *filename, const char *region, 
 			 set<string> inds, vector<string>statname,
 			 vector<double> times) {
-    TabixStream *infile;
+    TabixStream *arg_infile=NULL;
+    FILE *infile;
     char c;
     char *region_chrom = NULL;
     char chrom[1000];
@@ -772,9 +782,13 @@ int summarizeRegionNoSnp(char *filename, const char *region,
 
      */
 
-
-    infile = new TabixStream(filename, region, tabix_dir);
-    if (infile->stream == NULL) return 1;
+    if (use_stdin) {
+	infile = stdin;
+    } else {
+	arg_infile = new TabixStream(filename, region, tabix_dir);
+	infile = arg_infile->stream;
+	if (infile == NULL) return 1;
+    }
 
     //parse region to get region_chrom, region_start, region_end.
     // these are only needed to truncate results which fall outside
@@ -790,10 +804,10 @@ int summarizeRegionNoSnp(char *filename, const char *region,
         region_start = atoi(token[1].c_str())-1;
         region_end = atoi(token[2].c_str());
     }
-    while (EOF != (c=fgetc(infile->stream))) {
-        ungetc(c, infile->stream);
+    while (EOF != (c=fgetc(infile))) {
+        ungetc(c, infile);
         if (c!='#') break;
-        while ('\n' != (c=fgetc(infile->stream))) {
+        while ('\n' != (c=fgetc(infile))) {
            if (c==EOF) return 0;
         }
     }
@@ -807,11 +821,11 @@ int summarizeRegionNoSnp(char *filename, const char *region,
       }
     }
 
-    while (EOF != fscanf(infile->stream, "%s %i %i %i",
+    while (EOF != fscanf(infile, "%s %i %i %i",
                          chrom, &start, &end, &sample)) {
       //      printf("got line %s %i %i %i\n", chrom, start, end, sample); fflush(stdout);
-      assert('\t'==fgetc(infile->stream));
-      char* newick = fgetline(infile->stream);
+      assert('\t'==fgetc(infile));
+      char* newick = fgetline(infile);
       chomp(newick);
       Tree *orig_tree=NULL, *pruned_tree=NULL;
       //      printf("newick: %s\n", newick);
@@ -888,8 +902,10 @@ int summarizeRegionNoSnp(char *filename, const char *region,
       }
       delete [] newick;
     }
-    infile->close();
-    delete infile;
+    if (arg_infile != NULL) {
+	arg_infile->close();
+	delete arg_infile;
+    } else fclose(infile);
 
     while (bedlineQueue.size() > 0) {
       BedLine *firstline = bedlineQueue.front();
@@ -1100,12 +1116,16 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Error: need to specify snp file with --snp to use --allele-age\n");
       return 1;
   }
-
-  if (optind != argc-1) {
+  if (optind == argc) {
+      if (bedfile != NULL) {
+	  fprintf(stderr, "Error: Cannot use --bedfile with stdin\n");
+	  return 1;
+      }
+      use_stdin = true;
+  } else if (optind != argc-1) {
       fprintf(stderr, "Incorrect number of arguments. Try ./arg-summarize --help\n");
       return 1;
-  }
-  filename = argv[optind];
+  } else filename = argv[optind];
 
   if (timesfile != NULL) {
       FILE *infile = fopen(timesfile, "r");
