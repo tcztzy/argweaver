@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 	//      fprintf(stderr, "read %i times\n", (int)times.size());
     }
     CompressStream instream(argv[optind], "r");
-    fprintf(stderr, "opening %s\n", argv[optind]);
+    //    fprintf(stderr, "opening %s\n", argv[optind]);
     line = fgetline(instream.stream);
     chomp(line);
     if (strncmp(line, "NAMES", 5) != 0) {
