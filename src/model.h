@@ -7,10 +7,13 @@
 
 // c/c++ includes
 #include <math.h>
+#include <set>
+#include <map>
+#include <list>
+#include <algorithm>
 
 // arghmm includes
 #include "track.h"
-
 
 namespace argweaver {
 
@@ -35,6 +38,46 @@ void get_coal_time_steps(const double *times, int ntimes,
 
 
 
+//describe a set of time intervals with a single popsize, and whether
+// they should be sampled
+class PopsizeConfigParam
+{
+ public:
+     PopsizeConfigParam(string name, bool sample=true, int pop=-1) :
+         name(name),
+         sample(sample)
+    {
+	if (pop >= 0) pops.insert(pop);
+    }
+
+    void add_pop(int pop) {
+        pops.insert(pop);
+     }
+
+    string name;
+    set<int> pops;
+    bool sample;  //if false, hold constant to initial value
+};
+
+class PopsizeConfig
+{
+ public:
+    PopsizeConfig() :
+         sample(false),
+	popsize_prior_alpha(1.0),
+        popsize_prior_beta(1.0e-4) {}
+
+    PopsizeConfig(string filename, int ntimes, double *popsizes);
+
+    void addPop(const char *name, int pop, int sample=true);
+
+    bool sample;
+    double popsize_prior_alpha;
+    double popsize_prior_beta;
+    list<PopsizeConfigParam> params;
+};
+
+
 // The model parameters and time discretization scheme
 class ArgModel
 {
@@ -48,7 +91,10 @@ public:
         popsizes(NULL),
         rho(rho),
         mu(mu),
-        infsites_penalty(1.0)
+	infsites_penalty(1.0),
+        unphased(0),
+        sample_phase(0),
+        unphased_file("")
     {}
 
     // Model with constant population sizes and log-spaced time points
@@ -62,7 +108,9 @@ public:
         popsizes(NULL),
         rho(rho),
         mu(mu),
-        infsites_penalty(1.0)
+        infsites_penalty(1.0),
+        unphased(0),
+        sample_phase(0)
     {
         set_log_times(maxtime, ntimes);
         set_popsizes(popsize, ntimes);
@@ -79,7 +127,9 @@ public:
         popsizes(NULL),
         rho(rho),
         mu(mu),
-        infsites_penalty(1.0)
+        infsites_penalty(1.0),
+	unphased(0),
+	sample_phase(0)
     {
         set_log_times(maxtime, ntimes);
         if (_popsizes)
@@ -98,7 +148,9 @@ public:
         popsizes(NULL),
         rho(rho),
         mu(mu),
-        infsites_penalty(1.0)
+        infsites_penalty(1.0),
+        unphased(0),
+	sample_phase(0)
     {
         set_times(_times, ntimes);
         if (_popsizes)
@@ -116,7 +168,11 @@ public:
         popsizes(other.popsizes),
         rho(rho),
         mu(mu),
-        infsites_penalty(other.infsites_penalty)
+	infsites_penalty(other.infsites_penalty),
+        unphased(other.unphased),
+	sample_phase(other.sample_phase),
+        unphased_file(other.unphased_file),
+        popsize_config(other.popsize_config)
     {}
 
 
@@ -129,7 +185,11 @@ public:
         popsizes(NULL),
         rho(other.rho),
         mu(other.mu),
-        infsites_penalty(other.infsites_penalty)
+        infsites_penalty(other.infsites_penalty),
+	unphased(other.unphased),
+        sample_phase(other.sample_phase),
+        unphased_file(other.unphased_file),
+	popsize_config(other.popsize_config)
     {
         copy(other);
     }
@@ -168,6 +228,10 @@ public:
         rho = other.rho;
         mu = other.mu;
         infsites_penalty = other.infsites_penalty;
+        unphased = other.unphased;
+	sample_phase = other.sample_phase;
+	unphased_file = other.unphased_file;
+	popsize_config = other.popsize_config;
 
         // copy popsizes and times
         set_times(other.times, ntimes);
@@ -220,6 +284,27 @@ public:
         setup_time_steps();
     }
 
+    void set_times_from_file(string file) {
+	FILE *infile = fopen(file.c_str(), "r");
+	if (infile == NULL) {
+	    printError("Error reading times file %s\n", file.c_str());
+	    exit(1);
+	}
+	vector<double> tmp;
+	double t;
+	while (EOF != fscanf(infile, "%lf", &t))
+	    tmp.push_back(t);
+	fclose(infile);
+	std::sort(tmp.begin(), tmp.end());
+	ntimes = tmp.size();
+	times = new double [ntimes];
+	for (int i=0; i < ntimes; i++)
+	    times[i] = tmp[i];
+	setup_time_steps();
+    }
+	
+	
+
     // Sets the model population sizes from an array
     void set_popsizes(double *_popsizes, int _ntimes) {
         ntimes = _ntimes;
@@ -270,6 +355,11 @@ public:
         model.time_steps = time_steps;
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
+	model.popsize_config = popsize_config;
+    }
+
+    double get_local_rho(int pos) const {
+	return recombmap.find(pos, rho);
     }
 
     void get_local_model_index(int index, ArgModel &model) const {
@@ -281,6 +371,10 @@ public:
             model.rho = recombmap[index].value;
         }
         model.infsites_penalty = infsites_penalty;
+        model.unphased = unphased;
+	model.sample_phase = sample_phase;
+	model.unphased_file = unphased_file;
+	model.popsize_config = popsize_config;
 
         model.owned = false;
         model.times = times;
@@ -290,7 +384,7 @@ public:
         model.popsizes = popsizes;
     }
 
-
+    void set_popsize_config(string filename);
 
 protected:
 
@@ -322,6 +416,10 @@ public:
     double rho;              // recombination rate (recombs/generation/site)
     double mu;               // mutation rate (mutations/generation/site)
     double infsites_penalty; // penalty for violating infinite sites
+    bool unphased;
+    int sample_phase;
+    string unphased_file;
+    PopsizeConfig popsize_config;
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
 };

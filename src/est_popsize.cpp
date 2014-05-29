@@ -3,16 +3,118 @@
 #include <vector>
 
 #include "est_popsize.h"
-
+#include "total_prob.h"
+#include "logging.h"
+#include "model.h"
 namespace argweaver {
 
 using namespace std;
+
+void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
+    int num_accept=0, total=0;
+    list<PopsizeConfigParam> l = model->popsize_config.params;
+    double *num_coal, *num_nocoal;
+    vector<double> lrs(model->ntimes), trans(model->ntimes), 
+	prior(model->ntimes), oldn(model->ntimes), newn(model->ntimes),
+	praccept(model->ntimes);
+    vector<int> accepted(model->ntimes);
+
+    num_coal = (double*)malloc(model->ntimes*sizeof(double));
+    num_nocoal = (double*)malloc(model->ntimes * sizeof(double));
+
+    double curr_like = calc_arg_prior(model, trees, num_coal, num_nocoal);
+
+    for (list<PopsizeConfigParam>::iterator it=l.begin(); 
+	 it != l.end(); it++) {
+	if (it->sample == false) continue;
+
+	double old_popsize = model->popsizes[*(it->pops.begin())];
+	double s = min(500.0, old_popsize/2.0);
+	s *= s;  //variance of gamma proposal from old_popsize to new_popsize
+	double new_popsize = rand_gamma(old_popsize*old_popsize/s, s/old_popsize);
+	double sp = min(500.0, new_popsize/2.0);
+	sp *= sp;  //variance of proposal from new_popsize to old_popsize
+	double logn = log(old_popsize); //log N
+	double lognp = log(new_popsize); //log N'
+	double nsquare = old_popsize*old_popsize;
+	double npsquare = new_popsize*new_popsize;
+	double trans_ratio = (npsquare/sp - nsquare/s - 1.0)*logn 
+	    + (1.0 - nsquare/s + npsquare/sp)*lognp 
+	    - old_popsize*new_popsize/sp + old_popsize*new_popsize/s
+	    - npsquare/sp*log(sp) + nsquare/s*log(s)
+	    - lgamma(npsquare/sp) + lgamma(nsquare/s);
+
+	// using an uninformative gamma prior which slowly goes to zero as 
+        // you move out to infinity, still allows N to be at least a million 
+        // (maybe this is too big?)
+	// has mean of 200000 (k*theta) and sd of 200000, and is pretty flat 
+        //from 0 to 400k or so
+	double prior_theta = 200000;
+	double prior_ratio = (old_popsize-new_popsize)/prior_theta;
+
+	int numint=0;
+	for (set<int>::iterator it2 = it->pops.begin(); it2 != it->pops.end(); it2++) {
+	    model->popsizes[*it2] = new_popsize;
+	    numint++;
+	}
+	double new_like = calc_arg_prior(model, trees);
+	double lr = new_like - curr_like;
+	double ln_accept = trans_ratio + prior_ratio + lr;
+	double pr_accept = (ln_accept > 0 ? 1.0 : exp(ln_accept));
+	bool accept = (ln_accept > 0 || frand() < pr_accept);
+	for (set<int>::iterator it2=it->pops.begin(); it2 != it->pops.end(); it2++) {
+	    lrs[*it2] = new_like - curr_like;
+	    trans[*it2] = trans_ratio;
+	    prior[*it2] = prior_ratio;
+	    oldn[*it2] = old_popsize;
+	    newn[*it2] = new_popsize;
+	    accepted[*it2] = (accept == true);
+	    praccept[*it2] = pr_accept;
+	}
+
+	if (accept) {
+	    num_accept++;
+	    curr_like = new_like;
+	} else {
+	    for (set<int>::iterator it2 = it->pops.begin(); it2 != it->pops.end(); it2++) {
+		model->popsizes[*it2] = old_popsize;
+	    }
+	}
+	total++;
+    }
+    printLog(LOG_LOW, "done resample_popsizes num_accept=%i/%i\n", 
+	     num_accept, total);
+    for (int i=0; i < model->ntimes; i++) {
+	int found=0;
+	for (list<PopsizeConfigParam>::iterator it=l.begin(); 
+	     it != l.end(); it++) {
+	    if (it->pops.find(i) != it->pops.end()) {
+		found=1;
+		if (it->sample) {
+		    printLog(LOG_LOW, 
+			     "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%f\t%f\t%s\n", 
+			     i, num_coal[i], num_nocoal[i], oldn[i], newn[i],
+			     lrs[i], trans[i], prior[i],
+			     accepted[i]==1 ? "accept" : "reject");
+		} else {
+		    printLog(LOG_LOW, 
+			     "%i\t%.1f\t%.1f\t%f\tnot_sampled\n", 
+			     i, num_coal[i], num_nocoal[i], 
+			     model->popsizes[i]);
+		}
+	    }
+	}
+    }
+    fflush(stdout);
+    free(num_coal);
+    free(num_nocoal);
+}
 
 
 void est_popsize_arg(const ArgModel *model, const LocalTrees *trees,
                      double *popsizes)
 {
-
+    
 }
 
 

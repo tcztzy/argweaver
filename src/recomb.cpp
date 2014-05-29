@@ -47,22 +47,6 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         + int(k == last_state.time)
         - int(k == root_time);
 
-
-
-    // The commented-out section would be correct if we were rounding
-    // recombs to nearest time point in the same way as coals (keep because
-    // hope to make this change eventually)
-    /*double precomb = nbranches_k*model->coal_time_steps[2*k]/nrecombs_k;
-    if (k > 0) {
-        int m=k-1;
-        int nbranches_m = lineages.nbranches[m]
-            + int(m < last_state.time)
-            - int(m < recomb_parent_age);
-        int nrecombs_m = lineages.nrecombs[m]
-            + int(m <= last_state.time)
-            + int(m == last_state.time);
-        precomb += nbranches_m*model->coal_time_steps[2*k-1]/nrecombs_m;
-    }*/
     double precomb = nbranches_k * model->time_steps[k] / nrecombs_k;
 
     // probability of not coalescing before time j-1
@@ -71,9 +55,12 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         int nbranches_m = lineages.nbranches[m]
             + int(m < last_state.time)
             - int(m < recomb_parent_age);
-        sum += (model->time_steps[m] * nbranches_m
-                / (2.0 * model->popsizes[m]));
+	sum += (model->coal_time_steps[2*m] * nbranches_m
+		/ (2.0 * model->popsizes[m]));
+	sum += (model->coal_time_steps[2*m+1] * nbranches_m
+		/ (2.0 * model->popsizes[m + 1]));
     }
+
 
     // probability of coalescing at time j
     double pcoal = 1.0;
@@ -84,7 +71,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     if (k == j) {
         // in this case coalesce event must happen between time
         // j,j+1/2 (coal_time_step[2j])
-        // NOTE: if k == ntimes - 2, coalescence is probability 1.0
+        // NOTE: if j == ntimes - 2, coalescence is probability 1.0
         if (j < model->ntimes - 2) {
             pcoal = 1.0 - exp(-model->coal_time_steps[2*j] * nbranches_j
                               / (2.0 * model->popsizes[j]));
@@ -103,8 +90,8 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         if (j < model->ntimes - 2) {
             pcoal = 1.0 - exp(
                 -model->coal_time_steps[2*j-1] * nbranches_m
-                / (2.0 * model->popsizes[m])
-                - model->coal_time_steps[2*j] * nbranches_j
+                / (2.0 * model->popsizes[j])
+		- model->coal_time_steps[2*j] * nbranches_j
                 / (2.0 * model->popsizes[j]));
         }
     }

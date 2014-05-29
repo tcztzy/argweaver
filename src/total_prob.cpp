@@ -135,27 +135,12 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
     int nleaves = tree->get_num_leaves();
     double lnl = 0.0;
 
-    // get effective population sizes
-    // uses harmonic mean to combine time steps
-    double times[model->ntimes];
-    double popsizes[model->ntimes];
-    times[0] = model->coal_time_steps[0];
-    popsizes[0] = model->popsizes[0];
-
-    for (int i=1; i<model->ntimes-1; i++) {
-        double t1 = model->coal_time_steps[2*i-1];
-        double t2 = model->coal_time_steps[2*i];
-        double n1 = model->popsizes[i-1];
-        double n2 = model->popsizes[i];
-
-        times[i] = t1 + t2;
-        popsizes[i] = (t1 + t2) / (t1/n1 + t2/n2);
-    }
-
     for (int i=0; i<model->ntimes-1; i++) {
         int a = (i == 0 ? nleaves : lineages.nbranches[i-1]);
         int b = lineages.nbranches[i];
-        lnl += log(prob_coal_counts(a, b, times[i], 2.0*popsizes[i]));
+	double t = model->coal_time_steps[2*i];
+	if (i > 0) t += model->coal_time_steps[2*i-1];
+        lnl += log(prob_coal_counts(a, b, t, 2.0 * model->popsizes[i]));
     }
 
     // TODO: top prior
@@ -201,14 +186,17 @@ void calc_coal_rates_full_tree(const ArgModel *model, const LocalTree *tree,
     for (int i=0; i<2*model->ntimes; i++) {
         int nbranches = lineages.nbranches[i/2] - int(i/2 < broken_age);
         coal_rates[i] = model->coal_time_steps[i] * nbranches /
-            (2.0 * model->popsizes[i/2]);
+            (2.0 * model->popsizes[(i+1)/2]);
+	if (coal_rates[i] < 0) {
+	    assert(0);
+	}
     }
 }
 
 
 double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
                      const Spr &spr, LineageCounts &lineages,
-                     double treelen)
+                     double treelen, double *num_coal, double *num_nocoal)
 {
     assert(spr.recomb_node != tree->root);
     const LocalNode *nodes = tree->nodes;
@@ -223,10 +211,9 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
     lineages.count(tree);
     lineages.nrecombs[root_age]--;
 
-
     double lnl = 0.0;
 
-    // probability of recombination location in tree
+    // probability of recombination location in tree (from eq 5)
     int k = spr.recomb_time;
     lnl += log(lineages.nbranches[k] * model->time_steps[k] /
                (lineages.nrecombs[k] * treelen_b));
@@ -237,12 +224,13 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
     int j = spr.coal_time;
     int broken_age = nodes[nodes[spr.recomb_node].parent].age;
 
-    // probability of recoalescence on choosen branch
+    // probability of recoalescence on chosen branch
     int ncoals_j = lineages.ncoals[j]
         - int(j <= broken_age) - int(j == broken_age);
     lnl -= log(ncoals_j);
 
-    // probability of recoalescing in choosen time interval
+
+    // probability of recoalescing in chosen time interval
     if (j < model->ntimes - 2)
         lnl += log(1.0 - exp(- coal_rates[2*j] -
                              (j>k ? coal_rates[2*j-1] : 0.0)));
@@ -251,6 +239,17 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
     for (int m=2*k; m<2*j-1; m++)
         lnl -= coal_rates[m];
 
+    // add to counts of coal/no_coal events, if not null
+    if (num_coal != NULL) {
+	if (k == j)
+	    num_coal[j] += 0.5;
+	else {
+	    num_coal[j]++;
+	    num_nocoal[k] += 0.5;
+	    for (int i=k+1; i < j; i++)
+		num_nocoal[i]++;
+	}
+    }
     assert(!isinf(lnl));
     return lnl;
 }
@@ -258,13 +257,21 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 
 
 // calculate the probability of an ARG given the model parameters
-double calc_arg_prior(const ArgModel *model, const LocalTrees *trees)
+double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
+		      double *num_coal, double *num_nocoal)
 {
     double lnl = 0.0;
     LineageCounts lineages(model->ntimes);
 
+    if (num_coal != NULL) {
+	assert(num_nocoal != NULL);
+	for (int i=0; i < model->ntimes; i++)
+	    num_coal[i] = num_nocoal[i] = 0;
+    }
+
     // first tree prior
-    //lnl += calc_tree_prior(model, trees->front().tree, lineages);
+    lnl += calc_tree_prior(model, trees->front().tree, lineages);
+    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
@@ -274,7 +281,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees)
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
 
         // calculate probability P(blocklen | T_{i-1})
-        double recomb_rate = max(model->rho * treelen, model->rho);
+        double recomb_rate = max(model->get_local_rho(trees->start_coord) * treelen, model->rho);
 
         if (end < trees->end_coord) {
             // not last block
@@ -284,7 +291,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees)
             // get SPR move information
             ++it;
             const Spr *spr = &it->spr;
-            lnl += calc_spr_prob(model, tree, *spr, lineages, treelen);
+            lnl += calc_spr_prob(model, tree, *spr, lineages, treelen,
+				 num_coal, num_nocoal);
 
         } else {
             // last block
@@ -303,7 +311,7 @@ double calc_arg_joint_prob(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees)
 {
     return calc_arg_likelihood(model, sequences, trees) +
-        calc_arg_prior(model, trees);
+        calc_arg_prior(model, trees, NULL, NULL);
 }
 
 
@@ -347,7 +355,7 @@ double arghmm_prior_prob(LocalTrees *trees,
 {
     // setup model, local trees, sequences
     ArgModel model(ntimes, times, popsizes, rho, 0.0);
-    return calc_arg_prior(&model, trees);
+    return calc_arg_prior(&model, trees, NULL, NULL);
 }
 
 

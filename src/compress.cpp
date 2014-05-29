@@ -5,7 +5,6 @@
 #include "compress.h"
 #include "parsing.h"
 
-
 namespace argweaver {
 
 using namespace std;
@@ -25,7 +24,7 @@ FILE *write_compress(const char *filename, const char *command)
 {
     // TODO: add check to prevent write error
     const char *command2 = (command ? command : ZIP_COMMAND);
-    string cmd = string(command2) + " > " + quote_arg(filename);
+    string cmd = string(command2) + " > " + string(quote_arg(filename));
     return popen(cmd.c_str(), "w");
 }
 
@@ -35,10 +34,9 @@ FILE *open_compress(const char *filename, const char *mode,
 {
     string cmd;
     if (mode[0] == 'w')
-        cmd = string(command) + " > " + quote_arg(filename);
+        cmd = string(command) + " > " + string(quote_arg(filename));
     else if (mode[0] == 'r')
-        cmd = string(command) + " < " + quote_arg(filename);
-
+        cmd = string(command) + " < " + string(quote_arg(filename));
     return popen(cmd.c_str(), mode);
 }
 
