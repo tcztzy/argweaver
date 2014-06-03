@@ -43,16 +43,16 @@ void get_coal_time_steps(const double *times, int ntimes,
 class PopsizeConfigParam
 {
  public:
-     PopsizeConfigParam(string name, bool sample=true, int pop=-1) :
-         name(name),
-         sample(sample)
-    {
-	if (pop >= 0) pops.insert(pop);
-    }
+ PopsizeConfigParam(string name, bool sample=true, int pop=-1) :
+    name(name),
+    sample(sample)
+        {
+            if (pop >= 0) pops.insert(pop);
+        }
 
     void add_pop(int pop) {
         pops.insert(pop);
-     }
+    }
 
     string name;
     set<int> pops;
@@ -62,10 +62,12 @@ class PopsizeConfigParam
 class PopsizeConfig
 {
  public:
-    PopsizeConfig() :
-         sample(false),
-	popsize_prior_alpha(1.0),
-        popsize_prior_beta(1.0e-4) {}
+ PopsizeConfig() :
+    sample(false),
+    popsize_prior_alpha(1.0),
+    popsize_prior_beta(1.0e-4),
+    numsample(1)
+  {}
 
     PopsizeConfig(string filename, int ntimes, double *popsizes);
 
@@ -74,6 +76,7 @@ class PopsizeConfig
     bool sample;
     double popsize_prior_alpha;
     double popsize_prior_beta;
+    int numsample;  //number of times to do the sampling per threading operation
     list<PopsizeConfigParam> params;
 };
 
@@ -81,118 +84,118 @@ class PopsizeConfig
 // The model parameters and time discretization scheme
 class ArgModel
 {
-public:
-    ArgModel(int ntimes=0, double rho=0, double mu=0) :
-        owned(true),
-        ntimes(ntimes),
-        times(NULL),
-        time_steps(NULL),
-        coal_time_steps(NULL),
-        popsizes(NULL),
-        rho(rho),
-        mu(mu),
-	infsites_penalty(1.0),
-        unphased(0),
-        sample_phase(0),
-        unphased_file("")
-    {}
+ public:
+ ArgModel(int ntimes=0, double rho=0, double mu=0) :
+    owned(true),
+    ntimes(ntimes),
+    times(NULL),
+    time_steps(NULL),
+    coal_time_steps(NULL),
+    popsizes(NULL),
+    rho(rho),
+    mu(mu),
+    infsites_penalty(1.0),
+    unphased(0),
+    sample_phase(0),
+    unphased_file("")
+        {}
 
     // Model with constant population sizes and log-spaced time points
-    ArgModel(int ntimes, double maxtime, double popsize,
-             double rho, double mu) :
-        owned(true),
-        ntimes(ntimes),
-        times(NULL),
-        time_steps(NULL),
-        coal_time_steps(NULL),
-        popsizes(NULL),
-        rho(rho),
-        mu(mu),
-        infsites_penalty(1.0),
-        unphased(0),
-        sample_phase(0)
-    {
-        set_log_times(maxtime, ntimes);
-        set_popsizes(popsize, ntimes);
-    }
+ ArgModel(int ntimes, double maxtime, double popsize,
+          double rho, double mu) :
+    owned(true),
+    ntimes(ntimes),
+    times(NULL),
+    time_steps(NULL),
+    coal_time_steps(NULL),
+    popsizes(NULL),
+    rho(rho),
+    mu(mu),
+    infsites_penalty(1.0),
+    unphased(0),
+    sample_phase(0)
+        {
+            set_log_times(maxtime, ntimes);
+            set_popsizes(popsize, ntimes);
+        }
 
     // Model with variable population sizes and log-space time points
-    ArgModel(int ntimes, double maxtime, double *_popsizes,
-             double rho, double mu) :
-        owned(true),
-        ntimes(ntimes),
-        times(NULL),
-        time_steps(NULL),
-        coal_time_steps(NULL),
-        popsizes(NULL),
-        rho(rho),
-        mu(mu),
-        infsites_penalty(1.0),
-	unphased(0),
-	sample_phase(0)
-    {
-        set_log_times(maxtime, ntimes);
-        if (_popsizes)
-            set_popsizes(_popsizes, ntimes);
-    }
+ ArgModel(int ntimes, double maxtime, double *_popsizes,
+          double rho, double mu) :
+    owned(true),
+    ntimes(ntimes),
+    times(NULL),
+    time_steps(NULL),
+    coal_time_steps(NULL),
+    popsizes(NULL),
+    rho(rho),
+    mu(mu),
+    infsites_penalty(1.0),
+    unphased(0),
+    sample_phase(0)
+        {
+            set_log_times(maxtime, ntimes);
+            if (_popsizes)
+                set_popsizes(_popsizes, ntimes);
+        }
 
 
     // Model with custom time points and variable population sizes
-    ArgModel(int ntimes, double *_times, double *_popsizes,
-             double rho, double mu) :
-        owned(true),
-        ntimes(ntimes),
-        times(NULL),
-        time_steps(NULL),
-        coal_time_steps(NULL),
-        popsizes(NULL),
-        rho(rho),
-        mu(mu),
-        infsites_penalty(1.0),
-        unphased(0),
-	sample_phase(0)
-    {
-        set_times(_times, ntimes);
-        if (_popsizes)
-            set_popsizes(_popsizes, ntimes);
-    }
+ ArgModel(int ntimes, double *_times, double *_popsizes,
+          double rho, double mu) :
+    owned(true),
+    ntimes(ntimes),
+    times(NULL),
+    time_steps(NULL),
+    coal_time_steps(NULL),
+    popsizes(NULL),
+    rho(rho),
+    mu(mu),
+    infsites_penalty(1.0),
+    unphased(0),
+    sample_phase(0)
+        {
+            set_times(_times, ntimes);
+            if (_popsizes)
+                set_popsizes(_popsizes, ntimes);
+        }
 
 
     // share data reference
-    ArgModel(const ArgModel &other, double rho, double mu) :
-        owned(false),
-        ntimes(other.ntimes),
-        times(other.times),
-        time_steps(other.time_steps),
-        coal_time_steps(other.coal_time_steps),
-        popsizes(other.popsizes),
-        rho(rho),
-        mu(mu),
-	infsites_penalty(other.infsites_penalty),
-        unphased(other.unphased),
-	sample_phase(other.sample_phase),
-        unphased_file(other.unphased_file),
-        popsize_config(other.popsize_config)
-    {}
+ ArgModel(const ArgModel &other, double rho, double mu) :
+    owned(false),
+    ntimes(other.ntimes),
+    times(other.times),
+    time_steps(other.time_steps),
+    coal_time_steps(other.coal_time_steps),
+    popsizes(other.popsizes),
+    rho(rho),
+    mu(mu),
+    infsites_penalty(other.infsites_penalty),
+    unphased(other.unphased),
+    sample_phase(other.sample_phase),
+    unphased_file(other.unphased_file),
+    popsize_config(other.popsize_config)
+        {}
 
 
     // Copy constructor
-    ArgModel(const ArgModel &other) :
-        ntimes(other.ntimes),
-        times(NULL),
-        time_steps(NULL),
-        coal_time_steps(NULL),
-        popsizes(NULL),
-        rho(other.rho),
-        mu(other.mu),
-        infsites_penalty(other.infsites_penalty),
-	unphased(other.unphased),
-        sample_phase(other.sample_phase),
-        unphased_file(other.unphased_file),
-	popsize_config(other.popsize_config)
-    {
+ ArgModel(const ArgModel &other) :
+    ntimes(other.ntimes),
+    times(NULL),
+    time_steps(NULL),
+    coal_time_steps(NULL),
+    popsizes(NULL),
+    rho(other.rho),
+    mu(other.mu),
+    infsites_penalty(other.infsites_penalty),
+    unphased(other.unphased),
+    sample_phase(other.sample_phase),
+    unphased_file(other.unphased_file),
+    popsize_config(other.popsize_config)
+        {
         copy(other);
-    }
+        }
 
 
     ~ArgModel()
@@ -212,7 +215,7 @@ public:
         }
     }
 
-protected:
+ protected:
     void clear_array(double **array) {
         if (owned && *array)
             delete [] *array;
@@ -220,7 +223,7 @@ protected:
     }
 
 
-public:
+ public:
     // Copy parameters from another model
     void copy(const ArgModel &other)
     {
@@ -229,9 +232,9 @@ public:
         mu = other.mu;
         infsites_penalty = other.infsites_penalty;
         unphased = other.unphased;
-	sample_phase = other.sample_phase;
-	unphased_file = other.unphased_file;
-	popsize_config = other.popsize_config;
+        sample_phase = other.sample_phase;
+        unphased_file = other.unphased_file;
+        popsize_config = other.popsize_config;
 
         // copy popsizes and times
         set_times(other.times, ntimes);
@@ -285,25 +288,25 @@ public:
     }
 
     void set_times_from_file(string file) {
-	FILE *infile = fopen(file.c_str(), "r");
-	if (infile == NULL) {
-	    printError("Error reading times file %s\n", file.c_str());
-	    exit(1);
-	}
-	vector<double> tmp;
-	double t;
-	while (EOF != fscanf(infile, "%lf", &t))
-	    tmp.push_back(t);
-	fclose(infile);
-	std::sort(tmp.begin(), tmp.end());
-	ntimes = tmp.size();
-	times = new double [ntimes];
-	for (int i=0; i < ntimes; i++)
-	    times[i] = tmp[i];
-	setup_time_steps();
+        FILE *infile = fopen(file.c_str(), "r");
+        if (infile == NULL) {
+            printError("Error reading times file %s\n", file.c_str());
+            exit(1);
+        }
+        vector<double> tmp;
+        double t;
+        while (EOF != fscanf(infile, "%lf", &t))
+            tmp.push_back(t);
+        fclose(infile);
+        std::sort(tmp.begin(), tmp.end());
+        ntimes = tmp.size();
+        times = new double [ntimes];
+        for (int i=0; i < ntimes; i++)
+            times[i] = tmp[i];
+        setup_time_steps();
     }
-	
-	
+
+
 
     // Sets the model population sizes from an array
     void set_popsizes(double *_popsizes, int _ntimes) {
@@ -355,11 +358,11 @@ public:
         model.time_steps = time_steps;
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
-	model.popsize_config = popsize_config;
+        model.popsize_config = popsize_config;
     }
 
     double get_local_rho(int pos) const {
-	return recombmap.find(pos, rho);
+        return recombmap.find(pos, rho);
     }
 
     void get_local_model_index(int index, ArgModel &model) const {
@@ -372,9 +375,9 @@ public:
         }
         model.infsites_penalty = infsites_penalty;
         model.unphased = unphased;
-	model.sample_phase = sample_phase;
-	model.unphased_file = unphased_file;
-	model.popsize_config = popsize_config;
+        model.sample_phase = sample_phase;
+        model.unphased_file = unphased_file;
+        model.popsize_config = popsize_config;
 
         model.owned = false;
         model.times = times;
@@ -386,7 +389,7 @@ public:
 
     void set_popsize_config(string filename);
 
-protected:
+ protected:
 
     // Setup time steps between time points
     void setup_time_steps()
@@ -402,7 +405,7 @@ protected:
         get_coal_time_steps(times, ntimes, coal_time_steps);
     }
 
-public:
+ public:
     bool owned; // if true, this object owns the array pointers
 
     // time points (presented in generations)

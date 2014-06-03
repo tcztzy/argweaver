@@ -64,14 +64,14 @@ public:
         config.clear();
 
         // input/output
-	config.add(new ConfigParam<string>
-		   ("-s", "--sites", "<sites alignment>", &sites_file,
-		    "sequence alignment in sites format"));
-	config.add(new ConfigParam<string>
-		   ("-f", "--fasta", "<fasta alignment>", &fasta_file,
-		    "sequence alignment in FASTA format"));
-	config.add(new ConfigParam<string>
-		   ("-o", "--output", "<output prefix>", &out_prefix,
+        config.add(new ConfigParam<string>
+                   ("-s", "--sites", "<sites alignment>", &sites_file,
+                    "sequence alignment in sites format"));
+        config.add(new ConfigParam<string>
+                   ("-f", "--fasta", "<fasta alignment>", &fasta_file,
+                    "sequence alignment in FASTA format"));
+        config.add(new ConfigParam<string>
+                   ("-o", "--output", "<output prefix>", &out_prefix,
                     "arg-sample",
                     "prefix for all output filenames (default='arg-sample')"));
         config.add(new ConfigParam<string>
@@ -81,32 +81,36 @@ public:
                    ("", "--region", "<start>-<end>",
                     &subregion_str, "",
                     "sample ARG for only a region of the sites (optional)"));
-	config.add(new ConfigParam<string>
-		   ("", "--maskmap", "<sites mask>",
+        config.add(new ConfigParam<string>
+                   ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
                     "mask map file (optional)"));
 
         // model parameters
-	config.add(new ConfigParamComment("Model parameters"));
-	config.add(new ConfigParam<double>
-		   ("-N", "--popsize", "<population size>", &popsize, 1e4,
+        config.add(new ConfigParamComment("Model parameters"));
+        config.add(new ConfigParam<double>
+                   ("-N", "--popsize", "<population size>", &popsize, 1e4,
                     "effective population size (default=1e4)"));
-	config.add(new ConfigSwitch
-		   ("", "--sample-popsize", &sample_popsize, "sample population size for each time interval using Metropolis-Hastings update"));
-	config.add(new ConfigParam<string>
-		   ("", "--sample-popsize-config", "<popsize config file>", &popsize_config_file, "",
-		    "optional, for use with --sample-popsize: should have a line for each time interval, starting with the most recent. Each line can have up to three tab-separated columns, but only the first is required. The first column gives the name of the popsize parameter- any time intervals with the same entry here will be constrained to have the same popsize. The second line is the initial value for the parameter, and the third should be a 1 or 0 indicating whether to sample that parameter. The second and third columns are optional; by default all parameters will be sampled when --sample-popsize is used. For rows with the same value in the first column, the second and third columns should also be the same."));
-	config.add(new ConfigParam<double>
-		   ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
+        config.add(new ConfigSwitch
+                   ("", "--sample-popsize", &sample_popsize, "sample population size for each time interval using Metropolis-Hastings update"));
+        config.add(new ConfigParam<string>
+                   ("", "--sample-popsize-config", "<popsize config file>", &popsize_config_file, "",
+                    "optional, for use with --sample-popsize: should have a line for each time interval, starting with the most recent. Each line can have up to three tab-separated columns, but only the first is required. The first column gives the name of the popsize parameter- any time intervals with the same entry here will be constrained to have the same popsize. The second line is the initial value for the parameter, and the third should be a 1 or 0 indicating whether to sample that parameter. The second and third columns are optional; by default all parameters will be sampled when --sample-popsize is used. For rows with the same value in the first column, the second and third columns should also be the same."));
+        config.add(new ConfigParam<int>
+                   ("", "--sample-popsize-num", "<num>", &sample_popsize_num, 1,
+                    "number of times to sample popsize per threading operation (default=1)",
+                    DEBUG_OPT));
+        config.add(new ConfigParam<double>
+                   ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
                     "mutations per site per generation (default=2.5e-8)"));
-	config.add(new ConfigParam<double>
-		   ("-r", "--recombrate", "<recombination rate>", &rho, 1.5e-8,
+        config.add(new ConfigParam<double>
+                   ("-r", "--recombrate", "<recombination rate>", &rho, 1.5e-8,
                     "recombination per site per generation (default=1.5e-8)"));
-	config.add(new ConfigParam<int>
-		   ("-t", "--ntimes", "<ntimes>", &ntimes, 20,
+        config.add(new ConfigParam<int>
+                   ("-t", "--ntimes", "<ntimes>", &ntimes, 20,
                     "number of time points (default=20)"));
-	config.add(new ConfigParam<double>
-		   ("", "--maxtime", "<maxtime>", &maxtime, 200e3,
+        config.add(new ConfigParam<double>
+                   ("", "--maxtime", "<maxtime>", &maxtime, 200e3,
                     "maximum time point in generations (default=200e3)"));
         config.add(new ConfigParam<double>
                    ("", "--time-step", "<time>", &time_step, 0,
@@ -114,43 +118,43 @@ public:
         config.add(new ConfigParam<string>
                    ("", "--times-file", "<times filename>", &times_file, "",
                     "file containing time points (optional)"));
-	config.add(new ConfigParam<string>
-		   ("-M", "--mutmap", "<mutation rate map file>", &mutmap, "",
+        config.add(new ConfigParam<string>
+                   ("-M", "--mutmap", "<mutation rate map file>", &mutmap, "",
                     "mutation map file (optional)"));
-	config.add(new ConfigParam<string>
-		   ("-R", "--recombmap", "<recombination rate map file>",
+        config.add(new ConfigParam<string>
+                   ("-R", "--recombmap", "<recombination rate map file>",
                     &recombmap, "",
                     "recombination map file (optional)"));
 
         // sampling
-	config.add(new ConfigParamComment("Sampling"));
-	config.add(new ConfigParam<int>
-		   ("-n", "--iters", "<# of iterations>", &niters, 1000,
+        config.add(new ConfigParamComment("Sampling"));
+        config.add(new ConfigParam<int>
+                   ("-n", "--iters", "<# of iterations>", &niters, 1000,
                     "(default=1000)"));
         config.add(new ConfigParam<string>
                    ("", "--resample-region", "<start>-<end>",
                     &resample_region_str, "",
                     "region to resample of input ARG (optional)"));
         config.add(new ConfigSwitch
-		   ("", "--resume", &resume, "resume a previous run"));
+                   ("", "--resume", &resume, "resume a previous run"));
         config.add(new ConfigSwitch
-		   ("", "--overwrite", &overwrite,
+                   ("", "--overwrite", &overwrite,
                     "force an overwrite of a previous run"));
 
         // misc
-	config.add(new ConfigParamComment("Miscellaneous"));
- 	config.add(new ConfigParam<int>
-		   ("-c", "--compress-seq", "<compression factor>",
+        config.add(new ConfigParamComment("Miscellaneous"));
+        config.add(new ConfigParam<int>
+                   ("-c", "--compress-seq", "<compression factor>",
                     &compress_seq, 1,
                     "alignment compression factor (default=1)"));
-	config.add(new ConfigParam<int>
-		   ("", "--climb", "<# of climb iterations>", &nclimb, 0,
+        config.add(new ConfigParam<int>
+                   ("", "--climb", "<# of climb iterations>", &nclimb, 0,
                     "(default=0)"));
         config.add(new ConfigParam<int>
-		   ("", "--sample-step", "<sample step size>", &sample_step,
+                   ("", "--sample-step", "<sample step size>", &sample_step,
                     10, "number of iterations between steps (default=10)"));
- 	config.add(new ConfigSwitch
-		   ("", "--no-compress-output", &no_compress_output,
+        config.add(new ConfigSwitch
+                   ("", "--no-compress-output", &no_compress_output,
                     "do not use compressed output"));
         config.add(new ConfigParam<int>
                    ("-x", "--randseed", "<random seed>", &randseed, 0,
@@ -159,7 +163,7 @@ public:
         // advance options
         config.add(new ConfigParamComment("Advanced Options", DEBUG_OPT));
         config.add(new ConfigSwitch
-		   ("", "--gibbs", &gibbs,
+                   ("", "--gibbs", &gibbs,
                     "use Gibbs sampling"));
         config.add(new ConfigParam<double>
                    ("", "--prob-path-switch", "<probability>",
@@ -169,18 +173,18 @@ public:
                    ("", "--infsites", &infsites,
                     "assume infinite sites model (at most one mutation per site)",
                     DEBUG_OPT));
-	config.add(new ConfigSwitch
-		   ("", "--unphased", &unphased,
-		    "data is unphased (will integrate over phasings). Note: Experimental!", DEBUG_OPT));
-	config.add(new ConfigParam<string>
-		   ("", "--unphased-file", "<filename>", &unphased_file, "",
-		    "use this file to identify haplotype pairs (file should have two sequence names per line)", DEBUG_OPT));
-	config.add(new ConfigParam<double>
-		   ("", "--randomize-phase", "<frac_random>", &randomize_phase, 0.0,
-		    "randomize phasings at start (requires --unphased)", DEBUG_OPT));
-	config.add(new ConfigParam<int>
-		   ("", "--sample-phase", "<niters>", &sample_phase, 0,
-		    "output phasings every <niters> samples", DEBUG_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--unphased", &unphased,
+                    "data is unphased (will integrate over phasings). Note: Experimental!", DEBUG_OPT));
+        config.add(new ConfigParam<string>
+                   ("", "--unphased-file", "<filename>", &unphased_file, "",
+                    "use this file to identify haplotype pairs (file should have two sequence names per line)", DEBUG_OPT));
+        config.add(new ConfigParam<double>
+                   ("", "--randomize-phase", "<frac_random>", &randomize_phase, 0.0,
+                    "randomize phasings at start (requires --unphased)", DEBUG_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--sample-phase", "<niters>", &sample_phase, 0,
+                    "output phasings every <niters> samples", DEBUG_OPT));
 
         config.add(new ConfigParam<int>
                    ("", "--resample-window", "<window size>",
@@ -193,18 +197,18 @@ public:
 
 
         // help information
-	config.add(new ConfigParamComment("Information"));
-	config.add(new ConfigParam<int>
-		   ("-V", "--verbose", "<verbosity level>",
-		    &verbose, LOG_LOW,
-		    "verbosity level 0=quiet, 1=low, 2=medium, 3=high"));
-	config.add(new ConfigSwitch
-		   ("-q", "--quiet", &quiet, "suppress logging to stderr"));
-	config.add(new ConfigSwitch
-		   ("-v", "--version", &version, "display version information"));
-	config.add(new ConfigSwitch
-		   ("-h", "--help", &help,
-		    "display help information"));
+        config.add(new ConfigParamComment("Information"));
+        config.add(new ConfigParam<int>
+                   ("-V", "--verbose", "<verbosity level>",
+                    &verbose, LOG_LOW,
+                    "verbosity level 0=quiet, 1=low, 2=medium, 3=high"));
+        config.add(new ConfigSwitch
+                   ("-q", "--quiet", &quiet, "suppress logging to stderr"));
+        config.add(new ConfigSwitch
+                   ("-v", "--version", &version, "display version information"));
+        config.add(new ConfigSwitch
+                   ("-h", "--help", &help,
+                    "display help information"));
         config.add(new ConfigSwitch
                    ("", "--help-advanced", &help_debug,
                     "display help information about advanced options"));
@@ -212,18 +216,18 @@ public:
 
     int parse_args(int argc, char **argv)
     {
-	// parse arguments
-	if (!config.parse(argc, (const char**) argv)) {
-	    if (argc < 2)
-		config.printHelp();
-	    return EXIT_ERROR;
-	}
+        // parse arguments
+        if (!config.parse(argc, (const char**) argv)) {
+            if (argc < 2)
+                config.printHelp();
+            return EXIT_ERROR;
+        }
 
-	// display help
-	if (help) {
-	    config.printHelp();
-	    return EXIT_ERROR;
-	}
+        // display help
+        if (help) {
+            config.printHelp();
+            return EXIT_ERROR;
+        }
 
         // display debug help
         if (help_debug) {
@@ -231,13 +235,13 @@ public:
             return EXIT_ERROR;
         }
 
-	// display version info
-	if (version) {
-	    printf(VERSION_INFO);
-	    return EXIT_ERROR;
-	}
+        // display version info
+        if (version) {
+            printf(VERSION_INFO);
+            return EXIT_ERROR;
+        }
 
-	return 0;
+        return 0;
     }
 
     ConfigParser config;
@@ -263,6 +267,7 @@ public:
     ArgModel model;
     bool sample_popsize;
     string popsize_config_file;
+    int sample_popsize_num;
 
     // search
     int nclimb;
@@ -415,15 +420,15 @@ template<class T>
 void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
 {
     if (sites_mapping) {
-	int prev_start_orig = 0, prev_start_new = 0;
+        int prev_start_orig = 0, prev_start_new = 0;
         for (unsigned int i=0; i<track.size(); i++) {
-	    if (track[i].start < prev_start_orig)
-		prev_start_new = 0;
-	    prev_start_orig = track[i].start;
+            if (track[i].start < prev_start_orig)
+                prev_start_new = 0;
+            prev_start_orig = track[i].start;
             track[i].start = sites_mapping->compress(track[i].start, prev_start_new);
-	    prev_start_new = track[i].start;
+            prev_start_new = track[i].start;
             track[i].end = sites_mapping->compress(track[i].end, track[i].start);
-	}
+        }
     }
 }
 
@@ -447,14 +452,14 @@ void compress_model(ArgModel *model, SitesMapping *sites_mapping,
 void print_stats_header(Config *config) {
     fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\trecombs\tnoncompats\targlen");
     if (config->model.popsize_config.sample) {
-	list<PopsizeConfigParam> l = config->model.popsize_config.params;
-	for (list<PopsizeConfigParam>::iterator it=l.begin(); 
-	     it != l.end(); ++it) {
-	    fprintf(config->stats_file, "\t%s", it->name.c_str());
-	}
+        list<PopsizeConfigParam> l = config->model.popsize_config.params;
+        for (list<PopsizeConfigParam>::iterator it=l.begin();
+             it != l.end(); ++it) {
+            fprintf(config->stats_file, "\t%s", it->name.c_str());
+        }
     }
     fprintf(config->stats_file, "\n");
- }
+}
 
 
 void print_stats(FILE *stats_file, const char *stage, int iter,
@@ -496,19 +501,19 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
     if (model->popsize_config.sample) {
-	list<PopsizeConfigParam> l=model->popsize_config.params;
-	for (list<PopsizeConfigParam>::iterator it=l.begin();
-	     it != l.end(); ++it) {
-	    set<int>::iterator it2 = it->pops.begin();
-	    int val = *it2;
-	    fprintf(stats_file, "\t%f", model->popsizes[val]);
-	    it2++;
-	    //just checking here; can delete later
-	    while (it2 != it->pops.end()) {
-		assert(model->popsizes[*it2] == model->popsizes[*it2]);
-		it2++;
-	    }
-	}
+        list<PopsizeConfigParam> l=model->popsize_config.params;
+        for (list<PopsizeConfigParam>::iterator it=l.begin();
+             it != l.end(); ++it) {
+            set<int>::iterator it2 = it->pops.begin();
+            int val = *it2;
+            fprintf(stats_file, "\t%f", model->popsizes[val]);
+            it2++;
+            //just checking here; can delete later
+            while (it2 != it->pops.end()) {
+                assert(model->popsizes[*it2] == model->popsizes[*it2]);
+                it2++;
+            }
+        }
     }
     fprintf(stats_file, "\n");
     fflush(stats_file);
@@ -537,36 +542,36 @@ string get_out_arg_file(const Config &config, int iter)
     return config.out_prefix + iterstr + SMC_SUFFIX;
 }
 
-string get_out_sites_file(const Config &config, int iter) 
+string get_out_sites_file(const Config &config, int iter)
 {
-  char iterstr[10];
-  snprintf(iterstr, 10, ".%d", iter);
-  return config.out_prefix + iterstr + SITES_SUFFIX;
+    char iterstr[10];
+    snprintf(iterstr, 10, ".%d", iter);
+    return config.out_prefix + iterstr + SITES_SUFFIX;
 }
 
 
 
 bool log_sequences(const Sequences *sequences, const Config *config,
-		   const SitesMapping *sites_mapping, int iter) {
-  Sites sites;
-  string out_sites_file = get_out_sites_file(*config, iter);
-  make_sites_from_sequences(sequences, &sites);
-  if (!config->no_compress_output)
-    out_sites_file += ".gz";
-  if (sites_mapping)
-    uncompress_sites(&sites, sites_mapping);
-  CompressStream stream(out_sites_file.c_str(), "w");
-  if (!stream.stream) {
-    printError("cannot write '%s'", out_sites_file.c_str());
-    return false;
-  }
-  write_sites(stream.stream, &sites);
-  return true;
+                   const SitesMapping *sites_mapping, int iter) {
+    Sites sites;
+    string out_sites_file = get_out_sites_file(*config, iter);
+    make_sites_from_sequences(sequences, &sites);
+    if (!config->no_compress_output)
+        out_sites_file += ".gz";
+    if (sites_mapping)
+        uncompress_sites(&sites, sites_mapping);
+    CompressStream stream(out_sites_file.c_str(), "w");
+    if (!stream.stream) {
+        printError("cannot write '%s'", out_sites_file.c_str());
+        return false;
+    }
+    write_sites(stream.stream, &sites);
+    return true;
 }
 
 bool log_local_trees(
-    const ArgModel *model, const Sequences *sequences, LocalTrees *trees,
-    const SitesMapping* sites_mapping, const Config *config, int iter)
+                     const ArgModel *model, const Sequences *sequences, LocalTrees *trees,
+                     const SitesMapping* sites_mapping, const Config *config, int iter)
 {
     string out_arg_file = get_out_arg_file(*config, iter);
     if (!config->no_compress_output)
@@ -701,8 +706,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
             resample_arg_mcmc_all(model, sequences, trees, frac_leaf,
                                   window, step, niters);
 
-	if (config->model.popsize_config.sample)
-	    resample_popsizes(model, trees);
+        if (config->model.popsize_config.sample)
+            resample_popsizes(model, trees);
 
         printTimerLog(timer, LOG_LOW, "sample time:");
 
@@ -715,8 +720,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         if (i % config->sample_step == 0)
             log_local_trees(model, sequences, trees, sites_mapping, config, i);
 
-	if (config->sample_phase > 0 && i%config->sample_phase == 0)
-	  log_sequences(sequences, config, sites_mapping, i);
+        if (config->sample_phase > 0 && i%config->sample_phase == 0)
+            log_sequences(sequences, config, sites_mapping, i);
     }
     printLog(LOG_LOW, "\n");
 }
@@ -803,34 +808,34 @@ bool parse_status_line(const char* line, const Config &config,
     }
 
     if (config.model.popsize_config.sample) {
-	list<PopsizeConfigParam> l=config.model.popsize_config.params;
-	for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
-	     ++it) {
-	    string popname=it->name;
-	    set<int> popset = it->pops;
-	    int found=false;
-	    for (unsigned int i=0; i < header.size(); i++) {
-		if (header[i] == popname) {
-		    found=true;
-		    double tempN;
-		    sscanf(tokens[i].c_str(), "%lf", &tempN);
-		    for (set<int>::iterator it2=popset.begin(); it2 != popset.end(); ++it2) {
-			int pop = *it2;
-			if (pop < 0 || pop >= config.model.ntimes) {
-			    printError("Error in resume: popsize config does not match previous run\n");
-			    exit(1);
-			}
-			config.model.popsizes[pop] = tempN;
-		    }
-		    break;
-		}
-	    }
-	    if (!found) {
-		printError("Error in resume: did not find pop %s in previous run stats file\n",
-			   popname.c_str());
-		exit(0);
-	    }
-	}
+        list<PopsizeConfigParam> l=config.model.popsize_config.params;
+        for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
+             ++it) {
+            string popname=it->name;
+            set<int> popset = it->pops;
+            int found=false;
+            for (unsigned int i=0; i < header.size(); i++) {
+                if (header[i] == popname) {
+                    found=true;
+                    double tempN;
+                    sscanf(tokens[i].c_str(), "%lf", &tempN);
+                    for (set<int>::iterator it2=popset.begin(); it2 != popset.end(); ++it2) {
+                        int pop = *it2;
+                        if (pop < 0 || pop >= config.model.ntimes) {
+                            printError("Error in resume: popsize config does not match previous run\n");
+                            exit(1);
+                        }
+                        config.model.popsizes[pop] = tempN;
+                    }
+                    break;
+                }
+            }
+            if (!found) {
+                printError("Error in resume: did not find pop %s in previous run stats file\n",
+                           popname.c_str());
+                exit(0);
+            }
+        }
     }
     return true;
 }
@@ -872,7 +877,7 @@ bool setup_resume(Config &config)
     string arg_file = "";
     while ((line = fgetline(stats_file))) {
         if (!parse_status_line(
-             line, config, config.resume_stage, config.resume_iter, arg_file, header)) {
+                               line, config, config.resume_stage, config.resume_iter, arg_file, header)) {
             delete [] line;
             return false;
         }
@@ -934,7 +939,7 @@ int main(int argc, char **argv)
     Config c;
     int ret = c.parse_args(argc, argv);
     if (ret)
-	return ret;
+        return ret;
 
     // ensure output dir
     if (!ensure_output_dir(c.out_prefix.c_str()))
@@ -1091,7 +1096,7 @@ int main(int argc, char **argv)
 
     // setup model parameters
     if (c.times_file != "")
-	c.model.set_times_from_file(c.times_file);
+        c.model.set_times_from_file(c.times_file);
     else if (c.time_step)
         c.model.set_linear_times(c.time_step, c.ntimes);
     else
@@ -1109,10 +1114,12 @@ int main(int argc, char **argv)
         sequences.randomize_phase(c.randomize_phase);
     }
     if (c.unphased)
-	c.model.unphased = true;
+        c.model.unphased = true;
     c.model.sample_phase = c.sample_phase;
-    if (c.sample_popsize)
-	c.model.popsize_config = PopsizeConfig(c.popsize_config_file, c.model.ntimes, c.model.popsizes);
+    if (c.sample_popsize) {
+        c.model.popsize_config = PopsizeConfig(c.popsize_config_file, c.model.ntimes, c.model.popsizes);
+        c.model.popsize_config.numsample = c.sample_popsize_num;
+    }
 
     // read model parameter maps if given
     if (c.mutmap != "") {
@@ -1203,10 +1210,10 @@ int main(int argc, char **argv)
     if (c.resample_region_str != "") {
         if (!parse_region(c.resample_region_str.c_str(),
                           &c.resample_region[0], &c.resample_region[1]))
-        {
-            printError("--resample-region is not specified as 'start-end'");
-            return EXIT_ERROR;
-        }
+            {
+                printError("--resample-region is not specified as 'start-end'");
+                return EXIT_ERROR;
+            }
         c.resample_region[0] -= 1; // convert to 0-index
 
         if (sites_mapping) {
