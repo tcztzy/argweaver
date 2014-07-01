@@ -92,10 +92,10 @@ void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
         if (b == 0) {
           matrix->lnB[b] = log(exp(C[2*b-1]) * bval);
         } else {
-          matrix->lnB[b] = matrix->lnB[b-1] + 
+          matrix->lnB[b] = matrix->lnB[b-1] +
             log(1.0 + exp(C[2*b-1] - matrix->lnB[b-1])*bval);
         }
-        matrix->lnE2[b] = -C[2*b-2] + 
+        matrix->lnE2[b] = -C[2*b-2] +
           (b < ntimes - 2 ? log(1 - exp(-coal_rates[2*b]-coal_rates[2*b-1])) : 0.0);
         matrix->lnNegG1[b] = C[2*b-1] + log( - time_steps[b] * (
             (nbranches[b] / (nrecombs[b] + 1.0 + int(b < root_age_index)))
@@ -428,7 +428,7 @@ void calc_recoal_sums(const ArgModel *model, const LineageCounts *lineages,
     double sum = 0.0;
     for (int m=2*k; m<2*j-1; m++) {
         int nbranches_m = nbranches[m/2] - int(m/2<recomb_parent_age);
-        sum += (model->coal_time_steps[m] * nbranches_m 
+        sum += (model->coal_time_steps[m] * nbranches_m
 		/ (2.0 * model->popsizes[(m+1)/2]));
     }
     *sums = sum;
