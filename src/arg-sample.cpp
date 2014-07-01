@@ -88,8 +88,9 @@ public:
 
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
-        config.add(new ConfigParam<double>
-                   ("-N", "--popsize", "<population size>", &popsize, 1e4,
+        config.add(new ConfigParam<string>
+                   ("-N", "--popsize", "<population size>", &popsize_str,
+                    "10000",
                     "effective population size (default=1e4)"));
         config.add(new ConfigSwitch
                    ("", "--sample-popsize", &sample_popsize, "sample population size for each time interval using Metropolis-Hastings update"));
@@ -255,6 +256,7 @@ public:
 
     // model parameters
     double popsize;
+    string popsize_str;
     double mu;
     double rho;
     int ntimes;
@@ -1106,7 +1108,7 @@ int main(int argc, char **argv)
     const double infsites_penalty = 1e-100; // TODO: make configurable
     if (c.infsites)
         c.model.infsites_penalty = infsites_penalty;
-    c.model.set_popsizes(c.popsize, c.model.ntimes);
+    c.model.set_popsizes(c.popsize_str, c.model.ntimes);
     if (c.unphased_file != "")
         c.model.unphased_file = c.unphased_file;
     sequences.set_pairs(&c.model);
