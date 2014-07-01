@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 
 // arghmm includes
 #include "track.h"
@@ -174,7 +175,7 @@ protected:
 class PhaseProbs
 {
  public:
- PhaseProbs(int hap1, int _treemap1, Sequences *_seqs, 
+ PhaseProbs(int hap1, int _treemap1, Sequences *_seqs,
 	    const LocalTrees *trees, const ArgModel *model);
   ~PhaseProbs() {}
 
@@ -189,7 +190,7 @@ class PhaseProbs
 	  it->second[state] = pr;
       }
    }
-     
+
    unsigned int size() {
      return probs.size();
    }
@@ -257,6 +258,8 @@ public:
     {
         return names.size();
     }
+
+    int subset(set<string> names_to_keep);
 
 
     string chrom;

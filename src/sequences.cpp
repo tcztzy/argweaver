@@ -138,7 +138,7 @@ void write_sites(FILE *stream, Sites *sites) {
   for (unsigned int i=0; i < sites->names.size(); i++)
     fprintf(stream, "\t%s", sites->names[i].c_str());
   fprintf(stream, "\n");
-  fprintf(stream, "REGION\t%s\t%i\t%i\n", 
+  fprintf(stream, "REGION\t%s\t%i\t%i\n",
 	  sites->chrom.c_str(), sites->start_coord, sites->end_coord);
   if (sites->positions.size() != sites->cols.size()) {
     fprintf(stderr, "Error in write_sites: positions.size()=%i cols.size=%i\n",
@@ -147,7 +147,7 @@ void write_sites(FILE *stream, Sites *sites) {
   }
   for (unsigned int i=0; i < sites->positions.size(); i++) {
     unsigned int j=0;
-    for (j=1; j < sites->names.size(); j++) 
+    for (j=1; j < sites->names.size(); j++)
       if (sites->cols[i][j] != sites->cols[i][0]) break;
     if (j != sites->names.size()) {
       fprintf(stream, "%i\t", sites->positions[i]+1);
@@ -315,6 +315,43 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     sequences->set_length(seqlen);
 }
 
+int Sites::subset(set<string> names_to_keep) {
+    vector<int> keep;
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (names_to_keep.find(names[i]) != names_to_keep.end())
+            keep.push_back(i);
+    }
+    if (keep.size() != names_to_keep.size()) {
+        fprintf(stderr, "Error in subset: not all names found in sites\n");
+        return 1;
+    }
+    std::sort(keep.begin(), keep.end());
+    vector<string> new_names;
+    for (unsigned int i=0; i < keep.size(); i++)
+        new_names.push_back(names[keep[i]]);
+    names = new_names;
+    vector<int> new_positions;
+    vector<char*> new_cols;
+    for (unsigned int i=0; i < positions.size(); i++) {
+        char *tmp = new char[keep.size()+1];
+        bool variant=false;
+        for (unsigned int j=0; j < keep.size(); j++) {
+            tmp[j] = cols[i][keep[j]];
+            if (tmp[j]=='N' || tmp[j] != tmp[0]) variant=true;
+        }
+        tmp[keep.size()] = '\0';
+        delete [] cols[i];
+        if (variant) {
+            new_cols.push_back(tmp);
+            new_positions.push_back(positions[i]);
+        } else delete [] tmp;
+    }
+    cols = new_cols;
+    positions = new_positions;
+    printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)",
+             names.size(), positions.size());
+    return 0;
+}
 
 template<>
 void apply_mask_sequences<NullValue>(Sequences *sequences,
@@ -450,7 +487,7 @@ void Sequences::set_pairs(const ArgModel *mod) {
 
 void PhaseProbs::sample_phase(int *thread_path) {
   int count=0;
-  if (probs.size() == 0) 
+  if (probs.size() == 0)
     return;
   for (map<int,vector<double> >::iterator it=probs.begin(); it != probs.end();
        it++) {
@@ -719,7 +756,7 @@ void resample_align(Sequences *aln, Sequences *aln2)
     }
 }
 
-PhaseProbs::PhaseProbs(int _hap1, int _treemap1, Sequences *_seqs, 
+PhaseProbs::PhaseProbs(int _hap1, int _treemap1, Sequences *_seqs,
 			    const LocalTrees *trees, const ArgModel *model) {
   if (!model->unphased) return;
   hap1 = _hap1;
@@ -733,7 +770,7 @@ PhaseProbs::PhaseProbs(int _hap1, int _treemap1, Sequences *_seqs,
     updateTreeMap2(trees);
   } else treemap2 = -1;
 }
-  
+
 
 
 void PhaseProbs::updateTreeMap2(const LocalTrees *tree) {

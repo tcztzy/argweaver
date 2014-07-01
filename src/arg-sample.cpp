@@ -85,6 +85,10 @@ public:
                    ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
                     "mask map file (optional)"));
+        config.add(new ConfigParam<string>
+                   ("", "--subsites", "<subsites file>", &subsites_file,
+                    "file listing NAMES from sites file (or sequences from"
+                    " fasta) to keep; others will not be used"));
 
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
@@ -250,6 +254,7 @@ public:
     // input/output
     string fasta_file;
     string sites_file;
+    string subsites_file;
     string out_prefix;
     string arg_file;
     string subregion_str;
@@ -1007,8 +1012,8 @@ int main(int argc, char **argv)
         printLog(LOG_LOW, "read input sequences (nseqs=%d, length=%d)\n",
                  sequences.get_num_seqs(), sequences.length());
 
-        // if compress requested, make sites object
-        if (c.compress_seq > 1)
+        // if compress or subset requested, make sites object
+        if (c.compress_seq > 1 || c.subsites_file != "")
             make_sites_from_sequences(&sequences, &sites);
 
     } else if (c.sites_file != "") {
@@ -1050,6 +1055,24 @@ int main(int argc, char **argv)
         // no input sequence specified
         printError("must specify sequences (use --fasta or --sites)");
         return EXIT_ERROR;
+    }
+
+    if (c.subsites_file != "") {
+        set<string> keep;
+        FILE *infile;
+        if (!(infile = fopen(c.subsites_file.c_str(), "r"))) {
+            printError("Could not open subsites file %s",
+                       c.subsites_file.c_str());
+            return false;
+        }
+        char name[10000];
+        while (EOF != fscanf(infile, "%s", name))
+            keep.insert(string(name));
+        fclose(infile);
+        if (sites.subset(keep)) {
+            printError("Error subsetting sites\n");
+            return false;
+        }
     }
 
     // compress sequences
