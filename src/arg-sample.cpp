@@ -486,11 +486,11 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     if (sites_mapping)
         uncompress_local_trees(trees, sites_mapping);
 
-    double prior = calc_arg_prior(&config->model, trees);
-    double likelihood = calc_arg_likelihood(&config->model, sequences, trees,
+    double prior = calc_arg_prior(model, trees);
+    double likelihood = calc_arg_likelihood(model, sequences, trees,
                                             sites_mapping);
     double joint = prior + likelihood;
-    double arglen = get_arglen(trees, config->model.times);
+    double arglen = get_arglen(trees, model->times);
 
     // recompress local trees
     if (sites_mapping)
