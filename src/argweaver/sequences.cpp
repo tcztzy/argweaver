@@ -340,6 +340,43 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     sequences->set_length(seqlen);
 }
 
+int Sites::subset(set<string> names_to_keep) {
+    vector<int> keep;
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (names_to_keep.find(names[i]) != names_to_keep.end())
+            keep.push_back(i);
+    }
+    if (keep.size() != names_to_keep.size()) {
+        fprintf(stderr, "Error in subset: not all names found in sites\n");
+        return 1;
+    }
+    std::sort(keep.begin(), keep.end());
+    vector<string> new_names;
+    for (unsigned int i=0; i < keep.size(); i++)
+        new_names.push_back(names[keep[i]]);
+    names = new_names;
+    vector<int> new_positions;
+    vector<char*> new_cols;
+    for (unsigned int i=0; i < positions.size(); i++) {
+        char *tmp = new char[keep.size()+1];
+        bool variant=false;
+        for (unsigned int j=0; j < keep.size(); j++) {
+            tmp[j] = cols[i][keep[j]];
+            if (tmp[j]=='N' || tmp[j] != tmp[0]) variant=true;
+        }
+        tmp[keep.size()] = '\0';
+        delete [] cols[i];
+        if (variant) {
+            new_cols.push_back(tmp);
+            new_positions.push_back(positions[i]);
+        } else delete [] tmp;
+    }
+    cols = new_cols;
+    positions = new_positions;
+    printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)",
+             names.size(), positions.size());
+    return 0;
+}
 
 template<>
 int Sites::remove_overlapping(const TrackNullValue &track) {
