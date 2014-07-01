@@ -94,9 +94,10 @@ public:
 		    " file giving age for any ancient samples (two-columns, "
 		    " first column is sample name, second age in generations "));
         // model parameters
-	config.add(new ConfigParamComment("Model parameters"));
-	config.add(new ConfigParam<double>
-		   ("-N", "--popsize", "<population size>", &popsize, 1e4,
+        config.add(new ConfigParamComment("Model parameters"));
+        config.add(new ConfigParam<string>
+                   ("-N", "--popsize", "<population size>", &popsize_str,
+                    "10000",
                     "effective population size (default=1e4)"));
 	config.add(new ConfigParam<double>
 		   ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
@@ -262,6 +263,7 @@ public:
 
     // model parameters
     double popsize;
+    string popsize_str;
     double mu;
     double rho;
     int ntimes;

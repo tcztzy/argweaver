@@ -253,6 +253,26 @@ public:
         std::copy(_popsizes, _popsizes + ntimes, popsizes);
     }
 
+    void set_popsizes(string popsize_str, int _ntimes) {
+        ntimes = _ntimes;
+        clear_array(&popsizes);
+        popsizes = new double [ntimes];
+        vector<string> tokens;
+        split(popsize_str.c_str(), ",", tokens);
+        if (tokens.size() == 1) {
+            fill(popsizes, popsizes + ntimes, atof(tokens[0].c_str()));
+        } else {
+            if ((int)tokens.size() != ntimes) {
+                printError("Number of popsizes (%i) does not match ntimes"
+                           " (%i)\n", tokens.size(), ntimes);
+                exit(1);
+            }
+            for (unsigned int i=0; i < tokens.size(); i++) {
+                popsizes[i] = atof(tokens[i].c_str());
+            }
+        }
+    }
+
     // Sets the model populations to be constant over all time points
     void set_popsizes(double popsize, int _ntimes) {
         ntimes = _ntimes;
