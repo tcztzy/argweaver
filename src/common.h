@@ -376,9 +376,11 @@ inline int sample(const double *weights, int nweights)
     double x = 0.0;
     for (int i=0; i<nweights; i++) {
         x += weights[i];
-        if (x >= pick)
+        if (x >= pick && weights[i] > 0) {
             return i;
+        }
     }
+    assert(weights[nweights-1] > 0);
     return nweights - 1;
 }
 
