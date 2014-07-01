@@ -182,10 +182,10 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
 // resample the threading of an internal branch using MCMC
 // Also sometimes resample leaves specifically
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
-                           LocalTrees *trees, double frac_leaf,
+                           LocalTrees *trees, bool do_leaf,
                            int window, int step, int niters)
 {
-    if (frand() < frac_leaf) {
+    if (do_leaf) {
         resample_arg_leaf(model, sequences, trees);
         printLog(LOG_LOW, "resample_arg_leaf: accept=%f\n", 1.0);
     } else {
@@ -751,7 +751,7 @@ LocalTrees *arghmm_resample_mcmc_arg(
     // gibbs sample
     for (int i=0; i<niters; i++) {
         printLog(LOG_LOW, "sample %d\n", i);
-        resample_arg_mcmc_all(&model, &sequences, trees, frac_leaf,
+        resample_arg_mcmc_all(&model, &sequences, trees, frand() < frac_leaf,
                               window, step, niters2);
     }
 

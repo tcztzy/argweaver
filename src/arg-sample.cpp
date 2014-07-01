@@ -6,6 +6,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#ifdef ARGWEAVER_MPI
+#include "mpi.h"
+#endif
+
 // arghmm includes
 #include "compress.h"
 #include "ConfigParam.h"
@@ -681,7 +685,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                       SitesMapping* sites_mapping, Config *config)
 {
     // setup search options
-    double frac_leaf = .5;
+    bool do_leaf[config->niters+1];
     //int window = 100000;
     //int niters = 10;
     int window = config->resample_window;
@@ -704,13 +708,24 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     printLog(LOG_LOW, "Resample All Branches (%d iterations)\n",
              config->niters);
     printLog(LOG_LOW, "--------------------------------------\n");
+
+  //  int numseq = sequences->get_num_seqs();
+  //  double frac_leaf = numseq < 5 ? 1.0 : (double)numseq/(2*numseq-2);
+ //   double frac_leaf = 0.0;
+    double frac_leaf = 0.5;
+    for (int i=0; i <= config->niters; i++) do_leaf[i] = (frand() < frac_leaf);
+
+#ifdef ARGWEAVER_MPI
+    MPI::COMM_WORLD.Bcast(do_leaf, config->niters+1, MPI::BOOL, 0);
+#endif
+
     for (int i=iter; i<=config->niters; i++) {
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
         if (config->gibbs)
             resample_arg(model, sequences, trees);
         else
-            resample_arg_mcmc_all(model, sequences, trees, frac_leaf,
+            resample_arg_mcmc_all(model, sequences, trees, do_leaf[i],
                                   window, step, niters);
 
         if (config->model.popsize_config.sample)
@@ -948,6 +963,10 @@ int main(int argc, char **argv)
     if (ret)
         return ret;
 
+#ifdef ARGWEAVER_MPI
+    MPI::Init(argc, argv);
+#endif
+
     // ensure output dir
     if (!ensure_output_dir(c.out_prefix.c_str()))
         return EXIT_ERROR;
@@ -1144,6 +1163,12 @@ int main(int argc, char **argv)
     if (c.sample_popsize) {
         c.model.popsize_config = PopsizeConfig(c.popsize_config_file, c.model.ntimes, c.model.popsizes);
         c.model.popsize_config.numsample = c.sample_popsize_num;
+#ifdef ARGWEAVER_MPI
+        c.model.popsize_config.mpi_rank = MPI::COMM_WORLD.Get_rank();
+        c.model.popsize_config.mpi_size = MPI::COMM_WORLD.Get_size();
+        printf("MPI rank=%i size=%i\n", c.model.popsize_config.mpi_rank, c.model.popsize_config.mpi_size);
+        fflush(stdout);
+#endif
     }
 
     // read model parameter maps if given
@@ -1272,6 +1297,10 @@ int main(int argc, char **argv)
 
     // clean up
     fclose(c.stats_file);
+
+#ifdef ARGWEAVER_MPI
+    MPI_Finalize();
+#endif
 
     return 0;
 }

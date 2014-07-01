@@ -5,6 +5,10 @@
 #ifndef ARGWEAVER_MODEL_H
 #define ARGWEAVER_MODEL_H
 
+#ifdef ARGWEAVER_MPI
+#include "mpi.h"
+#endif
+
 // c/c++ includes
 #include <math.h>
 #include <set>
@@ -77,6 +81,10 @@ class PopsizeConfig
     double popsize_prior_alpha;
     double popsize_prior_beta;
     int numsample;  //number of times to do the sampling per threading operation
+#ifdef ARGWEAVER_MPI
+    int mpi_rank;
+    int mpi_size;
+#endif
     list<PopsizeConfigParam> params;
 };
 

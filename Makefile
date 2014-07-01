@@ -11,7 +11,12 @@ prefix = /usr
 
 
 # programs
-CXX = g++
+ifdef MPI
+	CXX=mpic++
+        CFLAGS := $(CFLAGS) -DARGWEAVER_MPI
+else
+        CXX=g++
+endif
 PYTHON = python
 
 # C++ compiler options
