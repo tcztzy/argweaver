@@ -109,6 +109,10 @@ public:
                    ("", "--sample-popsize-num", "<num>", &sample_popsize_num, 1,
                     "number of times to sample popsize per threading operation (default=1)",
                     DEBUG_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--init-popsize-random", &init_popsize_random,
+                    "(for use with --sample-popsize). Initialize each population size"
+                    " parameter to a random number sampled uniformly in [5000, 50000]"));
         config.add(new ConfigParam<double>
                    ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
                     "mutations per site per generation (default=2.5e-8)"));
@@ -277,6 +281,7 @@ public:
     string maskmap;
     ArgModel model;
     bool sample_popsize;
+    bool init_popsize_random;
     string popsize_config_file;
     int sample_popsize_num;
 
@@ -1170,6 +1175,8 @@ int main(int argc, char **argv)
         fflush(stdout);
 #endif
     }
+    if (c.init_popsize_random)
+        c.model.set_popsizes_random();
 
     // read model parameter maps if given
     if (c.mutmap != "") {

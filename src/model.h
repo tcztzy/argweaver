@@ -18,6 +18,7 @@
 
 // arghmm includes
 #include "track.h"
+#include "common.h"
 
 namespace argweaver {
 
@@ -75,6 +76,7 @@ class PopsizeConfig
 
     PopsizeConfig(string filename, int ntimes, double *popsizes);
 
+    unsigned int size() {return params.size();}
     void addPop(const char *name, int pop, int sample=true);
 
     bool sample;
@@ -347,6 +349,31 @@ class ArgModel
         clear_array(&popsizes);
         popsizes = new double [ntimes];
         fill(popsizes, popsizes + ntimes, popsize);
+    }
+
+    void set_popsizes_random(double popsize_min=5000.0,
+                             double popsize_max=50000.0) {
+#ifdef ARGWEAVER_MPI
+        if (MPI::COMM_WORLD.Get_rank() == 0) {
+#endif
+        if (popsize_config.size() == 0) {
+            for (int i=0; i < ntimes; i++) {
+                popsizes[i] = frand(popsize_min, popsize_max);
+            }
+            return;
+        }
+        list<PopsizeConfigParam> l = popsize_config.params;
+        for (list<PopsizeConfigParam>::iterator it=l.begin();
+             it != l.end(); ++it) {
+            double popsize=frand(popsize_min, popsize_max);
+            for (set<int>::iterator it2 = it->pops.begin();
+                 it2 != it->pops.end(); ++it2)
+                popsizes[*it2] = popsize;
+        }
+#ifdef ARGWEAVER_MPI
+        }
+        MPI::COMM_WORLD.Bcast(popsizes, ntimes, MPI::DOUBLE, 0);
+#endif
     }
 
     //====================================================================
