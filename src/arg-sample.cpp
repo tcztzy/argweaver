@@ -128,6 +128,10 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--time-step", "<time>", &time_step, 0,
                     "linear time step in generations (optional)"));
+        config.add(new ConfigParam<double>
+                   ("", "--delta", "<delta>", &delta, 0.01,
+                    "delta value for choosing log times (bigger value-> more"
+                    " dense time points at leaves", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--times-file", "<times filename>", &times_file, "",
                     "file containing time points (optional)"));
@@ -275,6 +279,7 @@ public:
     int ntimes;
     double maxtime;
     double time_step;
+    double delta;
     string times_file;
     string mutmap;
     string recombmap;
@@ -1149,7 +1154,7 @@ int main(int argc, char **argv)
     else if (c.time_step)
         c.model.set_linear_times(c.time_step, c.ntimes);
     else
-        c.model.set_log_times(c.maxtime, c.ntimes);
+        c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     c.model.rho = c.rho;
     c.model.mu = c.mu;
     const double infsites_penalty = 1e-100; // TODO: make configurable
