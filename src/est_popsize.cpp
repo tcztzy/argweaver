@@ -20,7 +20,7 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees) {
     //int rank=model->popsize_config.mpi_rank;
 
 #ifdef ARGWEAVER_MPI
-    if (model->popsize_config.mpi_rank == 0) {
+    if (MPI::COMM_WORLD.Get_rank() == 0) {
 #endif
         int num_accept=0, total=0;
         list<PopsizeConfigParam> l = model->popsize_config.params;

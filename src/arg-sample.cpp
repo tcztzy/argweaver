@@ -1164,9 +1164,9 @@ int main(int argc, char **argv)
         c.model.popsize_config = PopsizeConfig(c.popsize_config_file, c.model.ntimes, c.model.popsizes);
         c.model.popsize_config.numsample = c.sample_popsize_num;
 #ifdef ARGWEAVER_MPI
-        c.model.popsize_config.mpi_rank = MPI::COMM_WORLD.Get_rank();
-        c.model.popsize_config.mpi_size = MPI::COMM_WORLD.Get_size();
-        printf("MPI rank=%i size=%i\n", c.model.popsize_config.mpi_rank, c.model.popsize_config.mpi_size);
+        printf("MPI rank=%i size=%i\n",
+               MPI::COMM_WORLD.Get_rank(),
+               MPI::COMM_WORLD.Get_size());
         fflush(stdout);
 #endif
     }
