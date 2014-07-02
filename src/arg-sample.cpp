@@ -106,6 +106,10 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--time-step", "<time>", &time_step, 0,
                     "linear time step in generations (optional)"));
+        config.add(new ConfigParam<double>
+                   ("", "--delta", "<delta>", &delta, 0.01,
+                    "delta value for choosing log times (bigger value-> more"
+                    " dense time points at leaves", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
                     "file containing population sizes for each time span (optional)"));
@@ -255,6 +259,7 @@ public:
     double maxtime;
     double time_step;
     string popsize_file;
+    double delta;
     string times_file;
     string mutmap;
     string recombmap;
@@ -1052,7 +1057,7 @@ int main(int argc, char **argv)
         c.model.set_linear_times(c.time_step, c.ntimes);
     } else {
         // use log-spaced time points
-        c.model.set_log_times(c.maxtime, c.ntimes);
+        c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     }
     c.model.rho = c.rho;
     c.model.mu = c.mu;

@@ -226,7 +226,8 @@ public:
     }
 
     // Sets the model time points linearily in log space
-    void set_log_times(double maxtime, int _ntimes) {
+    void set_log_times(double maxtime, int _ntimes,
+		       double delta=0.01) {
         ntimes = _ntimes;
         clear_array(&times);
         times = new double [ntimes];
