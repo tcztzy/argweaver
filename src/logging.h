@@ -155,6 +155,11 @@ public:
         return loglevel;
     }
 
+    int getLogLevel()
+    {
+        return loglevel;
+    }
+
     bool isLogLevel(int level) const
     {
         return level <= loglevel;

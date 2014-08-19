@@ -20,8 +20,8 @@ Sequentially Markov Coalescent (dsmc).
 """)
 o.add_option("-k", "--nseqs", type="int",
              help="Number of sequences to simulate")
-o.add_option("-N", "--popsize", type="float", default=1e4,
-             help="Effective population size (default=1e4)")
+o.add_option("-N", "--popsize", default="10000",
+             help="Effective population size (default=10000)")
 o.add_option("-r", "--recombrate", type="float", default=1.5e-8,
              help="Recombination rate (recombination/generation/site)")
 o.add_option("-m", "--mutrate", type="float", default=2.5e-8,
@@ -54,7 +54,7 @@ if len(sys.argv) == 1:
     sys.exit(1)
 
 conf, args = o.parse_args()
-
+conf.popsize = map(float, conf.popsize.split(','))
 
 def write_mutations(stream, muts):
     for (node, parent, pos, age) in muts:
