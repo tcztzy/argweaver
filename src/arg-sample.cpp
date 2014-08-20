@@ -369,9 +369,9 @@ void log_model(const ArgModel &model)
         printLog(LOG_LOW, "%f,", model.times[i]);
     printLog(LOG_LOW, "%f]\n", model.times[model.ntimes-1]);
     printLog(LOG_LOW, "  popsizes = [");
-    for (int i=0; i<model.ntimes-1; i++)
+    for (int i=0; i<2*model.ntimes-2; i++)
         printLog(LOG_LOW, "%f,", model.popsizes[i]);
-    printLog(LOG_LOW, "%f]\n", model.popsizes[model.ntimes-1]);
+    printLog(LOG_LOW, "%f]\n", model.popsizes[2*model.ntimes-2]);
 
     if (isLogLevel(LOG_HIGH)) {
         printLog(LOG_HIGH, "mutmap = [\n");
@@ -851,11 +851,13 @@ bool parse_status_line(const char* line, const Config &config,
                     found=true;
                     double tempN;
                     sscanf(tokens[i].c_str(), "%lf", &tempN);
-                    for (set<int>::iterator it2=popset.begin(); it2 != popset.end(); ++it2) {
+                    for (set<int>::iterator it2=popset.begin();
+                         it2 != popset.end(); ++it2) {
                         int pop = *it2;
-                        if (pop < 0 || pop >= config.model.ntimes) {
-                            printError("Error in resume: popsize config does not match previous run\n");
-                            exit(1);
+                        if (pop < 0 || pop >= 2*config.model.ntimes-1) {
+                            printError("Error in resume: popsize config does"
+                                       " not match previous run\n");
+                            abort();
                         }
                         config.model.popsizes[pop] = tempN;
                     }

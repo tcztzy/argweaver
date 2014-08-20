@@ -107,6 +107,50 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 
 // The probabiluty of going from 'a' lineages to 'b' lineages in time 't'
 // with population size 'n'
+double log_prob_coal_counts(int a, int b, double t, double n)
+{
+    double lnC1 = 0.0, lnC2=0.0, C3=1.0;
+
+    for (int y=0; y<b; y++)
+        lnC1 += log((b+y)*(a-y)/double(a+y));
+    assert(!isnan(lnC1));
+    double s = -b*(b-1)*t/2.0/n;
+
+    for (int k=b+1; k<a+1; k++) {
+        const double k1 = double(k - 1);
+        double val;
+        lnC2 += log(double(b+k1)*(a-k1)/(a+k1)/(k-b));
+        C3 *= -1.0;
+        val = -k*k1*t/2.0/n + lnC2 + log((2.0*k-1)/double(k1+b));
+        //        s += exp(-k*k1*t/2.0/n) * (2*k-1) / double(k1+b) * C2;
+        if (1) {
+            double loga = s;
+            double logc = val;
+            if (logc > loga) {
+                double tmp = logc;
+                logc = loga;
+                loga = tmp;
+            }
+            s = loga + log(1.0 + C3*exp(logc - loga));
+        }
+        /*        if (s > val)
+            s += log(1.0 + C3*exp(val-s));
+            else s = val + log(1.0 + C3*exp(s-val));*/
+        /*        double s2 = log(exp(s) + C3*exp(val));
+        assert(!isnan(s2));
+        s = s2;*/
+    }
+
+    for (int i=2; i<=b; i++)
+        s -= log(i);
+    assert(!isnan(s));
+    assert(!isinf(s));
+    return s + lnC1;
+}
+
+
+// The probabiluty of going from 'a' lineages to 'b' lineages in time 't'
+// with population size 'n'
 double prob_coal_counts(int a, int b, double t, double n)
 {
     double C = 1.0;
@@ -128,7 +172,6 @@ double prob_coal_counts(int a, int b, double t, double n)
     return s;
 }
 
-
 double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
                        LineageCounts &lineages)
 {
@@ -141,7 +184,9 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
         int b = lineages.nbranches[i];
 	double t = model->coal_time_steps[2*i];
 	if (i > 0) t += model->coal_time_steps[2*i-1];
-        lnl += log(prob_coal_counts(a, b, t, 2.0 * model->popsizes[i]));
+        lnl += log_prob_coal_counts(a, b, t, 2.0 * model->popsizes[2*i]);
+        assert(!isnan(lnl));
+        assert(!isinf(lnl));
     }
 
     // TODO: top prior
@@ -184,10 +229,10 @@ void calc_coal_rates_full_tree(const ArgModel *model, const LocalTree *tree,
 {
     int broken_age = tree->nodes[tree->nodes[spr.recomb_node].parent].age;
 
-    for (int i=0; i<2*model->ntimes; i++) {
+    for (int i=0; i<2*model->ntimes-1; i++) {
         int nbranches = lineages.nbranches[i/2] - int(i/2 < broken_age);
         coal_rates[i] = model->coal_time_steps[i] * nbranches /
-            (2.0 * model->popsizes[(i+1)/2]);
+            (2.0 * model->popsizes[i]);
 	if (coal_rates[i] < 0) {
 	    assert(0);
 	}
@@ -243,15 +288,17 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
     // add to counts of coal/no_coal events, if not null
     if (num_coal != NULL) {
 	if (k == j)
-	    num_coal[j] += 0.5;
+            num_coal[2*j]++;
 	else {
-	    num_coal[j]++;
-	    num_nocoal[k] += 0.5;
-	    for (int i=k+1; i < j; i++)
-		num_nocoal[i]++;
+            num_coal[2*j]+=0.5;
+            num_coal[2*j-1]+=0.5;
+            for (int i=2*k; i < 2*j-1; i++)
+                num_nocoal[i]++;
+            num_nocoal[2*j-1]+=0.5;
 	}
     }
     assert(!isinf(lnl));
+    assert(!isnan(lnl));
     return lnl;
 }
 
@@ -266,7 +313,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 
     if (num_coal != NULL) {
 	assert(num_nocoal != NULL);
-	for (int i=0; i < model->ntimes; i++)
+	for (int i=0; i < 2*model->ntimes-1; i++)
 	    num_coal[i] = num_nocoal[i] = 0;
     }
 
@@ -302,7 +349,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
             ++it;
         }
     }
-
+    assert(!isnan(lnl));
+    assert(!isinf(lnl));
     return lnl;
 }
 

@@ -323,22 +323,22 @@ class ArgModel
     void set_popsizes(double *_popsizes, int _ntimes) {
         ntimes = _ntimes;
         clear_array(&popsizes);
-        popsizes = new double [ntimes];
-        std::copy(_popsizes, _popsizes + ntimes, popsizes);
+        popsizes = new double [2*ntimes-1];
+        std::copy(_popsizes, _popsizes + 2*ntimes-1, popsizes);
     }
 
     void set_popsizes(string popsize_str, int _ntimes) {
         ntimes = _ntimes;
         clear_array(&popsizes);
-        popsizes = new double [ntimes];
+        popsizes = new double [2*ntimes-1];
         vector<string> tokens;
         split(popsize_str.c_str(), ",", tokens);
         if (tokens.size() == 1) {
-            fill(popsizes, popsizes + ntimes, atof(tokens[0].c_str()));
+            fill(popsizes, popsizes + 2*ntimes-1, atof(tokens[0].c_str()));
         } else {
-            if ((int)tokens.size() != ntimes) {
+            if ((int)tokens.size() != 2*ntimes-1) {
                 printError("Number of popsizes (%i) does not match ntimes"
-                           " (%i)\n", tokens.size(), ntimes);
+                           " (%i)\n", tokens.size(), 2*ntimes-1);
                 exit(1);
             }
             for (unsigned int i=0; i < tokens.size(); i++) {
@@ -351,8 +351,8 @@ class ArgModel
     void set_popsizes(double popsize, int _ntimes) {
         ntimes = _ntimes;
         clear_array(&popsizes);
-        popsizes = new double [ntimes];
-        fill(popsizes, popsizes + ntimes, popsize);
+        popsizes = new double [2*ntimes-1];
+        fill(popsizes, popsizes + 2*ntimes-1, popsize);
     }
 
     void set_popsizes_random(double popsize_min=5000.0,
@@ -361,7 +361,7 @@ class ArgModel
         if (MPI::COMM_WORLD.Get_rank() == 0) {
 #endif
         if (popsize_config.size() == 0) {
-            for (int i=0; i < ntimes; i++) {
+            for (int i=0; i < 2*ntimes-1; i++) {
                 popsizes[i] = frand(popsize_min, popsize_max);
             }
             return;
@@ -376,7 +376,7 @@ class ArgModel
         }
 #ifdef ARGWEAVER_MPI
         }
-        MPI::COMM_WORLD.Bcast(popsizes, ntimes, MPI::DOUBLE, 0);
+        MPI::COMM_WORLD.Bcast(popsizes, 2*ntimes-1, MPI::DOUBLE, 0);
 #endif
     }
 

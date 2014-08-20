@@ -56,9 +56,9 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
             + int(m < last_state.time)
             - int(m < recomb_parent_age);
 	sum += (model->coal_time_steps[2*m] * nbranches_m
-		/ (2.0 * model->popsizes[m]));
+		/ (2.0 * model->popsizes[2*m]));
 	sum += (model->coal_time_steps[2*m+1] * nbranches_m
-		/ (2.0 * model->popsizes[m + 1]));
+		/ (2.0 * model->popsizes[2*m+1]));
     }
 
 
@@ -74,7 +74,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         // NOTE: if j == ntimes - 2, coalescence is probability 1.0
         if (j < model->ntimes - 2) {
             pcoal = 1.0 - exp(-model->coal_time_steps[2*j] * nbranches_j
-                              / (2.0 * model->popsizes[j]));
+                              / (2.0 * model->popsizes[2*j]));
         }
     } else {
         // otherwise it could happen anytime between j-1/2 and j+1/2
@@ -84,15 +84,15 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
             - int(m < recomb_parent_age);
         // have to not coalesce in the first half interval before j
         sum += (model->coal_time_steps[2*m] * nbranches_m
-                / (2.0 * model->popsizes[m]));
+                / (2.0 * model->popsizes[2*m]));
 
         // NOTE: if k == ntimes - 2, coalescence is probability 1.0
         if (j < model->ntimes - 2) {
             pcoal = 1.0 - exp(
                 -model->coal_time_steps[2*j-1] * nbranches_m
-                / (2.0 * model->popsizes[j])
+                / (2.0 * model->popsizes[2*j-1])
 		- model->coal_time_steps[2*j] * nbranches_j
-                / (2.0 * model->popsizes[j]));
+                / (2.0 * model->popsizes[2*j]));
         }
     }
 
@@ -220,6 +220,5 @@ void sample_recombinations(
         }
     }
 }
-
 
 } // namespace argweaver

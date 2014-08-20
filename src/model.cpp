@@ -196,7 +196,7 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
     popsize_prior_beta(1.0e-4)
   {
     if (filename=="") {
-	for (int i=0; i < ntimes; i++) {
+	for (int i=0; i < 2*ntimes-1; i++) {
             char str[10];
             sprintf(str,"N%d", i);
 	    addPop(str, i, true);
@@ -209,10 +209,12 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
 	    exit(0);
 	}
 	char *line;
-	for (int i=0; i < ntimes; i++) {
+	for (int i=0; i < 2*ntimes-1; i++) {
 	    line = fgetline(infile);
 	    if (line == NULL) {
-		printError("Error: Unexpected EOF reading popsize config file %s; expected ntimes=%i entries.\n", filename.c_str(), ntimes);
+		printError("Error: Unexpected EOF reading popsize config file"
+                           " %s; expected ntimes=%i entries.\n",
+                           filename.c_str(), 2*ntimes-1);
 		exit(0);
 	    }
 	    chomp(line);
@@ -232,7 +234,9 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
 	while (NULL != (line = fgetline(infile))) {
 	    char *tline = trim(line);
 	    if (strlen(tline) != 0) {
-		fprintf(stderr, "Error: too many lines in popsize config file %s; expected ntimes=%i entries.\n", filename.c_str(), ntimes);
+		fprintf(stderr, "Error: too many lines in popsize config file"
+                        " %s; expected ntimes=%i entries.\n",
+                        filename.c_str(), 2*ntimes-1);
 		exit(0);
 	    }
 	}
