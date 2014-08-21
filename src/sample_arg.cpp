@@ -183,14 +183,14 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
 // Also sometimes resample leaves specifically
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
                            LocalTrees *trees, bool do_leaf,
-                           int window, int step, int niters)
+                           int window, int step, int niters, double heat)
 {
     if (do_leaf) {
         resample_arg_leaf(model, sequences, trees);
         printLog(LOG_LOW, "resample_arg_leaf: accept=%f\n", 1.0);
     } else {
         double accept_rate = resample_arg_regions(
-            model, sequences, trees, window, step, niters);
+            model, sequences, trees, window, step, niters, heat);
         printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
     }
 }
@@ -423,7 +423,7 @@ State find_state_sub_tree_internal(
 double resample_arg_region(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int region_start, int region_end, int niters,
-    bool open_ended)
+    bool open_ended, double heat)
 {
     const int maxtime = model->get_removed_root_time();
 
@@ -492,9 +492,8 @@ double resample_arg_region(
         incLogLevel();
         assert_trees(trees2);
         double npaths2 = count_total_arg_removal_paths(trees2);
-
         // perform reject if needed
-        double accept_prob = exp(npaths - npaths2);
+        double accept_prob = exp(heat*(npaths - npaths2));
         bool accept = (frand() < accept_prob);
         if (!accept)
             trees2->copy(old_trees2);
@@ -527,7 +526,7 @@ double resample_arg_region(
 // resample an ARG a region at a time in a sliding window
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int step, int niters)
+    LocalTrees *trees, int window, int step, int niters, double heat)
 {
     decLogLevel();
     double accept_rate = 0.0;
@@ -539,7 +538,7 @@ double resample_arg_regions(
         nwindows++;
         int end = min(start + window, trees->end_coord);
         accept_rate += resample_arg_region(
-            model, sequences, trees, start, end, niters);
+             model, sequences, trees, start, end, niters, true, heat);
     }
     incLogLevel();
 

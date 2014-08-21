@@ -67,24 +67,101 @@ class PopsizeConfigParam
 class PopsizeConfig
 {
  public:
- PopsizeConfig() :
-    sample(false),
+ PopsizeConfig(int ntimes=0, bool sample=false, bool onepop=true) :
+    sample(sample),
     popsize_prior_alpha(1.0),
     popsize_prior_beta(1.0e-4),
-    numsample(1)
-  {}
+    numsample(1),
+    neighbor_prior(false),
+    config_buildup(0)
+  {
+      if (sample) {
+          if (onepop) {
+              for (int i=0; i < 2*ntimes-1; i++) {
+                  addPop("N0", i, true);
+              }
+          } else  {
+              for (int i=0; i < 2*ntimes-1; i++) {
+                  char tmp[100];
+                  sprintf(tmp, "N%i", i);
+                  addPop(tmp, i, true);
+              }
+          }
+      }
+  }
 
     PopsizeConfig(string filename, int ntimes, double *popsizes);
 
     unsigned int size() {return params.size();}
     void addPop(const char *name, int pop, int sample=true);
-
+    void split_config();
     bool sample;
     double popsize_prior_alpha;
     double popsize_prior_beta;
     int numsample;  //number of times to do the sampling per threading operation
+    bool neighbor_prior;
+    int config_buildup;
 
     list<PopsizeConfigParam> params;
+};
+
+
+class Mc3Config
+{
+ public:
+
+    Mc3Config() {
+        group=0;
+        max_group=0;
+        heat_interval=0.05;
+        heat=1.0;
+    }
+
+    Mc3Config(int group, double heat_interval) :
+    group(group), heat_interval(heat_interval) {
+#ifdef ARGWEAVER_MPI
+        int numthread=MPI::COMM_WORLD.Get_size();
+        int *groups = (int*)malloc(numthread*sizeof(int));
+        MPI::COMM_WORLD.Allgather(&group, 1, MPI::INT, groups, 1, MPI::INT);
+        heat = 1.0 - heat_interval * group;
+        group_comm = MPI::COMM_WORLD.Split(group, 0);
+
+        //check that configuration makes sense.
+        // Groups should be numbered 0.. max_group, there should be an equal
+        // number of each
+        int min_group = groups[0];
+        max_group = groups[0];
+        for (int i=0; i < numthread; i++) {
+            if (groups[i] > max_group) max_group = groups[i];
+            if (groups[i] < min_group) min_group = groups[i];
+        }
+        if (min_group != 0) {
+            printError("Error: Should have a zero group for --mcmcmc-group");
+            exit(1);
+        }
+        int counts[max_group+1];
+        for (int i=0; i <=max_group; i++) counts[i]=0;
+        for (int i=0; i < numthread; i++)
+            counts[groups[i]]++;
+        for (int i=1; i <= max_group; i++) {
+            if (counts[i] != counts[0]) {
+                printError("Error: Not all groups have same size for --mcmcmc-group");
+                for (i=0; i < numthread; i++) printf("groups[%i]=%i\n", i, groups[i]); fflush(stdout);
+                for (i=0; i <= max_group; i++) printf("counts[%i]=%i\n", i, counts[i]); fflush(stdout);
+                exit(1);
+            }
+        }
+        free(groups);
+
+#endif
+    }
+    int group;
+    int max_group;
+    double heat_interval;
+    double heat;
+#ifdef ARGWEAVER_MPI
+    MPI::Intracomm group_comm;
+#endif
 };
 
 
@@ -182,7 +259,8 @@ class ArgModel
     unphased(other.unphased),
     sample_phase(other.sample_phase),
     unphased_file(other.unphased_file),
-    popsize_config(other.popsize_config)
+    popsize_config(other.popsize_config),
+    mc3(other.mc3)
         {}
 
 
@@ -199,7 +277,8 @@ class ArgModel
     unphased(other.unphased),
     sample_phase(other.sample_phase),
     unphased_file(other.unphased_file),
-    popsize_config(other.popsize_config)
+    popsize_config(other.popsize_config),
+    mc3(other.mc3)
         {
         copy(other);
         }
@@ -242,6 +321,7 @@ class ArgModel
         sample_phase = other.sample_phase;
         unphased_file = other.unphased_file;
         popsize_config = other.popsize_config;
+        mc3 = other.mc3;
 
         // copy popsizes and times
         set_times(other.times, ntimes);
@@ -444,6 +524,9 @@ class ArgModel
     }
 
     void set_popsize_config(string filename);
+    void setup_mc3(int group, double heat_interval) {
+        mc3 = Mc3Config(group, heat_interval);
+    }
 
  protected:
 
@@ -479,6 +562,7 @@ class ArgModel
     int sample_phase;
     string unphased_file;
     PopsizeConfig popsize_config;
+    Mc3Config mc3;
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
 };

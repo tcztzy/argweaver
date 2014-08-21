@@ -172,6 +172,34 @@ bool ArgModel::setup_maps(string chrom, int start, int end) {
     return true;
 }
 
+void PopsizeConfig::split_config() {
+    list<PopsizeConfigParam> oldparams = params;
+    params.clear();
+    int currpop=0;
+    int numparam=0;
+    char tmp[100];
+    for (list<PopsizeConfigParam>::iterator it=oldparams.begin(); it != oldparams.end(); ++it) {
+        int n = (*it).pops.size();
+        sprintf(tmp, "N%i", numparam++);
+        if (n == 2) {
+            addPop(tmp, currpop++, true);
+            addPop(tmp, currpop++, true);
+        } else {
+            int size = n/2;
+            int i;
+            for (i=0; i < size; i++)
+                addPop(tmp, currpop++, true);
+            if (currpop % 2 == 1) {
+                addPop(tmp, currpop++, true);
+                i++;
+            }
+            sprintf(tmp, "N%i", numparam++);
+            for ( ; i < n; i++)
+                addPop(tmp, currpop++, true);
+        }
+    }
+}
+
 
 void PopsizeConfig::addPop(const char *name, int pop, int sample) {
     for (list<PopsizeConfigParam>::iterator it=params.begin(); 
@@ -193,7 +221,8 @@ void PopsizeConfig::addPop(const char *name, int pop, int sample) {
 PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
     sample(true),
     popsize_prior_alpha(1.0),
-    popsize_prior_beta(1.0e-4)
+    popsize_prior_beta(1.0e-4),
+    config_buildup(0)
   {
     if (filename=="") {
 	for (int i=0; i < 2*ntimes-1; i++) {

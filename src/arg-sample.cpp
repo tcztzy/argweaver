@@ -93,6 +93,10 @@ public:
                    ("", "--subsites", "<subsites file>", &subsites_file,
                     "file listing NAMES from sites file (or sequences from"
                     " fasta) to keep; others will not be used"));
+#ifdef ARGWEAVER_MPI
+        config.add(new ConfigSwitch
+                   ("", "--mpi", &mpi, "this is an mpi run, add <rank>.sites to sites file name and <rank>. to out root"));
+#endif
 
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
@@ -101,18 +105,63 @@ public:
                     "10000",
                     "effective population size (default=1e4)"));
         config.add(new ConfigSwitch
-                   ("", "--sample-popsize", &sample_popsize, "sample population size for each time interval using Metropolis-Hastings update"));
+                   ("", "--sample-popsize", &sample_popsize,
+                    "sample population size for each time interval using"
+                    " Metropolis-Hastings update"));
         config.add(new ConfigParam<string>
-                   ("", "--sample-popsize-config", "<popsize config file>", &popsize_config_file, "",
-                    "optional, for use with --sample-popsize: should have a line for each time interval, starting with the most recent. Each line can have up to three tab-separated columns, but only the first is required. The first column gives the name of the popsize parameter- any time intervals with the same entry here will be constrained to have the same popsize. The second line is the initial value for the parameter, and the third should be a 1 or 0 indicating whether to sample that parameter. The second and third columns are optional; by default all parameters will be sampled when --sample-popsize is used. For rows with the same value in the first column, the second and third columns should also be the same."));
+                   ("", "--sample-popsize-config", "<popsize config file>",
+                    &popsize_config_file, "",
+                    "optional, for use with --sample-popsize: should have a"
+                    " line for each time interval, starting with the most"
+                    " recent. Each line can have up to three tab-separated"
+                    " columns, but only the first is required. The first column"
+                    " gives the name of the popsize parameter- any time"
+                    " intervals with the same entry here will be constrained"
+                    " to have the same popsize. The second line is the initial"
+                    " value for the parameter, and the third should be a 1 or"
+                    " 0 indicating whether to sample that parameter. The second"
+                    " and third columns are optional; by default all parameters"
+                    " will be sampled when --sample-popsize is used. For rows"
+                    " with the same value in the first column, the second and"
+                    " third columns should also be the same."));
         config.add(new ConfigParam<int>
                    ("", "--sample-popsize-num", "<num>", &sample_popsize_num, 1,
-                    "number of times to sample popsize per threading operation (default=1)",
+                    "number of times to sample popsize per threading operation"
+                    " (default=1)",
                     DEBUG_OPT));
         config.add(new ConfigSwitch
+                   ("", "--popsize-prior-neighbor", &popsize_prior_neighbor,
+                    "(for use with --sample-popsize) use prior that encourages"
+                    " neighboring popsizes to be similar",
+                    DEBUG_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--sample-popsize-const", &sample_popsize_const,
+                    "sample popsize, keep constant across times", DEBUG_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--sample-popsize-buildup", "<n>",
+                    &sample_popsize_buildup, 0,
+                    "for use with --sample-popsize, alternative to"
+                    " --sample-popsize-config. Start off estimating single"
+                    " popsize for all times, and every <n> iterations split"
+                    " interval in half, until each time interval estimated"
+                    " separately",
+                    DEBUG_OPT));
+#ifdef ARGWEAVER_MPI
+        config.add(new ConfigParam<int>
+                   ("", "--mcmcmc", "<int>", &mcmcmc_group,
+                    0, "mcmcmc group (all runs in same group have same heat,"
+                    " should be positive integers starting at zero)",
+                    DEBUG_OPT));
+        config.add(new ConfigParam<double>
+                   ("", "--mcmcmc-heat", "<val>", &mcmcmc_heat,
+                    0.05, "heat interval for each thread in (MC)^3 group",
+                    DEBUG_OPT));
+#endif
+        config.add(new ConfigSwitch
                    ("", "--init-popsize-random", &init_popsize_random,
-                    "(for use with --sample-popsize). Initialize each population size"
-                    " parameter to a random number sampled uniformly in [5000, 50000]"));
+                    "(for use with --sample-popsize). Initialize each"
+                    " population size parameter to a random number sampled"
+                    " uniformly in [5000, 50000]"));
         config.add(new ConfigParam<double>
                    ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
                     "mutations per site per generation (default=2.5e-8)"));
@@ -257,6 +306,15 @@ public:
             printf(VERSION_INFO);
             return EXIT_ERROR;
         }
+#ifdef ARGWEAVER_MPI
+        if (mcmcmc_group != 0) {
+            char tmp[1000];
+            sprintf(tmp, ".%i", mcmcmc_group);
+            mcmcmc_prefix = string(tmp);
+        }
+        printf("mcmcmc_prefix = %s\n", mcmcmc_prefix.c_str());
+        printf("mcmcmc_group=%i\n", mcmcmc_group);
+#endif
 
         return 0;
     }
@@ -286,9 +344,18 @@ public:
     string maskmap;
     ArgModel model;
     bool sample_popsize;
+    bool sample_popsize_const;
+    bool popsize_prior_neighbor;
+    int sample_popsize_buildup;
     bool init_popsize_random;
     string popsize_config_file;
     int sample_popsize_num;
+#ifdef ARGWEAVER_MPI
+    double mcmcmc_heat;
+    int mcmcmc_group;
+    bool mpi;
+#endif
+    string mcmcmc_prefix;
 
     // search
     int nclimb;
@@ -335,6 +402,27 @@ bool parse_region(const char *region, int *start, int *end)
 
 //=============================================================================
 // logging
+
+void set_up_logging(const Config &c, int level, const char *log_mode) {
+    Logger *logger;
+    printf("set_up_logging %s %s %s %i %i\n",
+           c.out_prefix.c_str(), c.mcmcmc_prefix.c_str(), LOG_SUFFIX, c.quiet,
+           level);
+    setLogLevel(level);
+    if (c.quiet) {
+        // log only to file
+        logger = &g_logger;
+    } else {
+        // log to both stdout and file
+        logger = new Logger(NULL, level);
+        g_logger.setChain(logger);
+    }
+    string log_filename = c.out_prefix + c.mcmcmc_prefix + LOG_SUFFIX;
+    if (!logger->openLogFile(log_filename.c_str(), log_mode)) {
+        printError("Could not open log file '%s'", log_filename.c_str());
+        abort();
+    }
+}
 
 // log the program version and start time
 void log_intro(int level)
@@ -471,8 +559,12 @@ void compress_model(ArgModel *model, SitesMapping *sites_mapping,
 // statistics output
 
 void print_stats_header(Config *config) {
-    fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\trecombs\tnoncompats\targlen");
-    if (config->model.popsize_config.sample) {
+    fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\t"
+            "recombs\tnoncompats\targlen");
+    if (config->model.popsize_config.config_buildup) {
+        for (int i=0; i < 2*config->model.ntimes-1; i++)
+            fprintf(config->stats_file, "\tN%i", i);
+    } else if (config->model.popsize_config.sample) {
         list<PopsizeConfigParam> l = config->model.popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
              it != l.end(); ++it) {
@@ -521,7 +613,10 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f",
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
-    if (model->popsize_config.sample) {
+    if (model->popsize_config.config_buildup) {
+        for (int i=0; i < 2*model->ntimes-1; i++)
+            fprintf(stats_file, "\t%f", model->popsizes[i]);
+    } else if (model->popsize_config.sample) {
         list<PopsizeConfigParam> l=model->popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
              it != l.end(); ++it) {
@@ -560,14 +655,14 @@ string get_out_arg_file(const Config &config, int iter)
 {
     char iterstr[10];
     snprintf(iterstr, 10, ".%d", iter);
-    return config.out_prefix + iterstr + SMC_SUFFIX;
+    return config.out_prefix + config.mcmcmc_prefix + iterstr + SMC_SUFFIX;
 }
 
 string get_out_sites_file(const Config &config, int iter)
 {
     char iterstr[10];
     snprintf(iterstr, 10, ".%d", iter);
-    return config.out_prefix + iterstr + SITES_SUFFIX;
+    return config.out_prefix + config.mcmcmc_prefix + iterstr + SITES_SUFFIX;
 }
 
 
@@ -690,6 +785,101 @@ void climb_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     printLog(LOG_LOW, "\n");
 }
 
+void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
+                 const LocalTrees *trees, const SitesMapping *sites_mapping) {
+#ifdef ARGWEAVER_MPI
+    if (model->mc3.max_group == 0) return;
+    Mc3Config *mc3 = &(model->mc3);
+    int swap[2];
+    int rank = MPI::COMM_WORLD.Get_rank();
+    bool accept;
+    //pick two groups to swap
+    if (rank == 0) {
+        swap[0] = irand(mc3->max_group + 1);
+        swap[1] = irand(mc3->max_group);
+        if (swap[1] >= swap[0]) swap[1]++;
+        assert(swap[0] >= 0 && swap[0] <= mc3->max_group);
+        assert(swap[1] >= 0 && swap[1] <= mc3->max_group);
+        assert(swap[0] != swap[1]);
+    }
+    MPI::COMM_WORLD.Bcast(swap, 2, MPI::INT, 0);
+    if (mc3->group == swap[0] || mc3->group == swap[1]) {
+        double vals[4];
+        vals[0] = calc_arg_prior(model, trees) +
+            calc_arg_likelihood(model, sequences, trees, sites_mapping);
+        vals[1] = mc3->heat;
+        printLog(0, "calling reduce\n");
+        if (mc3->group_comm.Get_rank()==0)
+            mc3->group_comm.Reduce(MPI_IN_PLACE, vals, 1, MPI::DOUBLE, MPI_SUM,
+                                   0);
+        else mc3->group_comm.Reduce(vals, vals, 1, MPI::DOUBLE, MPI_SUM, 0);
+        printLog(0, "done reduce\n");
+        printLog(0, "like=%f\n", vals[0]);
+        if (mc3->group_comm.Get_rank()==0)
+            MPI::COMM_WORLD.Send(vals, 2, MPI::DOUBLE, 0, 301);
+    }
+    if (rank == 0) {
+        double like[2];
+        double heat[2];
+        for (int i=0; i < 2; i++) {
+            double vals[2];
+            MPI::COMM_WORLD.Recv(vals, 2, MPI::DOUBLE, MPI_ANY_SOURCE, 301);
+            like[i] = vals[0];
+            heat[i] = vals[1];
+        }
+        double accept_ratio = (heat[0]-heat[1])*like[1] +
+            (heat[1] - heat[0])*like[0];
+        accept = (accept_ratio >= 0.0 ||
+                  frand() < exp(accept_ratio));
+        //Note heat[0] may correspond to swap[0] or swap[1]
+        printf("swap\t%i\t%i\t%f\t%f\t%f\t%s\n",
+               swap[0], swap[1], heat[0], heat[1], accept_ratio,
+               accept ? "accept" : "reject");
+    }
+    MPI::COMM_WORLD.Bcast(&accept, 1, MPI::BOOL, 0);
+
+    // now all processes know accept. Do the switch
+    if (accept && (mc3->group == swap[0] || mc3->group == swap[1])) {
+        int other = (mc3->group == swap[1] ? 0 : 1);
+        mc3->group = swap[other];
+        mc3->heat = 1.0 - mc3->heat_interval * mc3->group;
+        //need to switch output files as well, including stats_file, arg output,
+        //phase output, log files.  First close all the files.
+        fclose(config->stats_file);
+        if (config->verbose) {
+            Logger *chain = g_logger.getChain();
+            chain->closeLogFile();
+        }
+        if (mc3->group == 0) config->mcmcmc_prefix = "";
+        else {
+            char tmp[1000];
+            sprintf(tmp, ".%i", mc3->group);
+            config->mcmcmc_prefix = string(tmp);
+        }
+    }
+    MPI::COMM_WORLD.Barrier();
+    //Now reopen in append mode
+    if (accept && (mc3->group == swap[0] || mc3->group == swap[1])) {
+        string stats_filename = config->out_prefix + config->mcmcmc_prefix
+            + STATS_SUFFIX;
+        if (!(config->stats_file = fopen(stats_filename.c_str(), "a"))) {
+            printError("Error reopening stats file %s in mcmcmc_swap\n",
+                    stats_filename.c_str());
+            abort();
+        }
+        if (config->verbose) {
+            string log_filename = config->out_prefix + config->mcmcmc_prefix
+                + LOG_SUFFIX;
+            Logger *chain = g_logger.getChain();
+            if (!chain->openLogFile(log_filename.c_str(), "a")) {
+                fprintf(stderr, "Error opening %s\n", log_filename.c_str());
+                abort();
+            }
+        }
+    }
+#endif
+}
+
 
 void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                       SitesMapping* sites_mapping, Config *config)
@@ -732,17 +922,22 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     for (int i=iter; i<=config->niters; i++) {
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
+        double heat = model->mc3.heat;
         if (config->gibbs)
             resample_arg(model, sequences, trees);
         else
             resample_arg_mcmc_all(model, sequences, trees, do_leaf[i],
-                                  window, step, niters);
-
-        if (config->model.popsize_config.sample)
-            resample_popsizes(model, trees);
+                                  window, step, niters, heat);
+        if (model->popsize_config.sample) {
+            if (model->popsize_config.config_buildup > 0 &&
+                i > 0 && i % model->popsize_config.config_buildup == 0)
+                model->popsize_config.split_config();
+            resample_popsizes(model, trees, heat);
+        }
 
         printTimerLog(timer, LOG_LOW, "sample time:");
 
+        mcmcmc_swap(config, model, sequences, trees, sites_mapping);
 
         // logging
         print_stats(config->stats_file, "resample", i, model, sequences, trees,
@@ -839,6 +1034,7 @@ bool parse_status_line(const char* line, const Config &config,
         arg_file = out_arg_file;
     }
 
+    //TODO: need to make this work with popsize_config.config_buildup
     if (config.model.popsize_config.sample) {
         list<PopsizeConfigParam> l=config.model.popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
@@ -883,7 +1079,8 @@ bool setup_resume(Config &config)
     printLog(LOG_LOW, "Resuming previous run\n");
 
     // open stats file
-    string stats_filename = config.out_prefix + STATS_SUFFIX;
+    string stats_filename = config.out_prefix + config.mcmcmc_prefix
+        + STATS_SUFFIX;
     printLog(LOG_LOW, "Checking previous run from stats file: %s\n",
              stats_filename.c_str());
 
@@ -938,7 +1135,8 @@ bool setup_resume(Config &config)
 bool check_overwrite(Config &config)
 {
     // check for stats file
-    string stats_filename = config.out_prefix + STATS_SUFFIX;
+    string stats_filename = config.out_prefix + config.mcmcmc_prefix
+        + STATS_SUFFIX;
     bool exists = !access(stats_filename.c_str(), F_OK);
     if (config.resume || config.overwrite || !exists) {
         return true;
@@ -969,15 +1167,16 @@ bool ensure_output_dir(const char *outdir)
 
 int main(int argc, char **argv)
 {
+
+#ifdef ARGWEAVER_MPI
+    MPI::Init(argc, argv);
+#endif
+
     // parse command line arguments
     Config c;
     int ret = c.parse_args(argc, argv);
     if (ret)
         return ret;
-
-#ifdef ARGWEAVER_MPI
-    MPI::Init(argc, argv);
-#endif
 
     // ensure output dir
     if (!ensure_output_dir(c.out_prefix.c_str()))
@@ -987,23 +1186,19 @@ int main(int argc, char **argv)
     if (!check_overwrite(c))
         return EXIT_ERROR;
 
+#ifdef ARGWEAVER_MPI
+    if (c.mpi) {
+        char tmp[10000];
+        sprintf(tmp, "%s%i.sites", c.sites_file.c_str(),
+                MPI::COMM_WORLD.Get_rank());
+        c.sites_file = (string)tmp;
+        sprintf(tmp, "%s%i", c.out_prefix.c_str(), MPI::COMM_WORLD.Get_rank());
+        c.out_prefix = (string)tmp;
+    }
+#endif
+
     // setup logging
-    setLogLevel(c.verbose);
-    string log_filename = c.out_prefix + LOG_SUFFIX;
-    Logger *logger;
-    if (c.quiet) {
-        // log only to file
-        logger = &g_logger;
-    } else {
-        // log to both stdout and file
-        logger = new Logger(NULL, c.verbose);
-        g_logger.setChain(logger);
-    }
-    const char *log_mode = (c.resume ? "a" : "w");
-    if (!logger->openLogFile(log_filename.c_str(), log_mode)) {
-        printError("could not open log file '%s'", log_filename.c_str());
-        return EXIT_ERROR;
-    }
+    set_up_logging(c, c.verbose, (c.resume ? "a" : "w"));
 
     // log intro
     if (c.resume)
@@ -1016,11 +1211,18 @@ int main(int argc, char **argv)
     // init random number generator
     if (c.randseed == 0)
         c.randseed = time(NULL);
+#ifdef ARGWEAVER_MPI
+    if (MPI::COMM_WORLD.Get_rank()==0) {
+        for (int i=1; i < MPI::COMM_WORLD.Get_size(); i++) {
+            int seed = irand(12581020);
+            MPI::COMM_WORLD.Send(&seed, 1, MPI::INT, i, 13);
+        }
+    } else {
+        MPI::COMM_WORLD.Recv(&c.randseed, 1, MPI::INT, 0, 13);
+    }
+#endif
     srand(c.randseed);
     printLog(LOG_LOW, "random seed: %d\n", c.randseed);
-
-
-
 
     // read sequences
     Sites sites;
@@ -1172,16 +1374,38 @@ int main(int argc, char **argv)
     if (c.unphased)
         c.model.unphased = true;
     c.model.sample_phase = c.sample_phase;
+    if (c.sample_popsize_const)
+        c.sample_popsize=true;
     if (c.sample_popsize) {
-        c.model.popsize_config = PopsizeConfig(c.popsize_config_file, c.model.ntimes, c.model.popsizes);
+        if (c.sample_popsize_buildup) {
+            if (c.popsize_config_file != "" || c.sample_popsize_const) {
+                printError("Error: cannot use --sample-popsize-buildup with"
+                           " --sample-popsize-const or"
+                           " --sample-popsize-config\n");
+                return 1;
+            }
+            c.model.popsize_config = PopsizeConfig(c.ntimes, true, true);
+            c.model.popsize_config.config_buildup = c.sample_popsize_buildup;
+        } else if (c.sample_popsize_const) {
+            c.model.popsize_config =
+                PopsizeConfig(c.ntimes, true, true);
+        } else {
+            c.model.popsize_config =
+                PopsizeConfig(c.popsize_config_file, c.model.ntimes,
+                              c.model.popsizes);
+        }
         c.model.popsize_config.numsample = c.sample_popsize_num;
-#ifdef ARGWEAVER_MPI
-        printf("MPI rank=%i size=%i\n",
-               MPI::COMM_WORLD.Get_rank(),
-               MPI::COMM_WORLD.Get_size());
-        fflush(stdout);
-#endif
+        c.model.popsize_config.neighbor_prior = c.popsize_prior_neighbor;
     }
+#ifdef ARGWEAVER_MPI
+    c.model.mc3 = Mc3Config(c.mcmcmc_group, c.mcmcmc_heat);
+
+
+    printf("MPI rank=%i size=%i\n",
+           MPI::COMM_WORLD.Get_rank(),
+           MPI::COMM_WORLD.Get_size());
+    MPI::COMM_WORLD.Barrier();
+#endif
     if (c.init_popsize_random)
         c.model.set_popsizes_random();
 
@@ -1288,7 +1512,7 @@ int main(int argc, char **argv)
 
 
     // init stats file
-    string stats_filename = c.out_prefix + STATS_SUFFIX;
+    string stats_filename = c.out_prefix + c.mcmcmc_prefix + STATS_SUFFIX;
     const char *stats_mode = (c.resume ? "a" : "w");
     if (!(c.stats_file = fopen(stats_filename.c_str(), stats_mode))) {
         printError("could not open stats file '%s'", stats_filename.c_str());
