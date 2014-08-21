@@ -318,8 +318,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
     }
 
     // first tree prior
-    lnl += calc_tree_prior(model, trees->front().tree, lineages);
-    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
+    //    lnl += calc_tree_prior(model, trees->front().tree, lineages);
+    //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
