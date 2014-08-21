@@ -61,7 +61,6 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
 		/ (2.0 * model->popsizes[2*m+1]));
     }
 
-
     // probability of coalescing at time j
     double pcoal = 1.0;
     int nbranches_j = lineages.nbranches[j]

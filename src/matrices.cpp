@@ -29,21 +29,11 @@ void calc_arghmm_matrices_internal(
     if (seqs) {
         const int nleaves = trees->get_num_leaves();
         char *subseqs[nleaves];
-	//	int phase_nodes[2]={-1,-1};
         for (int i=0; i<nleaves; i++)
             subseqs[i] = &seqs->seqs[trees->seqids[i]][start];
         matrices->emit = new_matrix<double>(blocklen, max(nstates, 1));
-        if (model->unphased && phase_pr != NULL) {
+        if (model->unphased && phase_pr != NULL)
             phase_pr->offset = start;
-            /*	    phase_nodes[0] = tree->nodes[tree->root].child[0];
-	    while (!tree->nodes[phase_nodes[0]].is_leaf())
-		phase_nodes[0] = tree->nodes[phase_nodes[0]].child[irand(2)];
-	    for (unsigned int i=0; i < trees->seqids.size(); i++) {
-	      if (trees->seqids[i] == seqs->get_pair(phase_nodes[0])) {
-		phase_nodes[1] = i;
-		break;
-		}}*/
-        }
 	calc_emissions_internal(states, tree, subseqs, nleaves,
                                 blocklen, model, matrices->emit, phase_pr);
     } else {
@@ -111,12 +101,8 @@ void calc_arghmm_matrices_external(
             subseqs[i] = &seqs->seqs[trees->seqids[i]][start];
         subseqs[nleaves] = &seqs->seqs[new_chrom][start];
         matrices->emit = new_matrix<double>(blocklen, nstates);
-	if (model->unphased) {
-	  //	    phase_pr->treemap1 = nleaves;
-	    //	    phase_pr->updateTreeMap2(trees);
-	    phase_pr->offset = start;
-	    //	    printf("treemap = %i %i\n", phase_pr->treemap1, phase_pr->treemap2);
-	}
+        if (model->unphased)
+            phase_pr->offset = start;
         calc_emissions_external(states, tree, subseqs, nleaves + 1, blocklen,
                                 model, matrices->emit, phase_pr);
     } else {
@@ -166,8 +152,7 @@ void calc_arghmm_matrices(
     if (states_model.internal)
         calc_arghmm_matrices_internal(
             model, seqs, trees, last_tree_spr, tree_spr,
-            start, end, states_model.minage, matrices,
-            phase_pr);
+            start, end, states_model.minage, matrices, phase_pr);
     else
         calc_arghmm_matrices_external(
             model, seqs, trees, last_tree_spr,  tree_spr,

@@ -20,7 +20,6 @@
 // arghmm includes
 #include "track.h"
 #include "common.h"
-//#include "local_tree.h"
 
 namespace argweaver {
 
@@ -141,8 +140,9 @@ public:
         }
         seqs.clear();
         names.clear();
-	pairs.clear();
+        pairs.clear();
     }
+
 
     //set pairs vector assuming that diploids are named XXXX_1 and XXXX_2
     void set_pairs_by_name();
@@ -164,7 +164,7 @@ public:
 
     vector <char*> seqs;
     vector <string> names;
-    vector <int> pairs;  // index of diploid pair partner
+    vector <int> pairs; // index of diploid pair partner
 
 protected:
     int seqlen;

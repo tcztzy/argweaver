@@ -132,7 +132,6 @@ void write_fasta(FILE *stream, Sequences *seqs)
 //=============================================================================
 // input/output: sites file format
 
-
 void write_sites(FILE *stream, Sites *sites) {
   fprintf(stream, "NAMES");
   for (unsigned int i=0; i < sites->names.size(); i++)
@@ -502,23 +501,22 @@ void PhaseProbs::sample_phase(int *thread_path) {
 }
 
 void Sequences::randomize_phase(double frac) {
-      printLog(LOG_LOW, "randomizing phase (frac=%f)\n", frac);
-      int count=0, total=0;
-      for (int i=0; i < seqlen; i++) {
+    printLog(LOG_LOW, "randomizing phase (frac=%f)\n", frac);
+    int count=0, total=0;
+    for (int i=0; i < seqlen; i++) {
         for (int j=0; j < (int)seqs.size(); j++) {
-          if (pairs[j] < j) continue;
-          total++;
-          if (frand() < frac) {
-            if (frand() < 0.5) {
-              switch_alleles(i, j, pairs[j]);
-              count++;
+            if (pairs[j] < j) continue;
+            total++;
+            if (frand() < frac) {
+                if (frand() < 0.5) {
+                    switch_alleles(i, j, pairs[j]);
+                    count++;
+                }
             }
-          }
         }
-      }
-      printLog(LOG_LOW, "switched %i of %i (%f)\n", count, total, (double)count/(double)total);
     }
-
+    printLog(LOG_LOW, "switched %i of %i (%f)\n", count, total, (double)count/(double)total);
+}
 
 // Compress the sites by a factor of 'compress'.
 //
@@ -783,7 +781,6 @@ void PhaseProbs::updateTreeMap2(const LocalTrees *tree) {
     treemap2 = -1;
     return;
 }
-
 
 //=============================================================================
 // C interface

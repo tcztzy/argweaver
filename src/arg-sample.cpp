@@ -24,6 +24,7 @@
 #include "track.h"
 #include "est_popsize.h"
 
+
 using namespace argweaver;
 
 
@@ -253,7 +254,6 @@ public:
         config.add(new ConfigParam<int>
                    ("", "--sample-phase", "<niters>", &sample_phase, 0,
                     "output phasings every <niters> samples", DEBUG_OPT));
-
         config.add(new ConfigParam<int>
                    ("", "--resample-window", "<window size>",
                     &resample_window, 100000,

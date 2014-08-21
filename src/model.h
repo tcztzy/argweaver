@@ -396,8 +396,6 @@ class ArgModel
         setup_time_steps();
     }
 
-
-
     // Sets the model population sizes from an array
     void set_popsizes(double *_popsizes, int _ntimes) {
         ntimes = _ntimes;
@@ -513,7 +511,6 @@ class ArgModel
         model.sample_phase = sample_phase;
         model.unphased_file = unphased_file;
         model.popsize_config = popsize_config;
-
         model.owned = false;
         model.times = times;
         model.ntimes = ntimes;
@@ -527,8 +524,7 @@ class ArgModel
         mc3 = Mc3Config(group, heat_interval);
     }
 
- protected:
-
+protected:
     // Setup time steps between time points
     void setup_time_steps()
     {
