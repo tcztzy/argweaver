@@ -32,50 +32,56 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
         int num_accept=0, total=0;
         list<PopsizeConfigParam> &l = model->popsize_config.params;
         double *num_coal, *num_nocoal;
-        vector<double> lrs(2*model->ntimes), trans(2*model->ntimes),
-            prior(2*model->ntimes), oldn(2*model->ntimes),
-            newn(2*model->ntimes), praccept(2*model->ntimes);
-        vector<int> accepted(2*model->ntimes);
-        num_coal = (double*)malloc(2*model->ntimes*sizeof(double));
-        num_nocoal = (double*)malloc(2*model->ntimes * sizeof(double));
+        vector<double> lrs(2 * model->ntimes),
+            trans(2 * model->ntimes),
+            prior(2 * model->ntimes),
+            oldn(2 * model->ntimes),
+            newn(2 * model->ntimes),
+            praccept(2 * model->ntimes);
+        vector<int> accepted(2 * model->ntimes);
+        num_coal = (double*)malloc(2 * model->ntimes * sizeof(double));
+        num_nocoal = (double*)malloc(2 * model->ntimes * sizeof(double));
         double curr_like = calc_arg_prior(model, trees, num_coal, num_nocoal);
 #ifdef ARGWEAVER_MPI
         comm.Reduce(MPI_IN_PLACE, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-        comm.Reduce(MPI_IN_PLACE, num_coal, 2*model->ntimes-1, MPI::DOUBLE,
+        comm.Reduce(MPI_IN_PLACE, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
                     MPI_SUM, 0);
-        comm.Reduce(MPI_IN_PLACE, num_nocoal, 2*model->ntimes-1, MPI::DOUBLE,
+        comm.Reduce(MPI_IN_PLACE, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
                     MPI_SUM, 0);
 #endif
         for (int rep=0; rep < model->popsize_config.numsample; rep++) {
-            for (list<PopsizeConfigParam>::iterator it=l.begin();
+            for (list<PopsizeConfigParam>::iterator it = l.begin();
                           it != l.end(); it++) {
                 if (it->sample == false) continue;
                 int maxpop=-1;
-                for (set<int>::iterator it2=it->pops.begin();
+                for (set<int>::iterator it2 = it->pops.begin();
                      it2 != it->pops.end(); it2++)
                     if ((*it2) > maxpop) maxpop = *it2;
                 double old_popsize = model->popsizes[maxpop];
-                double s = min(500.0, old_popsize/2.0);
+                double s = min(500.0, old_popsize / 2.0);
                 s *= s;  //variance of gamma proposal from
                          // old_popsize to new_popsize
 
-                double new_popsize = rand_gamma(old_popsize*old_popsize/s,
-                                                s/old_popsize);
+                double new_popsize = rand_gamma(old_popsize * old_popsize / s,
+                                                s / old_popsize);
 #ifdef ARGWEAVER_MPI
                 comm.Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
 #endif
-                double sp = min(500.0, new_popsize/2.0);
+                double sp = min(500.0, new_popsize / 2.0);
                 sp *= sp;  //variance of proposal from new_popsize
                            // to old_popsize
                 double logn = log(old_popsize); //log N
                 double lognp = log(new_popsize); //log N'
-                double nsquare = old_popsize*old_popsize;
-                double npsquare = new_popsize*new_popsize;
-                double trans_ratio = (npsquare/sp - nsquare/s - 1.0)*logn
-                    + (1.0 - nsquare/s + npsquare/sp)*lognp
-                    - old_popsize*new_popsize/sp + old_popsize*new_popsize/s
-                    - npsquare/sp*log(sp) + nsquare/s*log(s)
-                    - lgamma(npsquare/sp) + lgamma(nsquare/s);
+                double nsquare = old_popsize * old_popsize;
+                double npsquare = new_popsize * new_popsize;
+                double trans_ratio = (npsquare / sp - nsquare / s - 1.0) * logn
+                    + (1.0 - nsquare / s + npsquare / sp) * lognp
+                    - old_popsize * new_popsize / sp
+                    + old_popsize * new_popsize / s
+                    - npsquare / sp * log(sp)
+                    + nsquare / s* log(s)
+                    - lgamma(npsquare / sp)
+                    + lgamma(nsquare / s);
 
                 // using an uninformative gamma prior which slowly goes to zero
                 // as you move out to infinity, still allows N to be at least a
@@ -87,26 +93,26 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
                 // double prior_k=1.0;  //this is the value but it is
                 // commented-out since never used
                 if (( ! model->popsize_config.neighbor_prior) ||
-                    maxpop >= 2*model->ntimes-2)
-                    prior_ratio = (old_popsize-new_popsize)/prior_theta;
+                    maxpop >= 2 * model->ntimes - 2)
+                    prior_ratio = (old_popsize - new_popsize) / prior_theta;
                 else {
-                    double prev_popsize = model->popsizes[maxpop+1];
+                    double prev_popsize = model->popsizes[maxpop + 1];
                     double pneighbor=0.99999;
                     static double neighbor_sigma = 50.0;
-                    static double neighbor_sigma22 = 2.0*50.0*50.0;
-                    static double neighbor_scale = 1.0/(neighbor_sigma *
-                                                        sqrt(2.0*3.141593));
+                    static double neighbor_sigma22 = 2.0 * 50.0 * 50.0;
+                    static double neighbor_scale = 1.0 / (neighbor_sigma *
+                                                          sqrt(2.0 * 3.141593));
                     double newprior = (1.0 - pneighbor)*
-                        (exp(-new_popsize/prior_theta)/prior_theta) +
+                        (exp(-new_popsize / prior_theta) / prior_theta) +
                         pneighbor * neighbor_scale*
                         exp(-(new_popsize - prev_popsize)*
-                            (new_popsize-prev_popsize)/neighbor_sigma22);
+                            (new_popsize - prev_popsize) / neighbor_sigma22);
                     double oldprior = (1.0 - pneighbor)*
-                        (exp(-old_popsize/prior_theta)/prior_theta) +
+                        (exp(- old_popsize / prior_theta) / prior_theta) +
                         pneighbor * neighbor_scale *
-                        exp(-(old_popsize - prev_popsize)*
-                            (old_popsize - prev_popsize)/neighbor_sigma22);
-                    prior_ratio = log(newprior/oldprior);
+                        exp(- (old_popsize - prev_popsize)*
+                            (old_popsize - prev_popsize) / neighbor_sigma22);
+                    prior_ratio = log(newprior / oldprior);
                 }
 
 
@@ -125,7 +131,7 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
 #ifdef ARGWEAVER_MPI
                 comm.Bcast(&accept, 1, MPI::BOOL, 0);
 #endif
-                for (set<int>::iterator it2=it->pops.begin();
+                for (set<int>::iterator it2 = it->pops.begin();
                      it2 != it->pops.end(); it2++) {
                     lrs[*it2] = new_like - curr_like;
                     trans[*it2] = trans_ratio;
@@ -151,7 +157,7 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
                  num_accept, total);
         for (int i=0; i < 2*model->ntimes-1; i++) {
             int found=0;
-            for (list<PopsizeConfigParam>::iterator it=l.begin();
+            for (list<PopsizeConfigParam>::iterator it = l.begin();
                  it != l.end(); it++) {
                 if (it->pops.find(i) != it->pops.end()) {
                     found=1;
@@ -160,7 +166,7 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
                                  "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%f\t%f\t%s\n",
                                  i, num_coal[i], num_nocoal[i], oldn[i], newn[i],
                                  lrs[i], trans[i], prior[i],
-                                 accepted[i]==1 ? "accept" : "reject");
+                                 accepted[i] == 1 ? "accept" : "reject");
                     } else {
                         printLog(LOG_LOW,
                                  "%i\t%.1f\t%.1f\t%f\tnot_sampled\n",
@@ -176,13 +182,13 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
 #ifdef ARGWEAVER_MPI
     } else {
         list<PopsizeConfigParam> l = model->popsize_config.params;
-        double *num_coal = (double*)malloc(2*model->ntimes*sizeof(double));
-        double *num_nocoal = (double*)malloc(2*model->ntimes * sizeof(double));
+        double *num_coal = (double*)malloc(2 * model->ntimes*sizeof(double));
+        double *num_nocoal = (double*)malloc(2 * model->ntimes * sizeof(double));
         double curr_like = calc_arg_prior(model, trees, num_coal, num_nocoal);
         comm.Reduce(&curr_like, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-        comm.Reduce(num_coal, num_coal, 2*model->ntimes-1, MPI::DOUBLE,
+        comm.Reduce(num_coal, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
                     MPI_SUM, 0);
-        comm.Reduce(num_nocoal, num_nocoal, 2*model->ntimes-1, MPI::DOUBLE,
+        comm.Reduce(num_nocoal, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
                     MPI_SUM, 0);
 
         for (int rep=0; rep < model->popsize_config.numsample; rep++) {
