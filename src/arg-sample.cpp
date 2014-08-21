@@ -914,9 +914,6 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
              config->niters);
     printLog(LOG_LOW, "--------------------------------------\n");
 
-  //  int numseq = sequences->get_num_seqs();
-  //  double frac_leaf = numseq < 5 ? 1.0 : (double)numseq/(2*numseq-2);
- //   double frac_leaf = 0.0;
     double frac_leaf = 0.5;
     for (int i=0; i <= config->niters; i++) do_leaf[i] = (frand() < frac_leaf);
 
