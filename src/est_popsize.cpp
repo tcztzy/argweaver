@@ -104,13 +104,13 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
                                                           sqrt(2.0 * 3.141593));
                     double newprior = (1.0 - pneighbor)*
                         (exp(-new_popsize / prior_theta) / prior_theta) +
-                        pneighbor * neighbor_scale*
-                        exp(-(new_popsize - prev_popsize)*
+                        pneighbor * neighbor_scale *
+                        exp(-(new_popsize - prev_popsize) *
                             (new_popsize - prev_popsize) / neighbor_sigma22);
-                    double oldprior = (1.0 - pneighbor)*
+                    double oldprior = (1.0 - pneighbor) *
                         (exp(- old_popsize / prior_theta) / prior_theta) +
                         pneighbor * neighbor_scale *
-                        exp(- (old_popsize - prev_popsize)*
+                        exp(- (old_popsize - prev_popsize) *
                             (old_popsize - prev_popsize) / neighbor_sigma22);
                     prior_ratio = log(newprior / oldprior);
                 }
