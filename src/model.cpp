@@ -202,12 +202,13 @@ void PopsizeConfig::split_config() {
 
 
 void PopsizeConfig::addPop(const char *name, int pop, int sample) {
-    for (list<PopsizeConfigParam>::iterator it=params.begin(); 
+    for (list<PopsizeConfigParam>::iterator it=params.begin();
 	 it != params.end(); ++it) {
 	if (strcmp(it->name.c_str(), name)==0) {
 	    it->add_pop(pop);
 	    if (it->sample != sample) {
-		printError("Error in PopsizeConfig.add: got conflicting info on whether to sample pop %s\n", name);
+		printError("Error in PopsizeConfig.add: got conflicting info"
+                           " on whether to sample pop %s\n", name);
 		exit(1);
 	    }
 	    return;

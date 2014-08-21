@@ -394,7 +394,7 @@ void arghmm_forward_switch(const double *col1, double* col2,
 void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
     const Sequences *sequences, ArgHmmMatrixIter *matrix_iter,
     ArgHmmForwardTable *forward, PhaseProbs *phase_pr,
-    bool prior_given, bool internal, bool slow) 
+    bool prior_given, bool internal, bool slow)
 {
     LineageCounts lineages(model->ntimes);
     States states;
@@ -722,7 +722,7 @@ void cond_sample_arg_thread(const ArgModel *model, const Sequences *sequences,
 
     // compute forward table
     time.start();
-    arghmm_forward_alg(trees, model, sequences, &matrix_list, &forward, NULL, 
+    arghmm_forward_alg(trees, model, sequences, &matrix_list, &forward, NULL,
 		       true);
     int nstates = get_num_coal_states(trees->front().tree, model->ntimes);
     printf("forward:     %e s  (%d states, %d blocks)\n", time.time(),

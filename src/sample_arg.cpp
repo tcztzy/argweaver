@@ -484,7 +484,6 @@ double resample_arg_region(
             if (region_end == trees3->end_coord)
                 end_state.set_null();
         }
-
         // sample new ARG conditional on start and end states
         decLogLevel();
         cond_sample_arg_thread_internal(model, sequences, trees2,

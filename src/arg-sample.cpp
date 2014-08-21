@@ -241,13 +241,15 @@ public:
                     DEBUG_OPT));
         config.add(new ConfigSwitch
                    ("", "--unphased", &unphased,
-                    "data is unphased (will integrate over phasings). Note: Experimental!", DEBUG_OPT));
+                    "data is unphased (will integrate over phasings). "
+                    "Note: Experimental!", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--unphased-file", "<filename>", &unphased_file, "",
-                    "use this file to identify haplotype pairs (file should have two sequence names per line)", DEBUG_OPT));
+                    "use this file to identify haplotype pairs (file should"
+                    " have two sequence names per line)", DEBUG_OPT));
         config.add(new ConfigParam<double>
-                   ("", "--randomize-phase", "<frac_random>", &randomize_phase, 0.0,
-                    "randomize phasings at start (requires --unphased)", DEBUG_OPT));
+                   ("", "--randomize-phase", "<frac_random>", &randomize_phase,
+                    0.0, "randomize phasings at start", DEBUG_OPT));
         config.add(new ConfigParam<int>
                    ("", "--sample-phase", "<niters>", &sample_phase, 0,
                     "output phasings every <niters> samples", DEBUG_OPT));
@@ -255,12 +257,13 @@ public:
         config.add(new ConfigParam<int>
                    ("", "--resample-window", "<window size>",
                     &resample_window, 100000,
-                    "sliding window for resampling (default=100000)", DEBUG_OPT));
+                    "sliding window for resampling (default=100000)",
+                    DEBUG_OPT));
         config.add(new ConfigParam<int>
                    ("", "--resample-window-iters", "<iterations>",
                     &resample_window_iters, 10,
-                    "number of iterations per sliding window for resampling (default=10)", DEBUG_OPT));
-
+                    "number of iterations per sliding window for resampling"
+                    " (default=10)", DEBUG_OPT));
 
         // help information
         config.add(new ConfigParamComment("Information"));
@@ -534,9 +537,11 @@ void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
             if (track[i].start < prev_start_orig)
                 prev_start_new = 0;
             prev_start_orig = track[i].start;
-            track[i].start = sites_mapping->compress(track[i].start, prev_start_new);
+            track[i].start = sites_mapping->compress(track[i].start,
+                                                     prev_start_new);
             prev_start_new = track[i].start;
-            track[i].end = sites_mapping->compress(track[i].end, track[i].start);
+            track[i].end = sites_mapping->compress(track[i].end,
+                                                   track[i].start);
         }
     }
 }
@@ -685,9 +690,9 @@ bool log_sequences(const Sequences *sequences, const Config *config,
     return true;
 }
 
-bool log_local_trees(
-                     const ArgModel *model, const Sequences *sequences, LocalTrees *trees,
-                     const SitesMapping* sites_mapping, const Config *config, int iter)
+bool log_local_trees(const ArgModel *model, const Sequences *sequences,
+                     LocalTrees *trees, const SitesMapping* sites_mapping,
+                     const Config *config, int iter)
 {
     string out_arg_file = get_out_arg_file(*config, iter);
     if (!config->no_compress_output)
@@ -996,7 +1001,8 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 //=============================================================================
 
 bool parse_status_line(const char* line, const Config &config,
-                       string &stage, int &iter, string &arg_file, vector<string> header)
+                       string &stage, int &iter, string &arg_file,
+                       vector<string> header)
 {
     // parse stage and last iter
     vector<string> tokens;
@@ -1061,9 +1067,10 @@ bool parse_status_line(const char* line, const Config &config,
                 }
             }
             if (!found) {
-                printError("Error in resume: did not find pop %s in previous run stats file\n",
+                printError("Error in resume: did not find pop %s in previous"
+                           " run stats file\n",
                            popname.c_str());
-                exit(0);
+                abort();
             }
         }
     }
@@ -1108,7 +1115,8 @@ bool setup_resume(Config &config)
     string arg_file = "";
     while ((line = fgetline(stats_file))) {
         if (!parse_status_line(
-                               line, config, config.resume_stage, config.resume_iter, arg_file, header)) {
+             line, config, config.resume_stage, config.resume_iter, arg_file,
+             header)) {
             delete [] line;
             return false;
         }
@@ -1116,7 +1124,8 @@ bool setup_resume(Config &config)
     }
 
     if (arg_file == "") {
-        printLog(LOG_LOW, "Could not find any previously written ARG files. Try disabling resume\n");
+        printLog(LOG_LOW, "Could not find any previously written ARG files. "
+                 "Try disabling resume\n");
         return false;
     }
     config.arg_file = arg_file;
@@ -1272,7 +1281,8 @@ int main(int argc, char **argv)
         }
         stream.close();
 
-        printLog(LOG_LOW, "read input sites (chrom=%s, start=%d, end=%d, length=%d, nseqs=%d, nsites=%d)\n",
+        printLog(LOG_LOW, "read input sites (chrom=%s, start=%d, end=%d, "
+                 "length=%d, nseqs=%d, nsites=%d)\n",
                  sites.chrom.c_str(), sites.start_coord, sites.end_coord,
                  sites.length(), sites.get_num_seqs(),
                  sites.get_num_sites());
@@ -1314,7 +1324,8 @@ int main(int argc, char **argv)
         sites_mapping_ptr = auto_ptr<SitesMapping>(sites_mapping);
 
         if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
-            printError("unable to compress sequences at given compression level (--compress-seq)");
+            printError("unable to compress sequences at given compression level"
+                       " (--compress-seq)");
             return EXIT_ERROR;
         }
         compress_sites(&sites, sites_mapping);
@@ -1433,7 +1444,8 @@ int main(int argc, char **argv)
         printError("resume failed.");
         if (c.overwrite) {
             c.resume = false;
-            printLog(LOG_LOW, "Resume failed.  Sampling will start from scratch since overwrite is enabled.\n");
+            printLog(LOG_LOW, "Resume failed.  Sampling will start from scratch"
+                     " since overwrite is enabled.\n");
         } else {
             return EXIT_ERROR;
         }
@@ -1464,18 +1476,22 @@ int main(int argc, char **argv)
         }
 
         if (!trees->set_seqids(seqnames, sequences.names)) {
-            printError("input ARG's sequence names do not match input sequences");
+            printError("input ARG's sequence names do not match input"
+                       " sequences");
             return EXIT_ERROR;
         }
 
-        printLog(LOG_LOW, "read input ARG (chrom=%s, start=%d, end=%d, nseqs=%d)\n",
+        printLog(LOG_LOW, "read input ARG (chrom=%s, start=%d, end=%d,"
+                 " nseqs=%d)\n",
                  trees->chrom.c_str(), trees->start_coord, trees->end_coord,
                  trees->get_num_leaves());
 
         // check ARG matches sites/sequences
         if (trees->start_coord != seq_region.start ||
             trees->end_coord != seq_region.end) {
-            printError("trees range does not match sites: tree(start=%d, end=%d), sites(start=%d, end=%d) [compressed coordinates]",
+            printError("trees range does not match sites: tree(start=%d,"
+                       " end=%d), sites(start=%d, end=%d) [compressed"
+                       " coordinates]",
                        trees->start_coord, trees->end_coord,
                        seq_region.start, seq_region.end);
             return EXIT_ERROR;

@@ -50,7 +50,7 @@ class PopsizeConfigParam
  public:
  PopsizeConfigParam(string name, bool sample=true, int pop=-1) :
     name(name),
-    sample(sample)
+        sample(sample)
         {
             if (pop >= 0) pops.insert(pop);
         }
@@ -181,8 +181,7 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    unphased_file("")
-        {}
+    unphased_file("")        {}
 
     // Model with constant population sizes and log-spaced time points
  ArgModel(int ntimes, double maxtime, double popsize,
