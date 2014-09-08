@@ -96,7 +96,8 @@ public:
                     " fasta) to keep; others will not be used"));
 #ifdef ARGWEAVER_MPI
         config.add(new ConfigSwitch
-                   ("", "--mpi", &mpi, "this is an mpi run, add <rank>.sites to sites file name and <rank>. to out root"));
+                   ("", "--mpi", &mpi, "this is an mpi run, add <rank>.sites"
+                    " to sites file name and <rank>. to out root"));
 #endif
 
         // model parameters
@@ -109,6 +110,10 @@ public:
                    ("", "--sample-popsize", &sample_popsize,
                     "sample population size for each time interval using"
                     " Metropolis-Hastings update"));
+        config.add(new ConfigSwitch
+                   ("", "--sample-popsize-recomb", &sample_popsize_recomb,
+                    "do not integrate over recombination events when sampling"
+                    "popsize", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--sample-popsize-config", "<popsize config file>",
                     &popsize_config_file, "",
@@ -350,6 +355,7 @@ public:
     bool sample_popsize_const;
     bool popsize_prior_neighbor;
     int sample_popsize_buildup;
+    bool sample_popsize_recomb;
     bool init_popsize_random;
     string popsize_config_file;
     int sample_popsize_num;
@@ -934,7 +940,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
             if (model->popsize_config.config_buildup > 0 &&
                 i > 0 && i % model->popsize_config.config_buildup == 0)
                 model->popsize_config.split_config();
-            resample_popsizes(model, trees, heat);
+            resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
         }
 
         printTimerLog(timer, LOG_LOW, "sample time:");
