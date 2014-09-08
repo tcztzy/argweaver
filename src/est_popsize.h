@@ -6,7 +6,8 @@
 
 namespace argweaver {
 
-void resample_popsizes(ArgModel *model, const LocalTrees *trees, double heat=1.0);
+void resample_popsizes(ArgModel *model, const LocalTrees *trees,
+                       bool sample_popsize_recomb, double heat=1.0);
 
 void est_popsize_local_trees(const ArgModel *model, const LocalTrees *trees,
                              double *popsizes);
