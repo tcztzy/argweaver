@@ -1,14 +1,11 @@
-
-
 // C/C++ includes
+#ifdef ARGWEAVER_MPI
+#include "mpi.h"
+#endif
 #include <time.h>
 #include <memory>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#ifdef ARGWEAVER_MPI
-#include "mpi.h"
-#endif
 
 // arghmm includes
 #include "compress.h"

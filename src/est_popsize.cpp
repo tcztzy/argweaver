@@ -1,3 +1,6 @@
+#ifdef ARGWEAVER_MPI
+#include "mpi.h"
+#endif
 
 #include <algorithm>
 #include <vector>
@@ -8,9 +11,6 @@
 #include "logging.h"
 #include "model.h"
 
-#ifdef ARGWEAVER_MPI
-#include "mpi.h"
-#endif
 
 namespace argweaver {
 
@@ -25,7 +25,7 @@ double resample_popsize_scale(ArgModel *model, const LocalTrees *trees,
      */
     list<PopsizeConfigParam> &l = model->popsize_config.params;
     double scale;
-    
+
 #ifdef ARGWEAVER_MPI
    MPI::Intracomm comm = model->mc3.group_comm;
    int rank = comm.Get_rank();
