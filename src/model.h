@@ -19,7 +19,6 @@
 
 namespace argweaver {
 
-
 // Returns a discretized time point
 inline double get_time_point(int i, int ntimes, double maxtime, double delta=10)
 {
@@ -371,29 +370,7 @@ class ArgModel
     }
 
     void set_popsizes_random(double popsize_min=5000.0,
-                             double popsize_max=50000.0) {
-#ifdef ARGWEAVER_MPI
-        if (MPI::COMM_WORLD.Get_rank() == 0) {
-#endif
-        if (popsize_config.size() == 0) {
-            for (int i=0; i < 2*ntimes-1; i++) {
-                popsizes[i] = frand(popsize_min, popsize_max);
-            }
-            return;
-        }
-        list<PopsizeConfigParam> l = popsize_config.params;
-        for (list<PopsizeConfigParam>::iterator it=l.begin();
-             it != l.end(); ++it) {
-            double popsize=frand(popsize_min, popsize_max);
-            for (set<int>::iterator it2 = it->pops.begin();
-                 it2 != it->pops.end(); ++it2)
-                popsizes[*it2] = popsize;
-        }
-#ifdef ARGWEAVER_MPI
-        }
-        MPI::COMM_WORLD.Bcast(popsizes, 2*ntimes-1, MPI::DOUBLE, 0);
-#endif
-    }
+                             double popsize_max=50000.0);
 
     //====================================================================
     // maps
@@ -458,6 +435,7 @@ class ArgModel
     }
 
     void set_popsize_config(string filename);
+
     void setup_mc3(int group, double heat_interval) {
         mc3 = Mc3Config(group, heat_interval);
     }

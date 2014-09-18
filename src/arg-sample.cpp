@@ -20,10 +20,10 @@
 #include "total_prob.h"
 #include "track.h"
 #include "est_popsize.h"
+#include "mcmcmc.h"
 
 
 using namespace argweaver;
-
 
 // version info
 #define VERSION_TEXT "0.8"
@@ -817,13 +817,13 @@ void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
             calc_arg_likelihood(model, sequences, trees, sites_mapping);
         vals[1] = mc3->heat;
         printLog(0, "calling reduce\n");
-        if (mc3->group_comm.Get_rank()==0)
-            mc3->group_comm.Reduce(MPI_IN_PLACE, vals, 1, MPI::DOUBLE, MPI_SUM,
+        if (mc3->group_comm->Get_rank()==0)
+            mc3->group_comm->Reduce(MPI_IN_PLACE, vals, 1, MPI::DOUBLE, MPI_SUM,
                                    0);
-        else mc3->group_comm.Reduce(vals, vals, 1, MPI::DOUBLE, MPI_SUM, 0);
+        else mc3->group_comm->Reduce(vals, vals, 1, MPI::DOUBLE, MPI_SUM, 0);
         printLog(0, "done reduce\n");
         printLog(0, "like=%f\n", vals[0]);
-        if (mc3->group_comm.Get_rank()==0)
+        if (mc3->group_comm->Get_rank()==0)
             MPI::COMM_WORLD.Send(vals, 2, MPI::DOUBLE, 0, 301);
     }
     if (rank == 0) {

@@ -1,3 +1,7 @@
+#ifdef ARGWEAVER_MPI
+#include "mpi.h"
+#endif
+
 #include "model.h"
 
 
@@ -172,13 +176,40 @@ bool ArgModel::setup_maps(string chrom, int start, int end) {
     return true;
 }
 
+
+    void ArgModel::set_popsizes_random(double popsize_min,
+                                       double popsize_max) {
+#ifdef ARGWEAVER_MPI
+    if (MPI::COMM_WORLD.Get_rank() == 0) {
+#endif
+        if (popsize_config.size() == 0) {
+            for (int i=0; i < 2*ntimes-1; i++) {
+                popsizes[i] = frand(popsize_min, popsize_max);
+            }
+            return;
+        }
+        list<PopsizeConfigParam> l = popsize_config.params;
+        for (list<PopsizeConfigParam>::iterator it=l.begin();
+             it != l.end(); ++it) {
+            double popsize=frand(popsize_min, popsize_max);
+            for (set<int>::iterator it2 = it->pops.begin();
+                 it2 != it->pops.end(); ++it2)
+                popsizes[*it2] = popsize;
+        }
+#ifdef ARGWEAVER_MPI
+    }
+    MPI::COMM_WORLD.Bcast(popsizes, 2*ntimes-1, MPI::DOUBLE, 0);
+#endif
+}
+
 void PopsizeConfig::split_config() {
     list<PopsizeConfigParam> oldparams = params;
     params.clear();
     int currpop=0;
     int numparam=0;
     char tmp[100];
-    for (list<PopsizeConfigParam>::iterator it=oldparams.begin(); it != oldparams.end(); ++it) {
+    for (list<PopsizeConfigParam>::iterator it=oldparams.begin();
+         it != oldparams.end(); ++it) {
         int n = (*it).pops.size();
         sprintf(tmp, "N%i", numparam++);
         if (n == 2) {
@@ -273,6 +304,5 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
     }
     printf("done set_popsize_config num_n_params=%i\n", (int)params.size());
 }
-
 
 } // namespace argweaver

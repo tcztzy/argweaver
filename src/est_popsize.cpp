@@ -27,8 +27,8 @@ double resample_popsize_scale(ArgModel *model, const LocalTrees *trees,
     double scale;
 
 #ifdef ARGWEAVER_MPI
-   MPI::Intracomm comm = model->mc3.group_comm;
-   int rank = comm.Get_rank();
+   MPI::Intracomm *comm = model->mc3.group_comm;
+   int rank = comm->Get_rank();
    if (rank == 0) {
 #endif
        double trans_k = 1000.0;
@@ -50,7 +50,7 @@ double resample_popsize_scale(ArgModel *model, const LocalTrees *trees,
        }
 
 #ifdef ARGWEAVER_MPI
-       comm.Bcast(&scale, 1, MPI::DOUBLE, 0);
+       comm->Bcast(&scale, 1, MPI::DOUBLE, 0);
 #endif
 
        for (int i=0; i < 2*model->ntimes-1; i++)
@@ -58,7 +58,7 @@ double resample_popsize_scale(ArgModel *model, const LocalTrees *trees,
        double new_like = sample_popsize_recomb ? calc_arg_prior(model, trees) :
            calc_arg_prior_recomb_integrate(model, trees);
 #ifdef ARGWEAVER_MPI
-       comm.Reduce(MPI_IN_PLACE, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+       comm->Reduce(MPI_IN_PLACE, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
 #endif
        double lr = new_like - curr_like;
        double ln_accept = trans_ratio + prior_ratio + lr;
@@ -66,7 +66,7 @@ double resample_popsize_scale(ArgModel *model, const LocalTrees *trees,
        double pr_accept = (ln_accept > 0 ? 1.0 : exp(ln_accept));
        bool accept = (ln_accept > 0 || frand() < pr_accept);
 #ifdef ARGWEAVER_MPI
-       comm.Bcast(&accept, 1, MPI::BOOL, 0);
+       comm->Bcast(&accept, 1, MPI::BOOL, 0);
 #endif
        if (!accept) {
            for (int i=0; i < 2*model->ntimes-1; i++)
@@ -80,14 +80,14 @@ double resample_popsize_scale(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
    } else {
-       comm.Bcast(&scale, 1, MPI::DOUBLE, 0);
+       comm->Bcast(&scale, 1, MPI::DOUBLE, 0);
        for (int i=0; i < 2*model->ntimes-1; i++)
            model->popsizes[i]  = model->popsizes[i] * scale;
        double new_like = sample_popsize_recomb ? calc_arg_prior(model, trees) :
            calc_arg_prior_recomb_integrate(model, trees);
-       comm.Reduce(&new_like, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+       comm->Reduce(&new_like, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
        bool accept;
-       comm.Bcast(&accept, 1, MPI::BOOL, 0);
+       comm->Bcast(&accept, 1, MPI::BOOL, 0);
        if (!accept) {
            for (int i=0; i < 2*model->ntimes-1; i++)
                model->popsizes[i] = model->popsizes[i] / scale;
@@ -110,8 +110,8 @@ double resample_single_popsize(ArgModel *model, const LocalTrees *trees,
     if (l.size()==1) return curr_like;
 
 #ifdef ARGWEAVER_MPI
-    MPI::Intracomm comm = model->mc3.group_comm;
-    int rank = comm.Get_rank();
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
     if (rank == 0) {
 #endif
 
@@ -120,7 +120,7 @@ double resample_single_popsize(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
     }
-    comm.Bcast(&adjust, 2, MPI::DOUBLE, 0);
+    comm->Bcast(&adjust, 2, MPI::DOUBLE, 0);
 #endif
 
     for (list<PopsizeConfigParam>::iterator it2=l.begin();
@@ -143,12 +143,12 @@ double resample_single_popsize(ArgModel *model, const LocalTrees *trees,
         calc_arg_prior_recomb_integrate(model, trees, num_coal, num_nocoal);
 
 #ifdef ARGWEAVER_MPI
-    comm.Reduce(rank == 0 ? MPI_IN_PLACE : &new_like,
-                &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-    comm.Reduce(rank == 0 ? MPI_IN_PLACE : num_coal,
-                num_coal, 2 * model->ntimes - 1, MPI::DOUBLE, MPI::SUM, 0);
-    comm.Reduce(rank == 0 ? MPI_IN_PLACE : num_nocoal,
-                num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE, MPI::SUM, 0);
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : &new_like,
+                 &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : num_coal,
+                 num_coal, 2 * model->ntimes - 1, MPI::DOUBLE, MPI::SUM, 0);
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : num_nocoal,
+                 num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE, MPI::SUM, 0);
     if (rank == 0) {
 #endif
 
@@ -164,7 +164,7 @@ double resample_single_popsize(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
     }
-    comm.Bcast(&accept, 1, MPI::BOOL, 0);
+    comm->Bcast(&accept, 1, MPI::BOOL, 0);
 #endif
 
     if (!accept) {
@@ -199,8 +199,8 @@ double resample_single_popsize_old(ArgModel *model, const LocalTrees *trees,
     if (is_first && is_last) return curr_like;
 
 #ifdef ARGWEAVER_MPI
-    MPI::Intracomm comm = model->mc3.group_comm;
-    int rank = comm.Get_rank();
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
     if (rank == 0) {
 #endif
 
@@ -208,7 +208,7 @@ double resample_single_popsize_old(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
     }
-    comm.Bcast(&other_dir, 1, MPI::INT, 0);
+    comm->Bcast(&other_dir, 1, MPI::INT, 0);
 #endif
 
     if (other_dir == 1 && other == l.end()) {
@@ -234,7 +234,7 @@ double resample_single_popsize_old(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
     }
-    comm.Bcast(&adjust, 1, MPI::DOUBLE, 0);
+    comm->Bcast(&adjust, 1, MPI::DOUBLE, 0);
 #endif
 
     set<int>::iterator it2 = other->pops.begin();
@@ -249,8 +249,8 @@ double resample_single_popsize_old(ArgModel *model, const LocalTrees *trees,
     double new_like = calc_arg_prior_recomb_integrate(model, trees);
 
 #ifdef ARGWEAVER_MPI
-    comm.Reduce(rank == 0 ? MPI_IN_PLACE : &new_like,
-                &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : &new_like,
+                 &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
     if (rank == 0) {
 #endif
 
@@ -269,7 +269,7 @@ double resample_single_popsize_old(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
     }
-    comm.Bcast(&accept, 1, MPI::BOOL, 0);
+    comm->Bcast(&accept, 1, MPI::BOOL, 0);
 #endif
 
     if (!accept) {
@@ -290,10 +290,10 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
     double curr_like = sample_popsize_recomb ? calc_arg_prior(model, trees) :
         calc_arg_prior_recomb_integrate(model, trees);
 #ifdef ARGWEAVER_MPI
-    MPI::Intracomm comm = model->mc3.group_comm;
-    int rank = comm.Get_rank();
-    comm.Reduce(rank == 0 ? MPI_IN_PLACE : &curr_like,
-                &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : &curr_like,
+                 &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
 #endif
     //TEMPORARY: should make this an option if i like it this way
     /*    for (int rep=0; rep < model->popsize_config.numsample; rep++)
@@ -321,10 +321,10 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
 
 #ifdef ARGWEAVER_MPI
     printLog(0, "resample_popsizes %i\t%i\n", MPI::COMM_WORLD.Get_rank(),
-             model->mc3.group_comm.Get_rank()); fflush(stdout);
+             model->mc3.group_comm->Get_rank()); fflush(stdout);
     //    MPI::COMM_WORLD.Barrier();
-    MPI::Intracomm comm = model->mc3.group_comm;
-    int rank = comm.Get_rank();
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
     printLog(0, "rank=%i\n", rank);
     if (rank == 0) {
 #endif
@@ -344,11 +344,11 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
                                                            //        double curr_like = calc_arg_prior(model, trees,
                                                            num_coal, num_nocoal);
 #ifdef ARGWEAVER_MPI
-        comm.Reduce(MPI_IN_PLACE, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-        comm.Reduce(MPI_IN_PLACE, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                    MPI_SUM, 0);
-         comm.Reduce(MPI_IN_PLACE, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                    MPI_SUM, 0);
+        comm->Reduce(MPI_IN_PLACE, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+        comm->Reduce(MPI_IN_PLACE, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
+                     MPI_SUM, 0);
+        comm->Reduce(MPI_IN_PLACE, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
+                     MPI_SUM, 0);
 #endif
         for (int rep=0; rep < model->popsize_config.numsample; rep++) {
             for (list<PopsizeConfigParam>::iterator it = l.begin();
@@ -366,7 +366,7 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
                 double new_popsize = rand_gamma(old_popsize * old_popsize / s,
                                                 s / old_popsize);
 #ifdef ARGWEAVER_MPI
-                comm.Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
+                comm->Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
 #endif
                 double sp = min(500.0, new_popsize / 2.0);
                 sp *= sp;  //variance of proposal from new_popsize
@@ -423,7 +423,7 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
                 double new_like = calc_arg_prior_recomb_integrate(model, trees);
                 //                double new_like = calc_arg_prior(model, trees);
 #ifdef ARGWEAVER_MPI
-                comm.Reduce(MPI_IN_PLACE, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+                comm->Reduce(MPI_IN_PLACE, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
 #endif
                 double lr = new_like - curr_like;
                 double ln_accept = trans_ratio + prior_ratio + lr;
@@ -431,7 +431,7 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
                 double pr_accept = (ln_accept > 0 ? 1.0 : exp(ln_accept));
                 bool accept = (ln_accept > 0 || frand() < pr_accept);
 #ifdef ARGWEAVER_MPI
-                comm.Bcast(&accept, 1, MPI::BOOL, 0);
+                comm->Bcast(&accept, 1, MPI::BOOL, 0);
 #endif
                 for (set<int>::iterator it2 = it->pops.begin();
                      it2 != it->pops.end(); it2++) {
@@ -489,11 +489,11 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
         double curr_like = calc_arg_prior_recomb_integrate(model, trees,
                                                            //        double curr_like = calc_arg_prior(model, trees,
                                                            num_coal, num_nocoal);
-        comm.Reduce(&curr_like, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-        comm.Reduce(num_coal, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                    MPI_SUM, 0);
-        comm.Reduce(num_nocoal, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                    MPI_SUM, 0);
+        comm->Reduce(&curr_like, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+        comm->Reduce(num_coal, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
+                     MPI_SUM, 0);
+        comm->Reduce(num_nocoal, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
+                     MPI_SUM, 0);
 
         for (int rep=0; rep < model->popsize_config.numsample; rep++) {
             for (list<PopsizeConfigParam>::iterator it=l.begin();
@@ -501,15 +501,15 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
                 if (it->sample == false) continue;
                 double old_popsize = model->popsizes[*(it->pops.begin())];
                 double new_popsize;
-                comm.Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
+                comm->Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
                 for (set<int>::iterator it2 = it->pops.begin();
                      it2 != it->pops.end(); it2++)
                     model->popsizes[*it2] = new_popsize;
                 double new_like = calc_arg_prior_recomb_integrate(model, trees);
                 //                double new_like = calc_arg_prior(model, trees);
-                comm.Reduce(&new_like, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
+                comm->Reduce(&new_like, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
                 bool accept;
-                comm.Bcast(&accept, 1, MPI::BOOL, 0);
+                comm->Bcast(&accept, 1, MPI::BOOL, 0);
                 if (!accept) {
                     for (set<int>::iterator it2 = it->pops.begin();
                          it2 != it->pops.end(); it2++) {

@@ -69,6 +69,7 @@ ARGWEAVER_SRC = \
     src/local_tree.cpp \
     src/logging.cpp \
     src/matrices.cpp \
+    src/mcmcmc.cpp \
     src/mem.cpp \
     src/model.cpp \
     src/newick.cpp \
