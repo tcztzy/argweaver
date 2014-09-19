@@ -406,24 +406,25 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                     if (tree->nodes[i].parent == -1) continue;
                     int i_start = tree->nodes[i].age;
                     int i_end = tree->nodes[tree->nodes[i].parent].age;
-                    for (int recomb_time=i_start; recomb_time <= i_end; recomb_time++) {
-                //        printf(" recomb time %i\n", recomb_time);
-                       // double tempsum = 0.0;
+                    for (int recomb_time=i_start; recomb_time <= i_end;
+                         recomb_time++) {
                         for (int j=0; j < tree->nnodes; j++) { //j is coal node
                             if (i==j) continue;
-                            bool is_sib= (j!=tree->root && tree->nodes[j].parent==tree->nodes[i].parent);
-              //              printf("  coal node %i\n", j);
+                            bool is_sib= (j!=tree->root &&
+                                          ( tree->nodes[j].parent ==
+                                            tree->nodes[i].parent) );
                             int j_start = tree->nodes[j].age;
                             int j_end = tree->nodes[j].parent == -1
-                                ? model->ntimes-2: tree->nodes[tree->nodes[j].parent].age;
-                            //                            if (j_end > model->ntimes-3) j_end = model->ntimes-3;
+                                ? model->ntimes-2 :
+                                tree->nodes[tree->nodes[j].parent].age;
                             if (is_sib) j_end--;
                             for (int coal_time = j_start; coal_time <= j_end; coal_time++) {
                                 if (coal_time < recomb_time) continue;
-            //                    printf("   coal time %i\n", coal_time);
                                 Spr spr(i, recomb_time, j, coal_time);
-                                double val = exp(calc_spr_prob(model, tree, spr, lineages,
-                                                               treelen, NULL, NULL, 0, false));
+                                double val =
+                                    exp(calc_spr_prob(model, tree, spr, lineages,
+                                                      treelen, NULL, NULL, 0,
+                                                      true));
                                 tempsum += val;
                             }
                         }
@@ -465,7 +466,8 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
             ++it;
             const Spr *real_spr = &it->spr;
             int node = real_spr->recomb_node;
-            int max_age = min(tree->nodes[tree->nodes[node].parent].age,
+            int parent = tree->nodes[node].parent;
+            int max_age = min(tree->nodes[parent].age,
                               real_spr->coal_time);
             assert(tree->nodes[node].age <= max_age);
             assert(real_spr->recomb_time >= tree->nodes[node].age &&
@@ -479,24 +481,30 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                                 ? 1.0 : 0.0, true));
                 recomb_sum += val;
             }
-            int parent = tree->nodes[node].parent;
-            int sib = tree->nodes[parent].child[0] == node ? tree->nodes[parent].child[1] : tree->nodes[parent].child[0];
-            int coal_node = real_spr->coal_node;
-            if (coal_node == sib) {
-              for (int age=tree->nodes[sib].age; age <= max_age; age++) {
-                Spr spr(sib, age, node, real_spr->coal_time);
-                double val = exp(calc_spr_prob(model, tree, spr, lineages, treelen, num_coal, num_nocoal, 0, true));
-                recomb_sum += val;
-              }
-            }
-            else if (coal_node == parent) {
+            int sib = tree->nodes[parent].child[0] == node ?
+                tree->nodes[parent].child[1] : tree->nodes[parent].child[0];
+            bool possible_no_recomb = false;
+            if (real_spr->coal_node == sib) {
+                if (real_spr->coal_time == tree->nodes[parent].age)
+                    possible_no_recomb = true;
+                for (int age=tree->nodes[sib].age; age <= max_age; age++) {
+                    Spr spr(sib, age, node, real_spr->coal_time);
+                    recomb_sum += exp(calc_spr_prob(model, tree, spr, lineages,
+                                                    treelen, num_coal, num_nocoal,
+                                                    0, true));
+                }
+            } else if (real_spr->coal_node == parent) {
+                if (real_spr->coal_time == tree->nodes[parent].age)
+                    possible_no_recomb = true;
               for (int age=tree->nodes[sib].age; age <= max_age; age++) {
                  Spr spr(sib, age, parent, real_spr->coal_time);
-                 double val = exp(calc_spr_prob(model, tree, spr, lineages, treelen, num_coal, num_nocoal, 0, true));
-                 recomb_sum += val;
+                 recomb_sum += exp(calc_spr_prob(model, tree, spr, lineages,
+                                                 treelen, num_coal, num_nocoal,
+                                                 0, true));
               }
             }
-            lnl += log(pr_recomb * recomb_sum);
+            lnl += log(pr_recomb * recomb_sum +
+                       (possible_no_recomb ? pr_no_recomb : 0.0));
         } else {
             ++it;
         }
