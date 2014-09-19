@@ -117,11 +117,13 @@ public:
                                      exp(lnE2[b] + lnNegG1[a]))
                                 - c_term - minage_term);
             } else if (a == b) {
-                return term1 * ((2 * ( (b > 0 ? exp(lnE2[b] + lnB[b-1]) : 0.0) + G3[b]))
+                return term1 * ((2 * ( (b > 0 ? exp(lnE2[b] + lnB[b-1]) : 0.0)
+                                       + G3[b]))
                                 - c_term - minage_term)
                     + norecombs[a];
             } else { // b < a
-                return term1 * ((2 * ( (b > 0 ? exp(lnE2[b] + lnB[b-1]) : 0.0) + G2[b]))
+                return term1 * ((2 * ( (b > 0 ? exp(lnE2[b] + lnB[b-1]) : 0.0)
+                                       + G2[b]))
                                 - c_term - minage_term);
             }
         }
