@@ -32,12 +32,16 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         seqs[j] = sequences->seqs[trees->seqids[j]];
 
     int end = trees->start_coord;
+    int mu_idx = 0, rho_idx = 0;
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
         end = start + it->blocklen;
         LocalTree *tree = it->tree;
+        ArgModel local_model;
 
-        lnl += likelihood_tree(tree, model, seqs, nseqs, start, end);
+        //note: this is approximate, uses mu/rho from center of block
+        model->get_local_model((start+end)/2, local_model, &mu_idx, &rho_idx);
+        lnl += likelihood_tree(tree, &local_model, seqs, nseqs, start, end);
     }
 
     return lnl;
@@ -61,6 +65,8 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         return lnl += log(.25) * sequences->length();
 
     int end = trees->start_coord;
+    int mu_idx = 0;
+    int rho_idx = 0;
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
         int blocklen = it->blocklen;
@@ -93,7 +99,10 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
             }
         }
 
-        lnl += likelihood_tree(tree, model, seqs, nseqs, 0, end-start);
+        ArgModel local_model;
+        model->get_local_model((start+end)/2, local_model,
+                               &mu_idx, &rho_idx);
+        lnl += likelihood_tree(tree, &local_model, seqs, nseqs, 0, end-start);
 
         delete [] matrix;
     }
@@ -325,15 +334,18 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int end = trees->start_coord;
+    int mu_idx = 0, rho_idx = 0;
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
+        int start=end;
         end += it->blocklen;
         LocalTree *tree = it->tree;
         int blocklen = it->blocklen;
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
+        ArgModel local_model;
+        model->get_local_model((start+end)/2, local_model, &mu_idx, &rho_idx);
 
         // calculate probability P(blocklen | T_{i-1})
-        double recomb_rate = max(model->get_local_rho(trees->start_coord)
-                                 * treelen, model->rho);
+        double recomb_rate = max(local_model.rho * treelen, local_model.rho);
 
         if (end < trees->end_coord) {
             // not last block
@@ -359,7 +371,6 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
     return lnl;
 }
 
-
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
                                        double *num_coal, double *num_nocoal) {
@@ -376,6 +387,7 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
     //    lnl += calc_tree_prior(model, trees->front().tree, lineages);
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
+    int rho_idx = 0;
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
         end += it->blocklen;
@@ -384,7 +396,8 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
 
         // calculate probability P(blocklen | T_{i-1})
-        double recomb_rate = max(model->get_local_rho(trees->start_coord)
+        double recomb_rate = max(model->get_local_rho(trees->start_coord,
+                                                      &rho_idx)
                                  * treelen, model->rho);
 
         //for single site, probability of no recomb
