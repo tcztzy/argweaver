@@ -241,6 +241,7 @@ bool read_sites(FILE *infile, Sites *sites,
             }
 
             // skip site if not in region
+            position--; //convert to 0-index
             if (position < sites->start_coord || position >= sites->end_coord) {
                 delete [] line;
                 continue;
@@ -268,9 +269,6 @@ bool read_sites(FILE *infile, Sites *sites,
                 delete [] line;
                 return false;
             }
-
-            // convert to 0-index
-            position--;
 
             // validate site locations are unique and sorted.
             int npos = sites->get_num_sites();
