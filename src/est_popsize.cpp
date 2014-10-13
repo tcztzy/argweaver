@@ -458,11 +458,9 @@ void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
         printLog(LOG_LOW, "done resample_popsizes num_accept=%i/%i\n",
                  num_accept, total);
         for (int i=0; i < 2*model->ntimes-1; i++) {
-            int found=0;
             for (list<PopsizeConfigParam>::iterator it = l.begin();
                  it != l.end(); it++) {
                 if (it->pops.find(i) != it->pops.end()) {
-                    found=1;
                     if (it->sample) {
                         printLog(LOG_LOW,
                                  "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%f\t%f\t%s\n",
