@@ -399,6 +399,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
     LineageCounts lineages(model->ntimes);
     States states;
     ArgModel local_model;
+    int mu_idx=0, rho_idx=0;
 
     double **fw = forward->get_table();
 
@@ -409,7 +410,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
         ArgHmmMatrices &matrices = matrix_iter->ref_matrices(phase_pr);
         int pos = matrix_iter->get_block_start();
         int blocklen = matrices.blocklen;
-        model->get_local_model(pos, local_model);
+        model->get_local_model(pos, local_model, &mu_idx, &rho_idx);
         double **emit = matrices.emit;
 
         // allocate the forward table

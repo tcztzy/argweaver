@@ -229,6 +229,7 @@ bool read_sites(FILE *infile, Sites *sites,
             }
 
             // skip site if not in region
+            position--; //convert to 0-index
             if (position < sites->start_coord || position >= sites->end_coord) {
                 delete [] line;
                 continue;
@@ -254,8 +255,7 @@ bool read_sites(FILE *infile, Sites *sites,
                 return false;
             }
 
-            // convert to 0-index
-            sites->append(position - 1, col, true);
+            sites->append(position, col, true);
         }
 
         delete [] line;
