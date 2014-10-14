@@ -395,9 +395,10 @@ class ArgModel
     }
 
     // Returns a model customized for the local position
-    void get_local_model(int pos, ArgModel &model) const {
-        model.mu = mutmap.find(pos, mu);
-        model.rho = recombmap.find(pos, rho);
+    void get_local_model(int pos, ArgModel &model,
+                         int *mu_idx=NULL, int *rho_idx=NULL) const {
+        model.mu = mutmap.find(pos, mu, mu_idx);
+        model.rho = recombmap.find(pos, rho, rho_idx);
         model.infsites_penalty = infsites_penalty;
 
         model.owned = false;
@@ -409,8 +410,8 @@ class ArgModel
         model.popsize_config = popsize_config;
     }
 
-    double get_local_rho(int pos) const {
-        return recombmap.find(pos, rho);
+    double get_local_rho(int pos, int *rho_idx=NULL) const {
+        return recombmap.find(pos, rho, rho_idx);
     }
 
     void get_local_model_index(int index, ArgModel &model) const {
