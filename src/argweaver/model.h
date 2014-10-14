@@ -282,9 +282,10 @@ public:
     }
 
     // Returns a model customized for the local position
-    void get_local_model(int pos, ArgModel &model) const {
-        model.mu = mutmap.find(pos, mu);
-        model.rho = recombmap.find(pos, rho);
+    void get_local_model(int pos, ArgModel &model,
+                         int *mu_idx=NULL, int *rho_idx=NULL) const {
+        model.mu = mutmap.find(pos, mu, mu_idx);
+        model.rho = recombmap.find(pos, rho, rho_idx);
         model.infsites_penalty = infsites_penalty;
 
         model.owned = false;
@@ -293,6 +294,10 @@ public:
         model.time_steps = time_steps;
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
+    }
+
+    double get_local_rho(int pos, int *rho_idx=NULL) const {
+        return recombmap.find(pos, rho, rho_idx);
     }
 
     void get_local_model_index(int index, ArgModel &model) const {
