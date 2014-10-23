@@ -384,7 +384,7 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
     }
 
     // first tree prior- ignore for now
-    //    lnl += calc_tree_prior(model, trees->front().tree, lineages);
+    lnl += calc_tree_prior(model, trees->front().tree, lineages);
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int rho_idx = 0;
@@ -464,11 +464,8 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                     }
                 }
             }
-            //lnl += ((double)blocklen-1.0) * log(pr_no_recomb);
             lnl += ((double)blocklen-1.0) * log(pr_no_recomb +
                                                 pr_recomb * recomb_sum);
-            //printf("%e\t%e\n", (blocklen-1.0)*log(pr_no_recomb + pr_recomb * recomb_sum),
-              //      log(recomb_rate) - recomb_rate * blocklen);
         }
 
         if (end < trees->end_coord) {
