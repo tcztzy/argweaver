@@ -310,8 +310,8 @@ public:
             printf(VERSION_INFO);
             return EXIT_ERROR;
         }
-        mcmcmc_group = 0;
 #ifdef ARGWEAVER_MPI
+        mcmcmc_group = 0;
         int groupsize = MPI::COMM_WORLD.Get_size() / mcmcmc_numgroup;
         mcmcmc_group = MPI::COMM_WORLD.Get_rank() / groupsize;
         if (mcmcmc_group != 0) {
