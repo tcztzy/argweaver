@@ -151,9 +151,8 @@ public:
                     DEBUG_OPT));
 #ifdef ARGWEAVER_MPI
         config.add(new ConfigParam<int>
-                   ("", "--mcmcmc", "<int>", &mcmcmc_group,
-                    0, "mcmcmc group (all runs in same group have same heat,"
-                    " should be positive integers starting at zero)",
+                   ("", "--mcmcmc", "<int>", &mcmcmc_numgroup,
+                    1, "number of mcmcmc threads",
                     DEBUG_OPT));
         config.add(new ConfigParam<double>
                    ("", "--mcmcmc-heat", "<val>", &mcmcmc_heat,
@@ -311,14 +310,16 @@ public:
             printf(VERSION_INFO);
             return EXIT_ERROR;
         }
+        mcmcmc_group = 0;
 #ifdef ARGWEAVER_MPI
+        mcmcmc_group = MPI::COMM_WORLD.Get_rank() / mcmcmc_numgroup;
         if (mcmcmc_group != 0) {
             char tmp[1000];
             sprintf(tmp, ".%i", mcmcmc_group);
             mcmcmc_prefix = string(tmp);
         }
-        printf("mcmcmc_prefix = %s\n", mcmcmc_prefix.c_str());
-        printf("mcmcmc_group=%i\n", mcmcmc_group);
+        printLog(LOG_LOW, "mcmcmc_prefix = %s\n", mcmcmc_prefix.c_str());
+        printLog(LOG_LOW, "mcmcmc_group=%i\n", mcmcmc_group);
 #endif
 
         return 0;
@@ -359,6 +360,7 @@ public:
 #ifdef ARGWEAVER_MPI
     double mcmcmc_heat;
     int mcmcmc_group;
+    int mcmcmc_numgroup;
     bool mpi;
 #endif
     string mcmcmc_prefix;
@@ -796,6 +798,7 @@ void climb_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
                  const LocalTrees *trees, const SitesMapping *sites_mapping) {
 #ifdef ARGWEAVER_MPI
+    printLog(LOG_LOW, "mcmcmc_swap model->mc3.max_group=%i\n", model->mc3.max_group);
     if (model->mc3.max_group == 0) return;
     Mc3Config *mc3 = &(model->mc3);
     int swap[2];
@@ -812,19 +815,16 @@ void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
     }
     MPI::COMM_WORLD.Bcast(swap, 2, MPI::INT, 0);
     if (mc3->group == swap[0] || mc3->group == swap[1]) {
-        double vals[4];
+        double vals[2];
         vals[0] = calc_arg_prior(model, trees) +
             calc_arg_likelihood(model, sequences, trees, sites_mapping);
         vals[1] = mc3->heat;
-        printLog(0, "calling reduce\n");
         if (mc3->group_comm->Get_rank()==0)
             mc3->group_comm->Reduce(MPI_IN_PLACE, vals, 1, MPI::DOUBLE, MPI_SUM,
                                    0);
         else mc3->group_comm->Reduce(vals, vals, 1, MPI::DOUBLE, MPI_SUM, 0);
-        printLog(0, "done reduce\n");
-        printLog(0, "like=%f\n", vals[0]);
         if (mc3->group_comm->Get_rank()==0)
-            MPI::COMM_WORLD.Send(vals, 2, MPI::DOUBLE, 0, 301);
+            MPI::COMM_WORLD.Isend(vals, 2, MPI::DOUBLE, 0, 301);
     }
     if (rank == 0) {
         double like[2];
@@ -840,7 +840,7 @@ void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
         accept = (accept_ratio >= 0.0 ||
                   frand() < exp(accept_ratio));
         //Note heat[0] may correspond to swap[0] or swap[1]
-        printf("swap\t%i\t%i\t%f\t%f\t%f\t%s\n",
+        printLog(LOG_LOW, "swap\t%i\t%i\t%f\t%f\t%f\t%s\n",
                swap[0], swap[1], heat[0], heat[1], accept_ratio,
                accept ? "accept" : "reject");
     }
@@ -1197,11 +1197,19 @@ int main(int argc, char **argv)
 
 #ifdef ARGWEAVER_MPI
     if (c.mpi) {
+        int numcore = MPI::COMM_WORLD.Get_size();
+        if (numcore % c.mcmcmc_numgroup != 0) {
+            fprintf(stderr, "Error: number of cores should be evenly divisible"
+                    " by number of mcmcmc threads");
+        }
+        int groupsize = numcore / c.mcmcmc_numgroup;
+        int sites_num = MPI::COMM_WORLD.Get_rank() % groupsize;
         char tmp[10000];
         sprintf(tmp, "%s%i.sites", c.sites_file.c_str(),
-                MPI::COMM_WORLD.Get_rank());
+                sites_num);
         c.sites_file = (string)tmp;
-        sprintf(tmp, "%s%i", c.out_prefix.c_str(), MPI::COMM_WORLD.Get_rank());
+        sprintf(tmp, "%s%i", c.out_prefix.c_str(),
+                sites_num);
         c.out_prefix = (string)tmp;
     }
 #endif
@@ -1411,7 +1419,6 @@ int main(int argc, char **argv)
 #ifdef ARGWEAVER_MPI
     c.model.mc3 = Mc3Config(c.mcmcmc_group, c.mcmcmc_heat);
 
-
     printf("MPI rank=%i size=%i\n",
            MPI::COMM_WORLD.Get_rank(),
            MPI::COMM_WORLD.Get_size());
@@ -1459,7 +1466,6 @@ int main(int argc, char **argv)
 
     // log original model
     log_model(model);
-
 
     // setup init ARG
     LocalTrees *trees = NULL;
