@@ -805,6 +805,7 @@ void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
     int swap[2];
     int rank = MPI::COMM_WORLD.Get_rank();
     bool accept;
+    double swapstats[4];
     //pick two groups to swap
     if (rank == 0) {
         swap[0] = irand(mc3->max_group + 1);
@@ -841,11 +842,16 @@ void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
         accept = (accept_ratio >= 0.0 ||
                   frand() < exp(accept_ratio));
         //Note heat[0] may correspond to swap[0] or swap[1]
-        printLog(LOG_LOW, "swap\t%i\t%i\t%f\t%f\t%f\t%s\n",
-               swap[0], swap[1], heat[0], heat[1], accept_ratio,
-               accept ? "accept" : "reject");
+        swapstats[0] = accept ? 1.0 : 0.0;
+        swapstats[1] = heat[0];
+        swapstats[2] = heat[1];
+        swapstats[3] = accept_ratio;
     }
-    MPI::COMM_WORLD.Bcast(&accept, 1, MPI::BOOL, 0);
+    MPI::COMM_WORLD.Bcast(swapstats, 4, MPI::DOUBLE, 0);
+    accept = ( swapstats[0] > 0.5);
+    printLog(LOG_LOW, "swap\t%i\t%i\t%f\t%f\t%f\t%s\n",
+             swap[0], swap[1], swapstats[1], swapstats[2], swapstats[3],
+             accept ? "accept" : "reject");
 
     // now all processes know accept. Do the switch
     if (accept && (mc3->group == swap[0] || mc3->group == swap[1])) {
