@@ -1,5 +1,6 @@
 #ifdef ARGWEAVER_MPI
 #include "mpi.h"
+#include "mcmcmc.h"
 #endif
 
 #include "model.h"
@@ -177,10 +178,10 @@ bool ArgModel::setup_maps(string chrom, int start, int end) {
 }
 
 
-    void ArgModel::set_popsizes_random(double popsize_min,
+void ArgModel::set_popsizes_random(double popsize_min,
                                        double popsize_max) {
 #ifdef ARGWEAVER_MPI
-    if (MPI::COMM_WORLD.Get_rank() == 0) {
+    if (mc3.group_comm->Get_rank() == 0) {
 #endif
         if (popsize_config.size() == 0) {
             for (int i=0; i < 2*ntimes-1; i++) {
@@ -198,7 +199,7 @@ bool ArgModel::setup_maps(string chrom, int start, int end) {
         }
 #ifdef ARGWEAVER_MPI
     }
-    MPI::COMM_WORLD.Bcast(popsizes, 2*ntimes-1, MPI::DOUBLE, 0);
+    mc3.group_comm->Bcast(popsizes, 2*ntimes-1, MPI::DOUBLE, 0);
 #endif
 }
 
