@@ -33,7 +33,8 @@ inline void get_time_points(int ntimes, double maxtime,
 
 
 void get_coal_time_steps(const double *times, int ntimes,
-                         double *coal_time_steps);
+                         double *coal_time_steps, bool linear,
+                         double delta);
 
 
 
@@ -229,8 +230,8 @@ public:
         ntimes = _ntimes;
         clear_array(&times);
         times = new double [ntimes];
-        get_time_points(ntimes, maxtime, times);
-        setup_time_steps();
+        get_time_points(ntimes, maxtime, times, delta);
+        setup_time_steps(false, delta);
     }
 
     // Sets the model time points linearily
@@ -240,7 +241,7 @@ public:
         times = new double [ntimes];
         for (int i=0; i<ntimes; i++)
             times[i] = i * time_step;
-        setup_time_steps();
+        setup_time_steps(true);
     }
 
     // Sets the model population sizes from an array
@@ -324,7 +325,9 @@ public:
 protected:
 
     // Setup time steps between time points
-    void setup_time_steps()
+    // if linear=true, ignore delta and set mid-points halfway between
+    //   each time step
+    void setup_time_steps(bool linear=false, double delta=0.01)
     {
         clear_array(&time_steps);
         time_steps = new double [ntimes];
@@ -334,7 +337,7 @@ protected:
 
         clear_array(&coal_time_steps);
         coal_time_steps = new double [2*ntimes];
-        get_coal_time_steps(times, ntimes, coal_time_steps);
+        get_coal_time_steps(times, ntimes, coal_time_steps, linear, delta);
     }
 
 public:
