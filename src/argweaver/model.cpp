@@ -12,14 +12,15 @@ void get_coal_time_steps(const double *times, int ntimes,
 {
     // get midpoints
     double times2[2*ntimes+1];
-    for (int i=0; i < ntimes-1; i++)
+    for (int i=0; i < ntimes; i++)
         times2[2*i] = times[i];
     if (linear) {
         for (int i=0; i < ntimes-1; i++)
             times2[2*i+1] = 0.5*(times[i+1] + times[i]);
     } else {
         for (int i=0; i < ntimes-1; i++)
-            times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, delta);
+            times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, times[ntimes-1],
+                                           delta);
     }
 
     for (int i=0; i<2*ntimes-2; i++)
