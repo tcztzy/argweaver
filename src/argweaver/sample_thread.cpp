@@ -651,7 +651,8 @@ void sample_arg_thread_internal(
     matrix_iter.set_internal(internal, minage);
 
     if (phase_pr != NULL)
-        printf("treemap = %i %i\n", phase_pr->treemap1, phase_pr->treemap2);
+        printLog(LOG_HIGH, "treemap = %i %i\n",
+                 phase_pr->treemap1, phase_pr->treemap2);
 
     // compute forward table
     Timer time;
