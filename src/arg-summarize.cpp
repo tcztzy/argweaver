@@ -136,6 +136,10 @@ public:
                    ("-C", "--coalcounts", &coalcounts,
                     "number of coal events at each discretized time point"
                     " (requires --timefile)"));
+        config.add(new ConfigParam<string>
+                   ("-G", "--group", "<group_file>", &groupfile,
+                    "Output boolean indicating whether individuals in group"
+                    " file cluster together in the local tree"));
         config.add(new ConfigSwitch
                    ("-N", "--numsample", &numsample,
                     "number of MCMC samples covering each region"));
@@ -189,6 +193,7 @@ public:
     string indfile;
     string snpfile;
     string timefile;
+    string groupfile;
 
     bool rawtrees;
     bool tmrca;
@@ -218,10 +223,10 @@ void checkResults(IntervalIterator<vector<double> > *results) {
     Interval<vector<double> > summary=results->next();
     vector<vector <double> > scores;
     while (summary.start != summary.end) {
-        cout << summary.chrom << "\t" << summary.start << "\t"
-             << summary.end;
         scores = summary.get_scores();
         if (scores.size() > 0) {
+            cout << summary.chrom << "\t" << summary.start << "\t"
+                 << summary.end;
             vector<double> tmpScore(scores.size());
             int numscore = scores[0].size();
             assert(numscore > 0);
@@ -290,7 +295,7 @@ public:
 
 
 void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
-                  double allele_age=-1, int infsites=-1) {
+                  set<string> &group, double allele_age=-1, int infsites=-1) {
     Tree * tree = (line->trees->pruned_tree != NULL ?
                    line->trees->pruned_tree :
                    line->trees->orig_tree);
@@ -351,6 +356,9 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
             }
             i += coal_counts.size()-1;
         }
+        else if (statname[i]=="group") {
+            line->stats[i] = (int)tree->isGroup(group);
+        }
         else {
             fprintf(stderr, "Error: unknown stat %s\n", statname[i].c_str());
             exit(1);
@@ -385,13 +393,13 @@ void processNextBedLine(BedLine *line,
                         IntervalIterator<vector<double> > *results,
                         vector<string> &statname,
                         char *region_chrom, int region_start, int region_end,
-                        vector<double> times) {
+                        vector<double> times, set<string> &group) {
     static int counter=0;
     static list<BedLine*> bedlist;
 
     if (line != NULL) {
         if (line->stats.size() == 0)
-            scoreBedLine(line, statname, times);
+            scoreBedLine(line, statname, times, group);
         if (region_chrom != NULL) {
             assert(strcmp(region_chrom, line->chrom)==0);
             if (line->end > region_end) line->end = region_end;
@@ -504,7 +512,7 @@ public:
 
 
     void scoreAlleleAge(BedLine *l, vector<string> statname,
-                        vector<double> times) {
+                        vector<double> times, set<string> &group) {
         int num_derived, total;
         assert(l->start < coord);
         assert(l->end >= coord);
@@ -559,7 +567,7 @@ public:
             if (tempage > age) age = tempage;
         }
         if (num_derived == 0 || total-num_derived == 0) age = -1;
-        scoreBedLine(l, statname, times, age, lca.size()==1);
+        scoreBedLine(l, statname, times, group, age, lca.size()==1);
         l->derAllele = (major_is_derived ? allele2 : allele1);
         l->otherAllele = (major_is_derived ? allele1 : allele2);
         l->derFreq = (major_is_derived ? total-num_derived : num_derived);
@@ -614,7 +622,7 @@ void print_summaries(vector<double> &stat) {
 
 int summarizeRegionBySnp(Config *config, const char *region,
                          set<string> inds, vector<string> statname,
-                         vector<double> times) {
+                         vector<double> times, set<string> &group) {
     TabixStream snp_infile(config->snpfile, region, config->tabix_dir);
     TabixStream infile(config->argfile, region, config->tabix_dir);
     vector<string> token;
@@ -649,7 +657,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
         for (it=last_entry.begin(); it != last_entry.end(); it++) {
             l = it->second;
             if (l->start < snpStream.coord && l->end >= snpStream.coord) {
-                snpStream.scoreAlleleAge(l, statname, times);
+                snpStream.scoreAlleleAge(l, statname, times, group);
                 bedlist.push_back(l);
             }
         }
@@ -677,7 +685,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 l->end = end;
             }
             if (snpStream.coord <= end) {
-                snpStream.scoreAlleleAge(l, statname, times);
+                snpStream.scoreAlleleAge(l, statname, times, group);
                 bedlist.push_back(l);
             }
             if (4 != fscanf(infile.stream, "%s %i %i %i",
@@ -783,7 +791,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
 
 int summarizeRegionNoSnp(Config *config, const char *region,
                          set<string> inds, vector<string>statname,
-                         vector<double> times) {
+                         vector<double> times, set<string> &group) {
     TabixStream *infile;
     char c;
     char *region_chrom = NULL;
@@ -912,7 +920,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         if (trees[sample]->orig_spr.recomb_node == NULL ||
             trees[sample]->pruned_tree == NULL ||
             trees[sample]->pruned_spr.recomb_node != NULL) {
-            scoreBedLine(currline, statname, times);
+            scoreBedLine(currline, statname, times, group);
             bedlineMap.erase(sample);
         }
 
@@ -921,7 +929,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
             if (firstline->stats.size() == statname.size()) {
                 processNextBedLine(firstline, &results, statname,
                                    region_chrom, region_start, region_end,
-                                   times);
+                                   times, group);
                 bedlineQueue.pop();
             } else break;
         }
@@ -933,7 +941,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
     while (bedlineQueue.size() > 0) {
         BedLine *firstline = bedlineQueue.front();
         processNextBedLine(firstline, &results, statname,
-                           region_chrom, region_start, region_end, times);
+                           region_chrom, region_start, region_end, times, group);
         //        delete firstline;
         bedlineQueue.pop();
     }
@@ -943,7 +951,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         checkResults(&results);
     } else {
         processNextBedLine(NULL, &results, statname, region_chrom,
-                           region_start, region_end, times);
+                           region_start, region_end, times, group);
     }
 
     it = trees.begin();
@@ -957,12 +965,13 @@ int summarizeRegionNoSnp(Config *config, const char *region,
 
 int summarizeRegion(Config *config, const char *region,
                     set<string> inds, vector<string>statname,
-                    vector<double> times) {
+                    vector<double> times, set<string> &group) {
     if (config->snpfile.empty())
-        return summarizeRegionNoSnp(config, region, inds, statname, times);
+        return summarizeRegionNoSnp(config, region, inds, statname, times,
+                                    group);
     else
         return summarizeRegionBySnp(config, region,
-                                    inds, statname, times);
+                                    inds, statname, times, group);
 }
 
 
@@ -1012,6 +1021,8 @@ int main(int argc, char *argv[]) {
     }
     if (c.zero)
         statname.push_back(string("zero_len"));
+    if (!c.groupfile.empty())
+        statname.push_back(string("group"));
     if (c.coalcounts) {
         if (c.timefile.empty()) {
             fprintf(stderr, "Error: --times required with --coalcounts\n");
@@ -1159,9 +1170,24 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    set<string>group;
+    if (!c.groupfile.empty()) {
+        ifstream in(c.groupfile.c_str());
+        string line;
+        if (in.is_open()) {
+            while ( getline(in, line) ) {
+                group.insert(line);
+            }
+            in.close();
+        } else {
+            fprintf(stderr, "Error opening %s.\n", c.groupfile.c_str());
+            return 1;
+        }
+    }
+
     if (c.bedfile.empty()) {
         summarizeRegion(&c, c.region.empty() ? NULL : c.region.c_str(),
-                        inds, statname, times);
+                        inds, statname, times, group);
     } else {
         CompressStream bedstream(c.bedfile.c_str());
         char *line;
@@ -1183,7 +1209,7 @@ int main(int argc, char *argv[]) {
             int start = atoi(token[1].c_str());
             int end = atoi(token[2].c_str());
             sprintf(regionStr, "%s:%i-%i", token[0].c_str(), start+1, end);
-            summarizeRegion(&c, regionStr, inds, statname, times);
+            summarizeRegion(&c, regionStr, inds, statname, times, group);
             delete [] regionStr;
         }
         bedstream.close();

@@ -293,6 +293,7 @@ public:
         return distBetweenLeaves(nodes[nodename_map.find(n1)->second],
                                  nodes[nodename_map.find(n2)->second]);
     }
+    bool isGroup(set<string> group);
     set<Node*> lca(set<Node*> derived);
 
 protected:

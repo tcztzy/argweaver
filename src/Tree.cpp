@@ -1324,6 +1324,42 @@ double Tree::distBetweenLeaves(Node *n1, Node *n2) {
 }
 
 
+bool Tree::isGroup(set<string> group) {
+    if (group.size() <= 1) return true;
+    ExtendArray<Node*> postnodes;
+    getTreePostOrder(this, &postnodes);
+    vector<int> ingroup(postnodes.size());
+    vector<int> outgroup(postnodes.size());
+    for (int i=0; i < postnodes.size(); i++) {
+        if (postnodes[i]->nchildren == 0) {
+            ingroup[postnodes[i]->name] =
+                ( group.find(postnodes[i]->longname) != group.end() );
+            outgroup[postnodes[i]->name] = !ingroup[postnodes[i]->name];
+        } else {
+            int curr = postnodes[i]->name;
+            int child[2];
+            int isroot = (postnodes[i] == root);
+            child[0] = postnodes[i]->children[0]->name;
+            child[1] = postnodes[i]->children[1]->name;
+
+            ingroup[curr] = ingroup[child[0]] + ingroup[child[1]];
+            outgroup[curr] = outgroup[child[0]] + outgroup[child[1]];
+            if (ingroup[curr] == (int)group.size()) {
+                if (outgroup[curr] == 0) return true;
+                if (!isroot) return false;
+            }
+            if (ingroup[curr] > 0) {
+                if (outgroup[child[0]] > 0 && outgroup[child[1]] > 0) return false;
+            }
+        }
+    }
+    //got to root
+    assert(ingroup[root->name] == (int)group.size());
+    if (outgroup[root->children[0]->name] == 0 ||
+        outgroup[root->children[1]->name] == 0) return true;
+    return false;
+}
+
 // want to return set of nodes above which mutations happened under infinite
 // sites to cause site pattern.
 // assumes tree has been pruned to remove non-informative leafs
