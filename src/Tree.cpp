@@ -1324,6 +1324,80 @@ double Tree::distBetweenLeaves(Node *n1, Node *n2) {
 }
 
 
+//look at descendants of parent node and return group number if all have
+// same group, otherwise ngroup
+int Tree::getDescGroups(Node *parent, map<string,int> groups,
+                        int ngroup, int currgroup) {
+    if (parent->nchildren==0) {
+        map<string,int>::iterator it=groups.find(parent->longname);
+        if (it == groups.end())
+            return currgroup;
+        int group = it->second;
+        if (currgroup == group || currgroup == -1)
+            return group;
+        return ngroup;
+    }
+    for (int i=0; i < parent->nchildren; i++) {
+        currgroup = getDescGroups(parent->children[i], groups,
+                                  ngroup, currgroup);
+        if (currgroup == ngroup) return ngroup;
+    }
+    return currgroup;
+}
+
+vector<double> Tree::coalGroup(string hap1, string hap2,
+                               map<string,int> groups, int numgroup) {
+    int node1, node2;
+    bool nodesTogether=true;
+    vector<double> rv(numgroup+1, 0);
+    double val=1.0;
+
+    map <string,int>::iterator it = nodename_map.find(hap1);
+    if (it == nodename_map.end()) {
+        printError("No leaf named %s", hap1.c_str());
+        abort();
+    }
+    node1 = it->second;
+    it = nodename_map.find(hap2);
+    if (it == nodename_map.end())
+        node2=-1;
+    else node2 = it->second;
+
+    Node *parent = nodes[node1]->parent;
+    Node *sib = parent->children[0];
+    if (sib == nodes[node1])
+        sib = parent->children[1];
+    else assert(parent->children[1] == nodes[node1]);
+
+    if (node2 != -1 && sib == nodes[node2]) {
+        Node *temp = parent;
+        parent = parent->parent;
+        if (parent->children[0] == temp)
+            sib = parent->children[1];
+        else {
+            assert(temp == parent->children[1]);
+            sib = parent->children[0];
+        }
+        nodesTogether=false;
+        val = 0.5;
+    }
+    int coalgroup = getDescGroups(sib, groups, numgroup);
+    if (coalgroup >= 0) rv[coalgroup] += val;
+    //else it coalesces with individuals that are not in any group
+    // (for example admixed), do not count
+
+    if (node2 != -1 && !nodesTogether) {
+        parent = nodes[node2]->parent;
+        sib = parent->children[0];
+        if (sib == nodes[node2])
+            sib = parent->children[1];
+        coalgroup = getDescGroups(sib, groups, numgroup);
+        if (coalgroup >= 0) rv[coalgroup] += val;
+    }
+    return rv;
+}
+
+
 bool Tree::isGroup(set<string> group) {
     if (group.size() <= 1) return true;
     ExtendArray<Node*> postnodes;

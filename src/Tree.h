@@ -293,6 +293,10 @@ public:
         return distBetweenLeaves(nodes[nodename_map.find(n1)->second],
                                  nodes[nodename_map.find(n2)->second]);
     }
+    int getDescGroups(Node *parent, map<string,int> groups, int ngroup,
+                      int currgroup=-1);
+    vector<double> coalGroup(string hap1, string hap2, map<string,int> groups,
+                             int ngroup);
     bool isGroup(set<string> group);
     set<Node*> lca(set<Node*> derived);
 

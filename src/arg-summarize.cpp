@@ -46,6 +46,26 @@ vector<string> node_dist_leaf2;
 
 const int EXIT_ERROR = 1;
 
+/* class of miscellaenous data structures to be passed around arg-summarize
+   functions */
+class ArgSummarizeData {
+public:
+    vector<double> times;
+    set<string> group;
+
+    //individuals to test coal into various groups; maps an individual
+    // name to one or two haploid chromosome names
+    map<string, set<string> > coalgroup_inds;
+
+    //maps each haploid chromosome to a group identifier
+    // does not have to map all chromosomes, only the ones with groups
+    map<string, int> coalgroups;
+
+    //maps integer from coalgroups to a group name
+    vector<string> coalgroup_names;
+};
+
+
 class Config
 {
 public:
@@ -140,6 +160,21 @@ public:
                    ("-G", "--group", "<group_file>", &groupfile,
                     "Output boolean indicating whether individuals in group"
                     " file cluster together in the local tree"));
+        config.add(new ConfigParam<string>
+                   ("", "--coal-groups", "<coal_group_file>", &coalgroup_file,
+                    "(For use with --coal-group-inds); Output boolean indicating"
+                    " whether individuals in coal-group-inds coalesce with"
+                    " each group in coal_group_file. Coal_group_file should"
+                    " be a two column file with haploid chromosome name and"
+                    " group name"));
+        config.add(new ConfigParam<string>
+                   ("", "--coal-group-inds", "<coal_group_inds>",
+                    &coalgroup_inds_file,
+                    "(For use with --coal-groups) File containing individuals"
+                    " to test coalescence with groups defined in coal_group_file"
+                    " coal_group_inds file should contain one individual per"
+                    " line, which could be one or two haploid chromosome"
+                    " names"));
         config.add(new ConfigSwitch
                    ("-N", "--numsample", &numsample,
                     "number of MCMC samples covering each region"));
@@ -152,7 +187,7 @@ public:
                     "return mean across all MCMC samples"));
         config.add(new ConfigSwitch
                    ("-S", "--stdev", &stdev,
-                    "return standard deviation across all NCMC samples"));
+                    "return standard deviation across all MCMC samples"));
         config.add(new ConfigParam<string>
                    ("-Q", "--quantile", "<q1,q2,q3,...>", &quantile,
                     "return the requested quantiles for each samples"));
@@ -194,6 +229,8 @@ public:
     string snpfile;
     string timefile;
     string groupfile;
+    string coalgroup_inds_file;
+    string coalgroup_file;
 
     bool rawtrees;
     bool tmrca;
@@ -294,8 +331,9 @@ public:
 };
 
 
-void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
-                  set<string> &group, double allele_age=-1, int infsites=-1) {
+    void scoreBedLine(BedLine *line, vector<string> &statname,
+                      ArgSummarizeData &data,
+                      double allele_age=-1, int infsites=-1) {
     Tree * tree = (line->trees->pruned_tree != NULL ?
                    line->trees->pruned_tree :
                    line->trees->orig_tree);
@@ -348,7 +386,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
             node_dist_idx++;
         }
         else if (statname[i].substr(0, 10)=="coalcount.") {
-            vector<double>coal_counts = tree->coalCounts(times);
+            vector<double>coal_counts = tree->coalCounts(data.times);
             for (unsigned int j=0; j < coal_counts.size(); j++) {
                 assert(i+j < statname.size() &&
                        statname[i+j].substr(0,10)=="coalcount.");
@@ -357,7 +395,30 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
             i += coal_counts.size()-1;
         }
         else if (statname[i]=="group") {
-            line->stats[i] = (int)tree->isGroup(group);
+            line->stats[i] = (int)tree->isGroup(data.group);
+        }
+        else if (statname[i].substr(0, 5)=="coal-") {
+            for (map<string,set<string> >::iterator it=
+                     data.coalgroup_inds.begin();
+                 it != data.coalgroup_inds.end(); ++it) {
+                string hap1, hap2="";
+                set<string> inds = it->second;
+                set<string>::iterator it3 = inds.begin();
+                hap1 = *it3;
+                it3++;
+                if (it3 != inds.end()) {
+                    hap2 = *it3;
+                    it3++;
+                    assert(it3 == inds.end());
+                }
+                vector<double> tmpstats =
+                    tree->coalGroup(hap1, hap2,
+                                    data.coalgroups,
+                                    data.coalgroup_names.size());
+                for (unsigned int j=0; j < tmpstats.size(); j++)
+                    line->stats[i+j] = tmpstats[j];
+                i += tmpstats.size();
+            }
         }
         else {
             fprintf(stderr, "Error: unknown stat %s\n", statname[i].c_str());
@@ -393,13 +454,13 @@ void processNextBedLine(BedLine *line,
                         IntervalIterator<vector<double> > *results,
                         vector<string> &statname,
                         char *region_chrom, int region_start, int region_end,
-                        vector<double> times, set<string> &group) {
+                        ArgSummarizeData &data) {
     static int counter=0;
     static list<BedLine*> bedlist;
 
     if (line != NULL) {
         if (line->stats.size() == 0)
-            scoreBedLine(line, statname, times, group);
+            scoreBedLine(line, statname, data);
         if (region_chrom != NULL) {
             assert(strcmp(region_chrom, line->chrom)==0);
             if (line->end > region_end) line->end = region_end;
@@ -512,7 +573,7 @@ public:
 
 
     void scoreAlleleAge(BedLine *l, vector<string> statname,
-                        vector<double> times, set<string> &group) {
+                        ArgSummarizeData &data) {
         int num_derived, total;
         assert(l->start < coord);
         assert(l->end >= coord);
@@ -567,7 +628,7 @@ public:
             if (tempage > age) age = tempage;
         }
         if (num_derived == 0 || total-num_derived == 0) age = -1;
-        scoreBedLine(l, statname, times, group, age, lca.size()==1);
+        scoreBedLine(l, statname, data, age, lca.size()==1);
         l->derAllele = (major_is_derived ? allele2 : allele1);
         l->otherAllele = (major_is_derived ? allele1 : allele2);
         l->derFreq = (major_is_derived ? total-num_derived : num_derived);
@@ -622,7 +683,7 @@ void print_summaries(vector<double> &stat) {
 
 int summarizeRegionBySnp(Config *config, const char *region,
                          set<string> inds, vector<string> statname,
-                         vector<double> times, set<string> &group) {
+                         ArgSummarizeData &data) {
     TabixStream snp_infile(config->snpfile, region, config->tabix_dir);
     TabixStream infile(config->argfile, region, config->tabix_dir);
     vector<string> token;
@@ -657,7 +718,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
         for (it=last_entry.begin(); it != last_entry.end(); it++) {
             l = it->second;
             if (l->start < snpStream.coord && l->end >= snpStream.coord) {
-                snpStream.scoreAlleleAge(l, statname, times, group);
+                snpStream.scoreAlleleAge(l, statname, data);
                 bedlist.push_back(l);
             }
         }
@@ -672,12 +733,12 @@ int summarizeRegionBySnp(Config *config, const char *region,
                     delete l->trees;
                     delete &*l;
                 }
-                trees = new SprPruned(newick, inds, times);
+                trees = new SprPruned(newick, inds, data.times);
                 l = new BedLine(chrom, start, end, sample, newick, trees);
                 last_entry[sample] = l;
             } else {
                 l = it->second;
-                l->trees->update(newick, inds, times);
+                l->trees->update(newick, inds, data.times);
                 free(l->newick);
                 l->newick = (char*)malloc((strlen(newick)+1)*sizeof(char));
                 strcpy(l->newick, newick);
@@ -685,7 +746,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 l->end = end;
             }
             if (snpStream.coord <= end) {
-                snpStream.scoreAlleleAge(l, statname, times, group);
+                snpStream.scoreAlleleAge(l, statname, data);
                 bedlist.push_back(l);
             }
             if (4 != fscanf(infile.stream, "%s %i %i %i",
@@ -724,7 +785,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 //now output three versions- one for all samples,
                 //one for same derived allele, one for infinite sites
                 BedLine* first = *(bedlist.begin());
-                int same=0, diff=0, infsites=0, derConstCount,
+                int same=0, diff=0, infsites=0,
                     derFreq, otherFreq;
                 char derAllele, otherAllele;
                 for (list<BedLine*>::iterator it=bedlist.begin();
@@ -736,13 +797,11 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 if (same >= diff) {
                     derAllele = first->derAllele;
                     otherAllele = first->otherAllele;
-                    derConstCount = same;
                     derFreq = first->derFreq;
                     otherFreq = first->otherFreq;
                 } else {
                     derAllele=first->otherAllele;
                     otherAllele = first->derAllele;
-                    derConstCount = diff;
                     derFreq = first->otherFreq;
                     otherFreq = first->derFreq;
                 }
@@ -791,7 +850,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
 
 int summarizeRegionNoSnp(Config *config, const char *region,
                          set<string> inds, vector<string>statname,
-                         vector<double> times, set<string> &group) {
+                         ArgSummarizeData &data) {
     TabixStream *infile;
     char c;
     char *region_chrom = NULL;
@@ -897,8 +956,8 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         chomp(newick);
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
-            trees[sample] = new SprPruned(newick, inds, times);
-        else trees[sample]->update(newick, inds, times);
+            trees[sample] = new SprPruned(newick, inds, data.times);
+        else trees[sample]->update(newick, inds, data.times);
 
         map<int,BedLine*>::iterator it3 = bedlineMap.find(sample);
         BedLine *currline;
@@ -920,7 +979,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         if (trees[sample]->orig_spr.recomb_node == NULL ||
             trees[sample]->pruned_tree == NULL ||
             trees[sample]->pruned_spr.recomb_node != NULL) {
-            scoreBedLine(currline, statname, times, group);
+            scoreBedLine(currline, statname, data);
             bedlineMap.erase(sample);
         }
 
@@ -929,7 +988,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
             if (firstline->stats.size() == statname.size()) {
                 processNextBedLine(firstline, &results, statname,
                                    region_chrom, region_start, region_end,
-                                   times, group);
+                                   data);
                 bedlineQueue.pop();
             } else break;
         }
@@ -941,7 +1000,8 @@ int summarizeRegionNoSnp(Config *config, const char *region,
     while (bedlineQueue.size() > 0) {
         BedLine *firstline = bedlineQueue.front();
         processNextBedLine(firstline, &results, statname,
-                           region_chrom, region_start, region_end, times, group);
+                           region_chrom, region_start, region_end, data);
+
         //        delete firstline;
         bedlineQueue.pop();
     }
@@ -951,7 +1011,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         checkResults(&results);
     } else {
         processNextBedLine(NULL, &results, statname, region_chrom,
-                           region_start, region_end, times, group);
+                           region_start, region_end, data);
     }
 
     it = trees.begin();
@@ -965,19 +1025,18 @@ int summarizeRegionNoSnp(Config *config, const char *region,
 
 int summarizeRegion(Config *config, const char *region,
                     set<string> inds, vector<string>statname,
-                    vector<double> times, set<string> &group) {
+                    ArgSummarizeData &data) {
     if (config->snpfile.empty())
-        return summarizeRegionNoSnp(config, region, inds, statname, times,
-                                    group);
+        return summarizeRegionNoSnp(config, region, inds, statname, data);
     else
-        return summarizeRegionBySnp(config, region,
-                                    inds, statname, times, group);
+        return summarizeRegionBySnp(config, region, inds, statname, data);
 }
 
 
 int main(int argc, char *argv[]) {
     Config c;
     int ret = c.parse_args(argc, argv);
+    ArgSummarizeData data;
     if (ret)
         return ret;
 
@@ -986,7 +1045,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    vector<double> times;
     if (!c.timefile.empty()) {
         FILE *infile = fopen(c.timefile.c_str(), "r");
         double t;
@@ -995,8 +1053,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         while (EOF != fscanf(infile, "%lf", &t))
-            times.push_back(t);
-        std::sort(times.begin(), times.end());
+            data.times.push_back(t);
+        std::sort(data.times.begin(), data.times.end());
         fclose(infile);
     }
 
@@ -1023,12 +1081,82 @@ int main(int argc, char *argv[]) {
         statname.push_back(string("zero_len"));
     if (!c.groupfile.empty())
         statname.push_back(string("group"));
+    if (!(c.coalgroup_file.empty() && c.coalgroup_inds_file.empty())) {
+        if (c.coalgroup_file.empty() || c.coalgroup_inds_file.empty()) {
+            fprintf(stderr, "Error: --coal-groups and --coal-group-inds"
+                    " should be used together\n");
+            return 1;
+        }
+        FILE *infile = fopen(c.coalgroup_inds_file.c_str(), "r");
+        char tmp[1000], tempc;
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening %s.\n",
+                    c.coalgroup_inds_file.c_str());
+            return 1;
+        }
+        while (EOF != fscanf(infile, "%s", tmp)) {
+            string ind = string(tmp);
+            //read in first haploid chrom for ind
+            assert(1 == fscanf(infile, "%s", tmp));
+            set<string> indset;
+            indset.insert(string(tmp));
+
+            // check to see if there's a second haploid chrom for ind
+            while ('\n' != (tempc=fgetc(infile)) && tempc!=EOF)
+                if (!isspace(tempc)) break;
+            if (!isspace(tempc)) {
+                ungetc(tempc, infile);
+                assert(1==fscanf(infile, "%s", tmp));
+                indset.insert(string(tmp));
+            }
+            //make sure there are no more
+            while ('\n' != (tempc=fgetc(infile)) && tempc!=EOF) {
+                if (!isspace(tempc)) {
+                    fprintf(stderr, "Error: expected only two haploids per"
+                            " line in group_indfile\n");
+                    return 1;
+                }
+            }
+            data.coalgroup_inds[ind] = indset;
+            if (tempc==EOF) break;
+        }
+        fclose(infile);
+        infile = fopen(c.coalgroup_file.c_str(), "r");
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening %s.\n",
+                    c.coalgroup_file.c_str());
+            return 1;
+        }
+        char group[1000], hap[1000];
+        while (EOF != fscanf(infile, "%s %s", hap, group)) {
+            int group_num;
+            for (group_num=0;
+                 group_num < (int)data.coalgroup_names.size();
+                 group_num++)
+                if (strcmp(data.coalgroup_names[group_num].c_str(),
+                           group)==0) break;
+            if (group_num == (int)data.coalgroup_names.size())
+                data.coalgroup_names.push_back(string(group));
+            data.coalgroups[string(hap)] = group_num;
+        }
+        fclose(infile);
+
+        for (map<string,set<string> >::iterator it=data.coalgroup_inds.begin();
+             it != data.coalgroup_inds.end(); ++it) {
+            for (unsigned int j=0; j < data.coalgroup_names.size(); j++) {
+                string tmpname = "coal-" + it->first + "-" +
+                    data.coalgroup_names[j];
+                statname.push_back(tmpname);
+            }
+            statname.push_back("coal-" + it->first + "-mixedgroup");
+        }
+    }
     if (c.coalcounts) {
         if (c.timefile.empty()) {
             fprintf(stderr, "Error: --times required with --coalcounts\n");
             return 1;
         }
-        for (unsigned int i=0; i < times.size(); i++) {
+        for (unsigned int i=0; i < data.times.size(); i++) {
             char tmp[1000];
             sprintf(tmp, "coalcount.%i", i);
             statname.push_back(string(tmp));
@@ -1170,13 +1298,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    set<string>group;
     if (!c.groupfile.empty()) {
         ifstream in(c.groupfile.c_str());
         string line;
         if (in.is_open()) {
             while ( getline(in, line) ) {
-                group.insert(line);
+                data.group.insert(line);
             }
             in.close();
         } else {
@@ -1187,7 +1314,7 @@ int main(int argc, char *argv[]) {
 
     if (c.bedfile.empty()) {
         summarizeRegion(&c, c.region.empty() ? NULL : c.region.c_str(),
-                        inds, statname, times, group);
+                        inds, statname, data);
     } else {
         CompressStream bedstream(c.bedfile.c_str());
         char *line;
@@ -1209,7 +1336,7 @@ int main(int argc, char *argv[]) {
             int start = atoi(token[1].c_str());
             int end = atoi(token[2].c_str());
             sprintf(regionStr, "%s:%i-%i", token[0].c_str(), start+1, end);
-            summarizeRegion(&c, regionStr, inds, statname, times, group);
+            summarizeRegion(&c, regionStr, inds, statname, data);
             delete [] regionStr;
         }
         bedstream.close();
