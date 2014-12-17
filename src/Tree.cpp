@@ -1345,6 +1345,34 @@ int Tree::getDescGroups(Node *parent, map<string,int> groups,
     return currgroup;
 }
 
+void Tree::countDescGroups(Node *node, string hap, map<string,int> groups,
+                           int ngroups, double addval, vector<double> &rv) {
+    Node *parent = node->parent;
+    assert(parent != NULL);
+    Node *sib = node->parent->children[0];
+    if (sib == node) sib = node->parent->children[1];
+    Node *grandparent = parent->parent;
+    Node *aunt=NULL;
+    if (grandparent != NULL) {
+        aunt = grandparent->children[0];
+        if (aunt == parent) aunt = grandparent->children[1];
+    }
+
+    int coalgroup_sib = getDescGroups(sib, groups, ngroups);
+    int coalgroup_aunt = aunt != NULL ?
+        getDescGroups(aunt, groups, ngroups) : -1;
+    int this_subgroup = groups[hap];
+    if (coalgroup_aunt < 0) {
+        if (this_subgroup >= 0 && this_subgroup == coalgroup_sib)
+            rv[this_subgroup] += addval;
+    } else {
+        if (coalgroup_aunt == this_subgroup)
+            rv[this_subgroup] += addval;
+        if (coalgroup_aunt == coalgroup_sib)
+            rv[coalgroup_sib] += addval;
+    }
+}
+
 vector<double> Tree::coalGroup(string hap1, string hap2,
                                map<string,int> groups, int numgroup) {
     int node1, node2;
@@ -1369,31 +1397,20 @@ vector<double> Tree::coalGroup(string hap1, string hap2,
         sib = parent->children[1];
     else assert(parent->children[1] == nodes[node1]);
 
+    Node *node;
     if (node2 != -1 && sib == nodes[node2]) {
-        Node *temp = parent;
-        parent = parent->parent;
-        if (parent->children[0] == temp)
-            sib = parent->children[1];
-        else {
-            assert(temp == parent->children[1]);
-            sib = parent->children[0];
-        }
-        nodesTogether=false;
+        node = parent;
+        parent = node->parent;
+        nodesTogether=true;
+        val = 1.0;
+    } else if (node2 != -1) {
         val = 0.5;
+        nodesTogether=false;
+        node = nodes[node1];
     }
-    int coalgroup = getDescGroups(sib, groups, numgroup);
-    if (coalgroup >= 0) rv[coalgroup] += val;
-    //else it coalesces with individuals that are not in any group
-    // (for example admixed), do not count
-
-    if (node2 != -1 && !nodesTogether) {
-        parent = nodes[node2]->parent;
-        sib = parent->children[0];
-        if (sib == nodes[node2])
-            sib = parent->children[1];
-        coalgroup = getDescGroups(sib, groups, numgroup);
-        if (coalgroup >= 0) rv[coalgroup] += val;
-    }
+    countDescGroups(node, hap1, groups, numgroup, val, rv);
+    if (node2 != -1 && !nodesTogether)
+        countDescGroups(nodes[node2], hap2, groups, numgroup, val, rv);
     return rv;
 }
 

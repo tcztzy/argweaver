@@ -295,6 +295,8 @@ public:
     }
     int getDescGroups(Node *parent, map<string,int> groups, int ngroup,
                       int currgroup=-1);
+    void countDescGroups(Node *node, string hap, map<string,int> groups,
+                         int ngroups, double addval, vector<double> &rv);
     vector<double> coalGroup(string hap1, string hap2, map<string,int> groups,
                              int ngroup);
     bool isGroup(set<string> group);
