@@ -138,7 +138,7 @@ void write_sites(FILE *stream, Sites *sites) {
     fprintf(stream, "\t%s", sites->names[i].c_str());
   fprintf(stream, "\n");
   fprintf(stream, "REGION\t%s\t%i\t%i\n",
-	  sites->chrom.c_str(), sites->start_coord, sites->end_coord);
+	  sites->chrom.c_str(), sites->start_coord + 1, sites->end_coord);
   if (sites->positions.size() != sites->cols.size()) {
     fprintf(stderr, "Error in write_sites: positions.size()=%i cols.size=%i\n",
 	    (int)sites->positions.size(), (int)sites->cols.size());
