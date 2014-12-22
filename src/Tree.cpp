@@ -1365,11 +1365,13 @@ void Tree::countDescGroups(Node *node, string hap, map<string,int> groups,
     if (coalgroup_aunt < 0) {
         if (this_subgroup >= 0 && this_subgroup == coalgroup_sib)
             rv[this_subgroup] += addval;
+        else rv[ngroups] += addval;
     } else {
         if (coalgroup_aunt == this_subgroup)
             rv[this_subgroup] += addval;
         else if (coalgroup_aunt == coalgroup_sib)
             rv[coalgroup_sib] += addval;
+        else rv[ngroups] += addval;
     }
 }
 
