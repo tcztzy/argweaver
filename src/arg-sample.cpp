@@ -544,10 +544,10 @@ void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
                 prev_start_new = 0;
             prev_start_orig = track[i].start;
             track[i].start = sites_mapping->compress(track[i].start,
-                                                     prev_start_new);
+                                                     prev_start_new, 1);
             prev_start_new = track[i].start;
             track[i].end = sites_mapping->compress(track[i].end,
-                                                   track[i].start);
+                                                   track[i].start, -1);
         }
     }
 }
@@ -1334,8 +1334,23 @@ int main(int argc, char **argv)
         }
     }
 
+    //read in mask
+    TrackNullValue maskmap;
+    if (c.maskmap != "") {
+        //read mask
+        CompressStream stream(c.maskmap.c_str(), "r");
+        if (!stream.stream ||
+            !read_track_filter(stream.stream, &maskmap, seq_region)) {
+            printError("cannot read mask map '%s'",
+                       c.maskmap.c_str());
+            return EXIT_ERROR;
+        }
+    }
+
     // compress sequences
     if (sites.get_num_sites() > 0) {
+        // first remove any sites that fall under mask
+
         sites_mapping = new SitesMapping();
         sites_mapping_ptr = auto_ptr<SitesMapping>(sites_mapping);
 
@@ -1349,19 +1364,11 @@ int main(int argc, char **argv)
     }
     seq_region_compress.set(seq_region.chrom, 0, sequences.length());
 
-    // mask sequences
-    TrackNullValue maskmap;
+    // compress mask
     if (c.maskmap != "") {
-        // read mask
-        CompressStream stream(c.maskmap.c_str(), "r");
-        if (!stream.stream ||
-            !read_track_filter(stream.stream, &maskmap, seq_region)) {
-            printError("cannot read mask map '%s'",
-                       c.maskmap.c_str());
-            return EXIT_ERROR;
-        }
-
         // apply mask
+        // TODO: when mask is compressed, only allow it to apply to
+        // whole compressed regions
         if (sites_mapping)
             compress_mask(maskmap, sites_mapping);
         apply_mask_sequences(&sequences, maskmap);
@@ -1535,8 +1542,8 @@ int main(int argc, char **argv)
         c.resample_region[0] -= 1; // convert to 0-index
 
         if (sites_mapping) {
-            c.resample_region[0] = sites_mapping->compress(c.resample_region[0]);
-            c.resample_region[1] = sites_mapping->compress(c.resample_region[1]);
+            c.resample_region[0] = sites_mapping->compress(c.resample_region[0], -1);
+            c.resample_region[1] = sites_mapping->compress(c.resample_region[1], 1);
         }
     }
 
