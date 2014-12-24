@@ -199,6 +199,8 @@ class PhaseProbs
 
    void sample_phase(int *thread_path);
 
+   //map from coordinate to a vector of doubles giving the probability
+   // of current phasing for each state
   map<int,vector<double> > probs;
   int hap1, hap2;
   int treemap1, treemap2;
