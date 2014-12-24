@@ -342,6 +342,18 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
 
 
 template<>
+int Sites::remove_overlapping(const TrackNullValue &track) {
+    for (int i=positions.size()-1; i >= 0; i--) {
+        if (track.index(positions[i]) != -1) {
+            positions.erase(positions.begin() + i);
+            cols.erase(cols.begin() + i);
+        }
+    }
+    return 0;
+}
+
+
+template<>
 void apply_mask_sequences<NullValue>(Sequences *sequences,
                                      const TrackNullValue &maskmap)
 {
@@ -613,11 +625,27 @@ void compress_sites(Sites *sites, const SitesMapping *sites_mapping)
 void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping)
 {
     const int ncols = sites->cols.size();
+    if (ncols > (int)sites_mapping->old_sites.size() ||
+        sites_mapping->old_sites.size() != sites_mapping->new_sites.size()) {
+        fprintf(stderr, "Error; uncompress_sites got incompatible sites_mapping\n");
+        abort();
+    }
     sites->start_coord = sites_mapping->old_start;
     sites->end_coord = sites_mapping->old_end;
 
-    for (int i=0; i<ncols; i++)
-        sites->positions[i] = sites_mapping->old_sites[i];
+    unsigned int j=0;
+    for (int i=0; i<ncols; i++) {
+        while (sites_mapping->new_sites[j] != sites->positions[i]) {
+            j++;
+            if (j == sites_mapping->new_sites.size()) {
+                fprintf(stderr,
+                        "Error; could not find position %i in sites mapping\n",
+                         sites->positions[i]);
+                abort();
+            }
+        }
+        sites->positions[i] = sites_mapping->old_sites[j];
+    }
 }
 
 

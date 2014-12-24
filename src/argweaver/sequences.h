@@ -258,6 +258,10 @@ public:
         return names.size();
     }
 
+    int subset(set<string> names_to_keep);
+
+    template<class T>
+    int remove_overlapping(const Track<T> &track);
 
     string chrom;
     int start_coord;
@@ -283,11 +287,15 @@ public:
         seqlen = sites->length();
     }
 
-    int compress(int pos, int start=0) const {
+    //round_dir < 0: round down (returns lower bound on coordinate)
+    //round_dir >= 0: round up (returns upper bound on coordinate)
+    int compress(int pos, int round_dir, int start=0) const {
         const int n = all_sites.size();
         for (int pos2 = start; pos2<n; pos2++) {
-            if (all_sites[pos2] > pos)
-                return pos2;
+            if (all_sites[pos2] >= pos) {
+                if (round_dir >= 0 || pos2 == 0) return pos2;
+                else return pos2 - 1;
+            }
         }
         return n - 1;
     }
