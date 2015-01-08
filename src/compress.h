@@ -9,7 +9,7 @@ namespace argweaver {
 
 // default zip/unzip commands
 #define ZIP_COMMAND "gzip -"
-#define UNZIP_COMMAND "gunzip -"
+#define UNZIP_COMMAND "gunzip -f -"
 
 
 FILE *read_compress(const char *filename, const char *command=UNZIP_COMMAND);

@@ -43,6 +43,7 @@ int getQuantiles=0;
 vector <double> quantiles;
 vector<string> node_dist_leaf1;
 vector<string> node_dist_leaf2;
+bool quiet;
 
 const int EXIT_ERROR = 1;
 
@@ -199,6 +200,8 @@ public:
                    ("-t", "--tabix-dir", "<tabix dir>", &tabix_dir,
                     "Specify the directory of the tabix executable"));
         config.add(new ConfigSwitch
+                   ("-q", "--quiet", &quiet, "Proceed quietly"));
+        config.add(new ConfigSwitch
                    ("-v", "--version", &version, "display version information"));
         config.add(new ConfigSwitch
                    ("-h", "--help", &help, "display help information"));
@@ -252,6 +255,7 @@ public:
 
     bool noheader;
     string tabix_dir;
+    bool quiet;
     bool version;
     bool help;
 };
@@ -516,13 +520,27 @@ public:
         char tmp[1000], c;
         string str;
         assert(1==fscanf(snp_in->stream, "%s", tmp));
-        assert(strcmp(tmp, "#NAMES")==0);
+        if (strcmp(tmp, "#NAMES")==0) {
+            isBed=true;
+        } else if (strcmp(tmp, "NAMES")==0) {
+            isBed=false;
+        } else {
+            assert(strcmp(tmp, "#NAMES")==0 || strcmp(tmp, "NAMES")==0);
+        }
         done=0;
         while ('\n' != (c=fgetc(snp_in->stream)) && c!=EOF) {
             assert(c=='\t');
             assert(1==fscanf(snp_in->stream, "%s", tmp));
             str = string(tmp);
             inds.push_back(str);
+        }
+        if (!isBed) { //sites file; read REGION section
+            char tmp2[1000];
+            int tmpint[2];
+            assert(4 == fscanf(snp_in->stream, "%s %s %i %i",
+                               tmp, tmp2, &tmpint[0], &tmpint[1]));
+            c=fgetc(snp_in->stream);
+            assert(c==EOF || c=='\n');
         }
         if (c==EOF) done=1;
     }
@@ -531,11 +549,18 @@ public:
         int tmpStart;
         char a;
         if (done) return 1;
-        if (EOF==fscanf(snp_in->stream, "%s %i %i", chr, &tmpStart, &coord)) {
-            done=1;
-            return 1;
+        if (isBed) {
+            if (EOF==fscanf(snp_in->stream, "%s %i %i", chr, &tmpStart, &coord)) {
+                done=1;
+                return 1;
+            }
+            assert(tmpStart==coord-1);
+        } else {
+            if (EOF == fscanf(snp_in->stream, "%i", &coord)) {
+                done = 1;
+                return 1;
+            }
         }
-        assert(tmpStart==coord-1);
         assert('\t' == fgetc(snp_in->stream));
         allele1=allele2='N';
         allele1_inds.clear();
@@ -553,7 +578,21 @@ public:
             } else {
                 if (allele2=='N')
                     allele2=a;
-                else assert(a==allele2);
+                else {
+                    if (a != allele2) {
+                        char c;
+                        if (!quiet)
+                            fprintf(stderr,
+                                    "Skipping tri-allelic snp at position %i\n",
+                                    coord);
+                        while ('\n'!=(c=fgetc(snp_in->stream)) && c != EOF);
+                        if (c==EOF) {
+                            done = 1;
+                            return 1;
+                        }
+                        return readNext();
+                    }
+                }
                 allele2_inds.insert(inds[i]);
             }
         }
@@ -591,6 +630,12 @@ public:
                 derived_in_tree.insert(it->first);
             else if (allele2_inds.find(it->first) == allele2_inds.end())
                 prune.insert(it->first);
+        }
+        Tree *t2=NULL;
+        if (prune.size() > 0) {
+            t2 = t->copy();
+            t2->prune(prune);
+            t = t2;
         }
         set<Node*> derived;
         for (set<string>::iterator it=derived_in_tree.begin();
@@ -635,6 +680,7 @@ public:
         l->otherFreq = (major_is_derived ? num_derived : total - num_derived);
         l->infSites = (lca.size() == 1);
 
+        if (t2 != NULL) delete t2;
     }
 
     TabixStream *snp_in;
@@ -645,6 +691,7 @@ public:
     char chr[100];
     int coord;  //1-based
     int done;
+    bool isBed;
 };
 
 
@@ -1040,6 +1087,7 @@ int main(int argc, char *argv[]) {
     if (ret)
         return ret;
 
+    quiet = c.quiet;
     if (c.argfile.empty()) {
         fprintf(stderr, "Error: must specify argfile\n");
         return 1;
