@@ -141,7 +141,7 @@ public:
         }
         seqs.clear();
         names.clear();
-	pairs.clear();
+        non_singleton_snp.clear();
     }
 
     //set pairs vector assuming that diploids are named XXXX_1 and XXXX_2
@@ -162,9 +162,13 @@ public:
 
     void randomize_phase(double frac);
 
+    // set vector to true for each snp which has frequency > 1
+    bool get_non_singleton_snp(vector<bool> &nonsing);
+
     vector <char*> seqs;
     vector <string> names;
-    vector <int> pairs;  // index of diploid pair partner
+    vector <int> pairs; // index of diploid pair partner
+    vector <bool> non_singleton_snp;  //true if snp w frequency > 1
 
 protected:
     int seqlen;
@@ -204,6 +208,7 @@ class PhaseProbs
   int treemap1, treemap2;
   int offset;
   Sequences *seqs;
+  vector<bool> non_singleton_snp;
 };
 
 

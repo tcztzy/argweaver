@@ -443,6 +443,32 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
     }
 }
 
+
+bool Sequences::get_non_singleton_snp(vector<bool> &nonsing) {
+    if (seqs.size() == 0) return false;
+    for (int i=0; i < seqlen; i++) {
+        char allele[4]={'N','N','N','N'};
+        int count[4]={0,0,0,0};
+        for (unsigned int j=0; j < seqs.size(); j++) {
+            char c = seqs[j][i];
+            if (c == 'N') continue;
+            for (int k=0; k < 4; k++) {
+                if (allele[k] == 'N')
+                    allele[k] = c;
+                if (allele[k] == c) {
+                    count[k]++;
+                    break;
+                }
+            }
+        }
+        int total = 0;
+        for (int k=0; k < 4; k++)
+            total += (count[k] > 1);
+        nonsing[i] = (total >= 2);
+    }
+    return true;
+}
+
 void Sequences::set_pairs_by_name() {
   pairs.resize(names.size());
   for (unsigned int i=0; i < names.size(); i++) pairs[i] = -1;
@@ -523,19 +549,30 @@ void Sequences::set_pairs(const ArgModel *mod) {
 }
 
 void PhaseProbs::sample_phase(int *thread_path) {
-  int count=0;
-  if (probs.size() == 0)
-    return;
-  for (map<int,vector<double> >::iterator it=probs.begin(); it != probs.end();
+    int sing_tot=0, sing_switch=0, non_sing_tot=0, non_sing_switch=0;
+    if (probs.size() == 0)
+        return;
+    for (map<int,vector<double> >::iterator it=probs.begin(); it != probs.end();
        it++) {
-    int coord = it->first;
-    vector<double> prob = it->second;
-    if (frand() > prob[thread_path[coord]]) {
-      seqs->switch_alleles(coord, hap1, hap2);
-      count++;
+        int coord = it->first;
+        vector<double> prob = it->second;
+        if (seqs->seqs[hap1][coord] != seqs->seqs[hap2][coord]) {
+            if (frand() > prob[thread_path[coord]]) {
+                seqs->switch_alleles(coord, hap1, hap2);
+                if (non_singleton_snp[coord])
+                    non_sing_switch++;
+                else sing_switch++;
+            }
+            if (non_singleton_snp[coord])
+                non_sing_tot++;
+            else sing_tot++;
+        }
     }
-  }
-  printLog(LOG_LOW, "sample_phase %i %i size=%i frac_switch=%f\n", hap1, hap2, (int)probs.size(), (double)count/probs.size());
+    printLog(LOG_LOW, "sample_phase %s %s size=%i %i frac_switch=%f %f\n",
+             seqs->names[hap1].c_str(), seqs->names[hap2].c_str(),
+             sing_tot, non_sing_tot,
+             (double)sing_switch/sing_tot,
+             (double)non_sing_switch/non_sing_tot);
 }
 
 void Sequences::randomize_phase(double frac) {
@@ -553,9 +590,9 @@ void Sequences::randomize_phase(double frac) {
           }
         }
       }
-      printLog(LOG_LOW, "switched %i of %i (%f)\n", count, total, (double)count/(double)total);
-    }
-
+      printLog(LOG_LOW, "switched %i of %i (%f)\n", count, total,
+	       (double)count/(double)total);
+}
 
 // Compress the sites by a factor of 'compress'.
 //
@@ -822,6 +859,10 @@ PhaseProbs::PhaseProbs(int _hap1, int _treemap1, Sequences *_seqs,
   if (hap2 != -1) {
     updateTreeMap2(trees);
   } else treemap2 = -1;
+  if (seqs->get_num_seqs() > 0) {
+      non_singleton_snp = vector<bool>(seqs->length());
+      seqs->get_non_singleton_snp(non_singleton_snp);
+  }
 }
 
 
