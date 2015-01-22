@@ -762,6 +762,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
         assert('\t' == fgetc(infile.stream));
         newick = fgetline(infile.stream);
         if (config->sample_num == 0 || config->sample_num == sample) break;
+        delete [] newick;
     }
     chomp(newick);
 
@@ -1014,7 +1015,10 @@ int summarizeRegionNoSnp(Config *config, const char *region,
                          chrom, &start, &end, &sample)) {
         assert('\t'==fgetc(infile->stream));
         char* newick = fgetline(infile->stream);
-        if (config->sample_num != 0 && sample != config->sample_num) continue;
+        if (config->sample_num != 0 && sample != config->sample_num) {
+            delete [] newick;
+            continue;
+        }
         chomp(newick);
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
