@@ -109,6 +109,10 @@ public:
                     " alleles for each haplotype in the order indicated in the"
                     " header. The file needs to be sorted and indexed with"
                     " tabix."));
+        config.add(new ConfigParam<int>
+                   ("-p", "--sample", "<sample_num>", &sample_num,
+                    "If provided, only process trees in argfile with given MCMC"
+			   " sample number"));
         config.add(new ConfigParam<string>
                    ("-m", "--time-file", "<times.txt>", &timefile,
                     "File with list of discretized times used in trees. If"
@@ -234,6 +238,7 @@ public:
     string groupfile;
     string coalgroup_inds_file;
     string coalgroup_file;
+    int sample_num;
 
     bool rawtrees;
     bool tmrca;
@@ -750,10 +755,14 @@ int summarizeRegionBySnp(Config *config, const char *region,
         }
     }
     SnpStream snpStream = SnpStream(&snp_infile);
-    if (EOF==fscanf(infile.stream, "%s %i %i %i",
-                    chrom, &start, &end, &sample)) return 0;
-    assert('\t' == fgetc(infile.stream));
-    char *newick = fgetline(infile.stream);
+    char *newick;
+    while (1) {
+        if (EOF==fscanf(infile.stream, "%s %i %i %i",
+                        chrom, &start, &end, &sample)) return 0;
+        assert('\t' == fgetc(infile.stream));
+        newick = fgetline(infile.stream);
+        if (config->sample_num == 0 || config->sample_num == sample) break;
+    }
     chomp(newick);
 
     while (1) {
@@ -796,14 +805,19 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 snpStream.scoreAlleleAge(l, statname, data);
                 bedlist.push_back(l);
             }
-            if (4 != fscanf(infile.stream, "%s %i %i %i",
-                            chrom, &start, &end, &sample))
-                start = -1;
-            else {
-                assert('\t' == fgetc(infile.stream));
-                delete [] newick;
-                newick = fgetline(infile.stream);
-                chomp(newick);
+            while (1) {
+                if (4 != fscanf(infile.stream, "%s %i %i %i",
+                                chrom, &start, &end, &sample)) {
+                    start = -1;
+                    break;
+                } else {
+                    assert('\t' == fgetc(infile.stream));
+                    delete [] newick;
+                    newick = fgetline(infile.stream);
+                    chomp(newick);
+                    if (config->sample_num == 0 || config->sample_num==sample)
+                       break;
+                }
             }
         }
         if (bedlist.size() > 0) {
@@ -1000,6 +1014,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
                          chrom, &start, &end, &sample)) {
         assert('\t'==fgetc(infile->stream));
         char* newick = fgetline(infile->stream);
+        if (config->sample_num != 0 && sample != config->sample_num) continue;
         chomp(newick);
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
