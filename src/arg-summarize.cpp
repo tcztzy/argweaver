@@ -53,6 +53,7 @@ class ArgSummarizeData {
 public:
     vector<double> times;
     set<string> group;
+    vector<string> spr_leaf;
 
     //individuals to test coal into various groups; maps an individual
     // name to one or two haploid chromosome names
@@ -180,6 +181,12 @@ public:
                     " coal_group_inds file should contain one individual per"
                     " line, which could be one or two haploid chromosome"
                     " names"));
+        config.add(new ConfigParam<string>
+                   ("", "--spr-leaf", "<leaf1,leaf2,...>",
+                    &spr_leaf_names,
+                    "For each leaf, indicate binary whether the SPR operation"
+                    "at the end of segment affects the branch coming from that"
+                    "leaf"));
         config.add(new ConfigSwitch
                    ("-N", "--numsample", &numsample,
                     "number of MCMC samples covering each region"));
@@ -238,6 +245,7 @@ public:
     string groupfile;
     string coalgroup_inds_file;
     string coalgroup_file;
+    string spr_leaf_names;
     int sample_num;
 
     bool rawtrees;
@@ -401,10 +409,24 @@ public:
                        statname[i+j].substr(0,10)=="coalcount.");
                 line->stats[i+j] = coal_counts[j];
             }
-            i += coal_counts.size()-1;
+            i += coal_counts.size() - 1;
         }
         else if (statname[i]=="group") {
             line->stats[i] = (int)tree->isGroup(data.group);
+        else if (statname[i].substr(0, 9)=="spr_leaf-") {
+            const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
+                                      &(line->trees->pruned_spr) :
+                                      &(line->trees->orig_spr));
+            for (unsigned int j=0; j < data.spr_leaf.size(); j++) {
+                line->stats[i+j] =
+                    ( (nodespr->coal_node==NULL ||
+                       !nodespr->coal_node->longname.compare(data.spr_leaf[j]))
+                      ||
+                      (nodespr->recomb_node==NULL ||
+                       !nodespr->recomb_node->longname.compare(data.spr_leaf[j]))
+                      );
+            }
+            i += data.spr_leaf.size() - 1;
         }
         else if (statname[i].substr(0, 5)=="coal-") {
             for (map<string,set<string> >::iterator it=
@@ -1243,6 +1265,12 @@ int main(int argc, char *argv[]) {
                                + string(",") + tokens2[1]);
             node_dist_leaf1.push_back(tokens2[0]);
             node_dist_leaf2.push_back(tokens2[1]);
+        }
+    }
+    if (!c.spr_leaf_names.empty()) {
+        split(c.spr_leaf_names.c_str(), ',', data.spr_leaf);
+        for (unsigned int i=0; i < data.spr_leaf.size(); i++) {
+            statname.push_back(string("spr_leaf-") + data.spr_leaf[i]);
         }
     }
     if (c.rawtrees)
