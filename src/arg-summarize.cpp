@@ -52,7 +52,7 @@ const int EXIT_ERROR = 1;
 class ArgSummarizeData {
 public:
     vector<double> times;
-    set<string> group;
+    vector< set<string> > group;
     vector<string> spr_leaf;
 
     //individuals to test coal into various groups; maps an individual
@@ -163,9 +163,13 @@ public:
                     "number of coal events at each discretized time point"
                     " (requires --timefile)"));
         config.add(new ConfigParam<string>
-                   ("-G", "--group", "<group_file>", &groupfile,
-                    "Output boolean indicating whether individuals in group"
-                    " file cluster together in the local tree"));
+                   ("-G", "--group", "<group_file1,groupfile2,...>", &groupfile,
+                    "Output boolean indicating whether individuals in each group"
+                    " file cluster together in the local tree."));
+        /*        config.add(new ConfigParam<string>
+                   ("", "--group-no-root", "<group_noroot_file>",
+                    &group_noroot_file,
+                    "Like --group, but consider grouping in unrooted tree"));*/
         config.add(new ConfigParam<string>
                    ("", "--coal-groups", "<coal_group_file>", &coalgroup_file,
                     "(For use with --coal-group-inds); Output boolean indicating"
@@ -411,8 +415,11 @@ public:
             }
             i += coal_counts.size() - 1;
         }
-        else if (statname[i]=="group") {
-            line->stats[i] = (int)tree->isGroup(data.group);
+        else if (statname[i].substr(0, 5)=="group") {
+            for (unsigned int j=0; j < data.group.size(); j++)
+                line->stats[i+j] = (int)tree->isGroup(data.group[j]);
+            i += data.group.size()-1;
+        }
         else if (statname[i].substr(0, 9)=="spr_leaf-") {
             const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
                                       &(line->trees->pruned_spr) :
@@ -1168,8 +1175,16 @@ int main(int argc, char *argv[]) {
     }
     if (c.zero)
         statname.push_back(string("zero_len"));
-    if (!c.groupfile.empty())
-        statname.push_back(string("group"));
+
+    vector<string> groupfiles;
+    if (!c.groupfile.empty()) {
+        split(c.groupfile.c_str(), ',', groupfiles);
+        for (unsigned int i=0; i < groupfiles.size(); i++) {
+            char tmp[100];
+            sprintf(tmp, "%i", i);
+            statname.push_back(string("group") + string(tmp));
+        }
+    }
     if (!(c.coalgroup_file.empty() && c.coalgroup_inds_file.empty())) {
         if (c.coalgroup_file.empty() || c.coalgroup_inds_file.empty()) {
             fprintf(stderr, "Error: --coal-groups and --coal-group-inds"
@@ -1393,19 +1408,35 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!c.groupfile.empty()) {
-        ifstream in(c.groupfile.c_str());
+    for (unsigned int i=0; i < groupfiles.size(); i++) {
+        ifstream in(groupfiles[i].c_str());
         string line;
+        data.group.resize(groupfiles.size());
         if (in.is_open()) {
             while ( getline(in, line) ) {
-                data.group.insert(line);
+                data.group[i].insert(line);
             }
             in.close();
         } else {
-            fprintf(stderr, "Error opening %s.\n", c.groupfile.c_str());
+            fprintf(stderr, "Error opening %s.\n", groupfiles[i].c_str());
             return 1;
         }
     }
+
+    /*    if (!c.group_noroot_file.empty()) {
+        ifstream in(c.group_noroot_file.c_str());
+        string line;
+        if (in.is_open()) {
+            while ( getline(in, line) ) {
+                data.group_noroot.insert(line);
+            }
+            in.close();
+        } else {
+            fprintf(stderr, "Error opening %s.\n", c.group_noroot_file.c_str());
+            return 1;
+        }
+        }*/
+
 
     if (c.bedfile.empty()) {
         summarizeRegion(&c, c.region.empty() ? NULL : c.region.c_str(),
