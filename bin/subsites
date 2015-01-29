@@ -18,6 +18,8 @@ o.add_option("--both-haps", action="store_true",
              help="use both haplotypes for each individual")
 o.add_option("-k", "--keep-invariant", action="store_true",
              help="keep invariant sites")
+o.add_option("-f", "--informative-only", action="store_true",
+             help="keep only informative sites (two non-N alleles, freq > 1)")
 o.add_option("-i", "--ind", metavar="INDIVIDUALS")
 
 conf, args = o.parse_args()
@@ -31,6 +33,22 @@ def is_variant(col):
         if col[i] != c:
             return True
     return False
+
+
+def is_informative(col):
+    count = [0,0,0,0]
+    for i in xrange(0, len(col)):
+        if col[i] == 'A':
+            count[0] += 1
+        elif col[i] == 'C':
+            count[1] += 1
+        elif col[i] == 'G':
+            count[2] += 1
+        elif col[i] == 'T':
+            count[3] += 1
+        elif col[i] != 'N':
+            print >> sys.stderr, 'Error got allele ', col[i]
+    return ((count[0] > 1) + (count[1] > 1) + (count[2] > 1) + (count[3] > 1)) >= 2
 
 
 # read data
@@ -68,8 +86,9 @@ sites2 = argweaver.Sites(names=util.mget(sites.names, ind), chrom=sites.chrom,
 for i, bases in sites:
     if region[0] <= i <= region[1]:
         bases = "".join(util.mget(bases, ind))
-        if is_variant(bases) or conf.keep_invariant:
-            sites2.append(i, bases)
+        if (not conf.informative_only) or is_informative(bases):
+            if is_variant(bases) or conf.keep_invariant:
+                sites2.append(i, bases)
 
 # write new sites
 argweaver.write_sites(conf.output, sites2)
