@@ -455,7 +455,7 @@ public:
                                     data.coalgroup_names.size());
                 for (unsigned int j=0; j < tmpstats.size(); j++)
                     line->stats[i+j] = tmpstats[j];
-                i += tmpstats.size();
+                i += tmpstats.size() - 1;
             }
         }
         else {
