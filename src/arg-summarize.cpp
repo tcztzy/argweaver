@@ -73,6 +73,7 @@ class Config
 public:
     Config()
     {
+        sample_num=0;
         make_parser();
     }
     void make_parser() {
