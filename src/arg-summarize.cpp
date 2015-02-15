@@ -34,7 +34,7 @@ using namespace spidir;
 */
 
 #define VERSION_INFO "arg-summarize 0.3"
-
+bool html;
 int summarize=0;
 int getNumSample=0;
 int getMean=0;
@@ -126,6 +126,13 @@ public:
                    ("-E", "--tree", &rawtrees,
                     "output newick tree strings (cannot use summary options"
                     " with this)"));
+        config.add(new ConfigSwitch
+                   ("", "--treegif", &treegif,
+                    "output link to produce GIF of trees (cannot use summary"
+                    " options with this)"));
+        config.add(new ConfigSwitch
+                   ("", "--html", &html,
+                    "output HTML instead of plain text (useful with --treegif)"));
         config.add(new ConfigSwitch
                    ("-T", "--tmrca", &tmrca,
                     "time to the most recent common ancestor"));
@@ -254,6 +261,8 @@ public:
     int sample_num;
 
     bool rawtrees;
+    bool treegif;
+    bool html;
     bool tmrca;
     bool branchlen;
     bool recomb;
@@ -284,8 +293,12 @@ void checkResults(IntervalIterator<vector<double> > *results) {
     while (summary.start != summary.end) {
         scores = summary.get_scores();
         if (scores.size() > 0) {
-            cout << summary.chrom << "\t" << summary.start << "\t"
-                 << summary.end;
+            if (html) printf("<tr><td>\n");
+            printf("%s\t", summary.chrom.c_str());
+            if (html) printf("</td><td>"); 
+            printf("%i\t", summary.start);
+            if (html) printf("</td><td>"); 
+            printf("%i", summary.end);
             vector<double> tmpScore(scores.size());
             int numscore = scores[0].size();
             assert(numscore > 0);
@@ -294,26 +307,33 @@ void checkResults(IntervalIterator<vector<double> > *results) {
                 double meanval=-1;
                 for (unsigned int j=0; j < scores.size(); j++)
                     tmpScore[j] = scores[j][i];
-                if (i==0 && getNumSample > 0) printf("\t%i", (int)scores.size());
+                if (i==0 && getNumSample > 0) {
+                    if (html) printf("</td><td>");
+                    printf("\t%i", (int)scores.size());
+                }
                 for (int j=1; j <= summarize; j++) {
                     if (getMean==j) {
                         meanval = compute_mean(tmpScore);
                         have_mean=1;
+                        if (html) printf("</td><td>");
                         printf("\t%g", meanval);
                     } else if (getStdev==j) {
                         if (!have_mean)
                             meanval = compute_mean(tmpScore);
+                        if (html) printf("</td><td>");
                         printf("\t%g", compute_stdev(tmpScore, meanval));
                     } else if (getQuantiles==j) {
                         vector<double> q =
                             compute_quantiles(tmpScore, quantiles);
                         for (unsigned int k=0; k < quantiles.size(); k++) {
+                        if (html) printf("</td><td>");
                             printf("\t%g", q[k]);
                         }
                     }
                 }
             }
             printf("\n");
+            if (html) printf("</td></tr>\n");
         }
         summary = results->next();
     }
@@ -361,6 +381,7 @@ public:
                    line->trees->orig_tree);
     double bl=-1.0;
     int node_dist_idx=0;
+    bool done_newick=false;
     if (line->stats.size() == statname.size()) return;
     line->stats.resize(statname.size());
     for (unsigned int i=0; i < statname.size(); i++) {
@@ -388,13 +409,16 @@ public:
         else if (statname[i]=="zero_len") {
             line->stats[i] = tree->num_zero_branches();
         }
-        else if (statname[i]=="tree") {
+        else if (statname[i]=="tree" || statname[i]=="treegif") {
+            if (!done_newick) {
             if (line->trees->pruned_tree != NULL) {
                 string tmp =
                     line->trees->pruned_tree->format_newick(false, true, 1,
                                                      &line->trees->pruned_spr);
                 //pruned tree will be fewer characters than whole tree
                 sprintf(line->newick, "%s", tmp.c_str());
+                done_newick=true;
+            }
             }
         }
         else if (statname[i]=="allele_age")
@@ -522,16 +546,48 @@ void processNextBedLine(BedLine *line,
             for (list<BedLine*>::iterator it=bedlist.begin();
                  it != bedlist.end(); ++it) {
                 BedLine *l = *it;
-                printf("%s\t%i\t%i\t%i", l->chrom, l->start, l->end, l->sample);
+                if (html) printf("<tr><td>");
+                printf("%s\t", l->chrom);
+                if (html) printf("</td><td>");
+                printf("%i\t", l->start);
+                if (html) printf("</td><td>");
+                printf("%i\t", l->end);
+                if (html) printf("</td><td>");
+                printf("%i", l->sample);
                 for (unsigned int i=0; i < statname.size(); i++) {
                     if (statname[i]=="tree") {
-                        printf("\t");
-                        printf("%s", l->newick);
+                        if (html) printf("</td><td>");
+                        printf("\t%s", l->newick);
+                    } else if (statname[i]=="treegif") {
+                        if (html) printf("</td><td>");
+                       printf("\t<a href=\"http://mhubisz.genome-mirror.cshl.edu/cgi-bin/phyloGif?phyloGif_width=240&phyloGif_height=512&phyloGif_branchLengths=on&phyloGif_underscores=on&phyloGif_tree=");
+                       for (unsigned int i=0; i < strlen(l->newick); i++) {
+                          if (l->newick[i]=='(') {
+                            printf("%%28");
+                          } else if (l->newick[i]==':') {
+                            printf("%%3A");
+                          } else if (l->newick[i]==',') {
+                            printf("%%2C");
+                          } else if (l->newick[i]==')') {
+                            printf("%%29");
+                          } else if (l->newick[i]==';') {
+                            printf("%%3B");
+                          } else if (l->newick[i]=='&') {
+                            printf("%%26");
+                          } else if (l->newick[i]=='[') {
+                            printf("%%5B");
+                          } else if (l->newick[i]==']') {
+                            printf("%%5D");
+                          } else printf("%c", l->newick[i]);
+                       }
+                       printf("%%0D%%0A\">gif</a>");
                     } else {
+                        if (html) printf("</td><td>");
                         printf("\t%g", l->stats[i]);
                     }
                 }
                 printf("\n");
+                if (html) printf("</td></tr>\n");
                 delete l;
             }
             bedlist.clear();
@@ -736,18 +792,21 @@ void print_summaries(vector<double> &stat) {
     int have_mean=0;
     for (int j=1; j <= summarize; j++) {
         if (getMean==j) {
+            if (html) printf("</td><td>");
             if (stat.size() > 0) {
                 meanval = compute_mean(stat);
                 have_mean=1;
                 printf("\t%g", meanval);
             } else printf("\tNA");
         } else if (getStdev==j) {
+            if (html) printf("</td><td>");
             if (stat.size() > 1) {
                 if (!have_mean)
                     meanval = compute_mean(stat);
                 printf("\t%g", compute_stdev(stat, meanval));
             } else printf("\tNA");
         } else if (getQuantiles==j) {
+            if (html) printf("</td><td>");
             if (stat.size() > 0) {
                 vector<double> q = compute_quantiles(stat, quantiles);
                 for (unsigned int k=0; k < quantiles.size(); k++) {
@@ -755,6 +814,7 @@ void print_summaries(vector<double> &stat) {
                 }
             } else {
                 for (unsigned int k=0; k < quantiles.size(); k++) {
+                    if (html) printf("</td><td>");
                     printf("\tNA");
                 }
             }
@@ -857,19 +917,35 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 for (list<BedLine*>::iterator it=bedlist.begin();
                      it != bedlist.end(); ++it) {
                     BedLine *l = *it;
-                    printf("%s\t%i\t%i\t%i\t%c\t%c\t%i\t%i", l->chrom,
-                           snpStream.coord-1, snpStream.coord, l->sample,
-                           l->derAllele, l->otherAllele, l->derFreq,
-                           l->otherFreq);
+                    if (html) printf("<tr><td>");
+                    printf("%s\t", l->chrom);
+                    if (html) printf("</td><td>");
+                    printf("%i\t", snpStream.coord-1);
+                    if (html) printf("</td><td>");
+                    printf("%i\t", snpStream.coord);
+                    if (html) printf("</td><td>");
+                    printf("%i\t", l->sample);
+                    if (html) printf("</td><td>");
+                    printf("%c\t", l->derAllele);
+                    if (html) printf("</td><td>");
+                    printf("%c\t", l->otherAllele);
+                    if (html) printf("</td><td>");
+                    printf("%i\t", l->derFreq);
+                    if (html) printf("</td><td>");
+                    printf("%i", l->otherFreq);
                     for (unsigned int i=0; i < statname.size(); i++) {
                         if (statname[i]=="tree") {
+                            if (html) printf("</td><td>");
                             printf("\t%s", l->newick);
                         } else if (statname[i]=="infSites") {
+                            if (html) printf("</td><td>");
                             printf("\t%i", (int)(l->stats[i]==1));
                         } else {
+                            if (html) printf("</td><td>");
                             printf("\t%g", l->stats[i]);
                         }
                     }
+                    if (html) printf("</td></tr>");
                     printf("\n");
                     l->stats.clear();
                 }
@@ -897,10 +973,25 @@ int summarizeRegionBySnp(Config *config, const char *region,
                     derFreq = first->otherFreq;
                     otherFreq = first->derFreq;
                 }
-                printf("%s\t%i\t%i\t%c\t%c\t%i\t%i\t%i\t%i",
-                       l->chrom, snpStream.coord-1, snpStream.coord,
-                       derAllele, otherAllele, derFreq, otherFreq,
-                       (int)bedlist.size(), infsites);
+                if (html) printf("<tr><td>");
+                printf("%s\t", l->chrom);
+                if (html) printf("</td><td>");
+                printf("%i\t", snpStream.coord-1);
+                if (html) printf("</td><td>");
+                printf("%i\t", snpStream.coord);
+                if (html) printf("</td><td>");
+                printf("%c\t", l->derAllele);
+                if (html) printf("</td><td>");
+                printf("%c\t", l->otherAllele);
+                if (html) printf("</td><td>");
+                printf("%i\t", l->derFreq);
+                if (html) printf("</td><td>");
+                printf("%i\t", l->otherFreq);
+                if (html) printf("</td><td>");
+                printf("%i\t", (int)bedlist.size());
+                if (html) printf("</td><td>");
+                printf("%i", infsites); 
+                if (html) printf("</td><td>");
                 for (unsigned int i=0; i < statname.size(); i++) {
                     if (statname[i] != "inf_sites") {
                         // first compute stats across all
@@ -925,6 +1016,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                     }
                 }
                 printf("\n");
+                if (html) printf("</td></tr>\n");
             }
         }
     }
@@ -1154,6 +1246,10 @@ int main(int argc, char *argv[]) {
         std::sort(data.times.begin(), data.times.end());
         fclose(infile);
     }
+    if (c.html) {
+      html=true;
+      printf("<html>\n");
+    }
 
     vector<string> statname;
     if (c.tmrca)
@@ -1291,6 +1387,8 @@ int main(int argc, char *argv[]) {
     }
     if (c.rawtrees)
         statname.push_back(string("tree"));
+    if (c.treegif)
+        statname.push_back(string("treegif"));
 
     if (c.numsample)
         getNumSample=++summarize;
@@ -1391,6 +1489,7 @@ int main(int argc, char *argv[]) {
             }
         }
         printf("\n");
+        if (html) printf("<br>\n");
     }
 
 
@@ -1438,7 +1537,7 @@ int main(int argc, char *argv[]) {
         }
         }*/
 
-
+    if (html) printf("<table>\n");
     if (c.bedfile.empty()) {
         summarizeRegion(&c, c.region.empty() ? NULL : c.region.c_str(),
                         inds, statname, data);
@@ -1468,6 +1567,7 @@ int main(int argc, char *argv[]) {
         }
         bedstream.close();
     }
+    if (html) printf("</table>\n</html>\n");
 
     return 0;
 }
