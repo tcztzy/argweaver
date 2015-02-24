@@ -536,12 +536,14 @@ double resample_arg_regions(
     decLogLevel();
     double accept_rate = 0.0;
     int nwindows = 0;
+    int currwindow = (int)rand_exp((double)window);
+    int currstep = (int)currwindow/2+1;
     for (int start=trees->start_coord;
-         start == trees->start_coord || start+window/2 <trees->end_coord;
-         start+=step)
+         start == trees->start_coord || start+currwindow/2 <trees->end_coord;
+         start+=currstep)
     {
         nwindows++;
-        int end = min(start + window, trees->end_coord);
+        int end = min(start + currwindow, trees->end_coord);
         accept_rate += resample_arg_region(
              model, sequences, trees, start, end, niters, true, heat);
     }
@@ -550,7 +552,6 @@ double resample_arg_regions(
     accept_rate /= nwindows;
     return accept_rate;
 }
-
 
 /*
 // cut a branch in the ARG and resample branch
