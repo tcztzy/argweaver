@@ -145,12 +145,12 @@ void get_coal_states(const LocalTree *tree, int ntimes, States &states,
                      bool internal=false);
 int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal=false);
 
-void get_coal_states_external(const LocalTree *tree, int ntimes, States &states);
-int get_num_coal_states_external(const LocalTree *tree, int ntimes);
+void get_coal_states_external(const LocalTree *tree, int ntimes, States &states, int minage=0);
+int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage=0);
 
 void get_coal_states_internal(const LocalTree *tree, int ntimes,
                               States &states, int minage=0);
-int get_num_coal_states_internal(const LocalTree *tree, int ntimes);
+int get_num_coal_states_internal(const LocalTree *tree, int ntimes, int minage=0);
 
 
 class StatesModel
