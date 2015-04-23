@@ -28,7 +28,10 @@ void resample_arg_all(const ArgModel *model, Sequences *sequences,
                       LocalTrees *trees, double prob_path_switch);
 
 void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
-                       LocalTrees *trees);
+                       LocalTrees *trees, int node);
+
+void resample_arg_random_leaf(const ArgModel *model, Sequences *sequences,
+			      LocalTrees *trees);
 
 bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
                        LocalTrees *trees, double heat=1.0);

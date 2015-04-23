@@ -128,13 +128,11 @@ void resample_arg_all(const ArgModel *model, Sequences *sequences,
 
 // resample the threading of a leaf of an ARG
 void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
-                       LocalTrees *trees)
+                       LocalTrees *trees, int node)
 {
     const int maxtime = model->get_removed_root_time();
     int *removal_path = new int [trees->get_num_trees()];
 
-    // ramdomly choose a removal path
-    int node = irand(trees->get_num_leaves());
     sample_arg_removal_leaf_path(trees, node, removal_path);
 
     remove_arg_thread_path(trees, removal_path, maxtime);
@@ -147,6 +145,14 @@ void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
         delete phase_pr;
 
     delete [] removal_path;
+}
+
+
+void resample_arg_random_leaf(const ArgModel *model, Sequences *sequences,
+			      LocalTrees *trees)
+{
+    int node = irand(trees->get_num_leaves());
+    resample_arg_leaf(model, sequences, trees, node);
 }
 
 
@@ -192,7 +198,7 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
                            int window, int step, int niters, double heat)
 {
     if (do_leaf) {
-        resample_arg_leaf(model, sequences, trees);
+        resample_arg_random_leaf(model, sequences, trees);
         printLog(LOG_LOW, "resample_arg_leaf: accept=%f\n", 1.0);
     } else {
         double accept_rate = resample_arg_regions(
@@ -778,7 +784,7 @@ LocalTrees *arghmm_resample_arg_leaf(
 
     // gibbs sample
     for (int i=0; i<niters; i++)
-        resample_arg_leaf(&model, &sequences, trees);
+        resample_arg_random_leaf(&model, &sequences, trees);
 
     return trees;
 }
