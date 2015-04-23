@@ -128,13 +128,11 @@ void resample_arg_all(const ArgModel *model, Sequences *sequences,
 
 // resample the threading of a leaf of an ARG
 void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
-                       LocalTrees *trees)
+                       LocalTrees *trees, int node)
 {
     const int maxtime = model->get_removed_root_time();
     int *removal_path = new int [trees->get_num_trees()];
 
-    // ramdomly choose a removal path
-    int node = irand(trees->get_num_leaves());
     sample_arg_removal_leaf_path(trees, node, removal_path);
 
     remove_arg_thread_path(trees, removal_path, maxtime);
@@ -147,6 +145,14 @@ void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
         delete phase_pr;
 
     delete [] removal_path;
+}
+
+
+void resample_arg_random_leaf(const ArgModel *model, Sequences *sequences,
+			      LocalTrees *trees)
+{
+    int node = irand(trees->get_num_leaves());
+    resample_arg_leaf(model, sequences, trees, node);
 }
 
 
@@ -188,15 +194,15 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
 // resample the threading of an internal branch using MCMC
 // Also sometimes resample leaves specifically
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
-                           LocalTrees *trees, double frac_leaf,
-                           int window, int step, int niters)
+                           LocalTrees *trees, bool do_leaf, 
+                           int window, int niters)
 {
-    if (frand() < frac_leaf) {
-        resample_arg_leaf(model, sequences, trees);
+    if (do_leaf) {
+        resample_arg_random_leaf(model, sequences, trees);
         printLog(LOG_LOW, "resample_arg_leaf: accept=%f\n", 1.0);
     } else {
         double accept_rate = resample_arg_regions(
-            model, sequences, trees, window, step, niters);
+            model, sequences, trees, window, niters);
         printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
     }
 }
@@ -533,7 +539,7 @@ double resample_arg_region(
 // resample an ARG a region at a time in a sliding window
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int step, int niters)
+    LocalTrees *trees, int window, int niters)
 {
     decLogLevel();
     double accept_rate = 0.0;
@@ -748,7 +754,6 @@ LocalTrees *arghmm_resample_mcmc_arg(
 {
     // setup model, local trees, sequences
     double frac_leaf = 0.5;
-    int step = window / 2;
     ArgModel model(ntimes, times, popsizes, rho, mu);
     Sequences sequences(seqs, nseqs, seqlen);
 
@@ -758,8 +763,8 @@ LocalTrees *arghmm_resample_mcmc_arg(
     // gibbs sample
     for (int i=0; i<niters; i++) {
         printLog(LOG_LOW, "sample %d\n", i);
-        resample_arg_mcmc_all(&model, &sequences, trees, frac_leaf,
-                              window, step, niters2);
+        resample_arg_mcmc_all(&model, &sequences, trees, frand() < frac_leaf,
+                              window, niters2);
     }
 
     return trees;
@@ -780,7 +785,7 @@ LocalTrees *arghmm_resample_arg_leaf(
 
     // gibbs sample
     for (int i=0; i<niters; i++)
-        resample_arg_leaf(&model, &sequences, trees);
+        resample_arg_random_leaf(&model, &sequences, trees);
 
     return trees;
 }

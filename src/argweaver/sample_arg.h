@@ -28,14 +28,17 @@ void resample_arg_all(const ArgModel *model, Sequences *sequences,
                       LocalTrees *trees, double prob_path_switch);
 
 void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
-                       LocalTrees *trees);
+                       LocalTrees *trees, int node);
+
+void resample_arg_random_leaf(const ArgModel *model, Sequences *sequences,
+			      LocalTrees *trees);
 
 bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
                        LocalTrees *trees);
 
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
-                           LocalTrees *trees, double frac_leaf,
-                           int window, int step, int niters);
+                           LocalTrees *trees, bool do_leaf,
+                           int window, int niters);
 
 void resample_arg_climb(const ArgModel *model, Sequences *sequences,
                         LocalTrees *trees, double recomb_preference);
@@ -66,7 +69,7 @@ double resample_arg_cut(
 
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int step, int niters=1);
+    LocalTrees *trees, int window, int niters=1);
 
 } // namespace argweaver
 

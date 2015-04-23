@@ -660,7 +660,6 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     int window = config->resample_window;
     int niters = config->resample_window_iters;
     window /= config->compress_seq;
-    int step = window / 2;
 
     // set iteration counter
     int iter = 1;
@@ -683,8 +682,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         if (config->gibbs)
             resample_arg(model, sequences, trees);
         else
-            resample_arg_mcmc_all(model, sequences, trees, frac_leaf,
-                                  window, step, niters);
+            resample_arg_mcmc_all(model, sequences, trees, frand() < frac_leaf,
+                                  window, niters);
         printTimerLog(timer, LOG_LOW, "sample time:");
 
 
