@@ -594,6 +594,49 @@ void Sequences::randomize_phase(double frac) {
 	       (double)count/(double)total);
 }
 
+
+void Sequences::set_age(string agefile, int ntimes, const double *times) {
+    char currseq[1000];
+    FILE *infile = fopen(agefile.c_str(), "r");
+    double time;
+    int nseqs=names.size();
+    if (infile == NULL) {
+	fprintf(stderr, "Error opening %s\n", agefile.c_str());
+	exit(-1);
+    }
+    ages.resize(nseqs, 0);
+    real_ages.resize(nseqs, 0);
+    while (EOF != fscanf(infile, "%s %lf", currseq, &time)) {
+	bool found=false;
+	for (int i=0; i < nseqs; i++) {
+	    if (strcmp(names[i].c_str(), currseq)==0) {
+		real_ages[i] = time;
+
+		// choose the discrete time interval closest to the real time
+		double mindif = fabs(times[0] - time);
+		int whichmin=0;
+		for (int j=1; j < ntimes; j++) {
+		    double tempdif = fabs(times[j]-time);
+		    if (tempdif < mindif) {
+			whichmin=j;
+			mindif = tempdif;
+		    }
+		    if (times[j] > time) break;
+		}
+		ages[i] = whichmin;
+		found=true;
+		break;
+	    }
+	}
+	if (!found) {
+	    fprintf(stderr, 
+		    "WARNING: could not find sequence %s (from %s) in sequences\n",
+		    currseq, agefile.c_str());
+	}
+    }
+    fclose(infile);
+}
+
 // Compress the sites by a factor of 'compress'.
 //
 // Return true if compression is successful.

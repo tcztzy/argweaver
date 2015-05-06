@@ -22,7 +22,7 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
                     LocalTrees *trees, bool random=false);
 
 void resample_arg(const ArgModel *model, Sequences *sequences,
-                  LocalTrees *trees, int nremove=1);
+                  LocalTrees *trees);
 
 void resample_arg_all(const ArgModel *model, Sequences *sequences,
                       LocalTrees *trees, double prob_path_switch);

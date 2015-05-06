@@ -61,6 +61,9 @@ public:
 	  for (int i = 0; i < nseqs; i++)
 	    pairs[i] = sequences->pairs[i];
 	}
+
+	ages = sequences->ages;
+
     }
 
     ~Sequences()
@@ -149,6 +152,8 @@ public:
     void set_pairs_from_file(string fn);
     void set_pairs(const ArgModel *mod);
 
+    void set_age(string agefile, int ntimes, const double *times);
+
     int get_pair(int i) {
 	if ((int)pairs.size() < i) return -1;
 	return pairs[i];
@@ -169,6 +174,8 @@ public:
     vector <string> names;
     vector <int> pairs; // index of diploid pair partner
     vector <bool> non_singleton_snp;  //true if snp w frequency > 1
+    vector <int> ages; // set to non-zero for ancient samples
+    vector <double> real_ages;
 
 protected:
     int seqlen;

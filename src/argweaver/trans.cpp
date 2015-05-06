@@ -617,8 +617,8 @@ void calc_transition_probs_switch(
     calc_recoal_sums(model, lineages, spr, recomb_parent_age, &sums, sums2);
     double recoals[model->ntimes];
     for (int a=0; a<model->ntimes; a++)
-        recoals[a] = calc_recoal(last_tree, model, lineages, spr,
-                                 a, recomb_parent_age, last_treelen);
+        recoals[a] = calc_recoal(last_tree, model, lineages, spr,  //melissa added internal to end of this call, used to be blank and default to internal=false
+                                 a, recomb_parent_age, last_treelen, internal);
 
     for (int i=0; i<nstates1; i++) {
         int j = transmat_switch->determ[i];

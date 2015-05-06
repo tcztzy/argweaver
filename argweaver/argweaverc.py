@@ -172,12 +172,6 @@ if argweaverclib:
         [C.c_double_list, "times", C.c_int, "ntimes",
          C.c_double_list, "popsizes", C.c_double, "rho", C.c_double, "mu",
          C.c_char_p_p, "seqs", C.c_int, "nseqs", C.c_int, "seqlen"])
-    argweaver_sample_arg_refine = export(
-        argweaverclib, "arghmm_sample_arg_refine", C.c_void_p,
-        [C.c_double_list, "times", C.c_int, "ntimes",
-         C.c_double_list, "popsizes", C.c_double, "rho", C.c_double, "mu",
-         C.c_char_p_p, "seqs", C.c_int, "nseqs", C.c_int, "seqlen",
-         C.c_int, "niters", C.c_int, "nremove"])
     argweaver_resample_arg = export(
         argweaverclib, "arghmm_resample_arg", C.c_void_p,
         [C.c_void_p, "trees", C.c_double_list, "times", C.c_int, "ntimes",

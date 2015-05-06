@@ -659,7 +659,7 @@ void sample_arg_thread_internal(
     arghmm_forward_alg(trees, model, sequences, &matrix_iter, &forward,
                        phase_pr, false, internal);
     int nstates = get_num_coal_states_internal(
-        trees->front().tree, model->ntimes);
+        	       trees->front().tree, model->ntimes, minage);
     printTimerLog(time, LOG_LOW,
                   "forward (%3d states, %6d blocks):",
                   nstates, trees->get_num_trees());
