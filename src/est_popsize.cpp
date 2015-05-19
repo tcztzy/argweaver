@@ -1022,7 +1022,7 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 #endif
 
     static double sd=1;
-    static double epsilon=0.1;
+    static double epsilon=0.01;
     double momentum[model->ntimes];
     static int numsteps=100;
     
@@ -1069,18 +1069,18 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
     
     double lr = current_likelihood - proposed_likelihood + current_K - proposed_K;
     if (lr > 0 || frand() < exp(lr)) {
-	printf("accept HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
+	printLog(LOG_LOW, "accept HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
 	for (int i=0; i < model->ntimes-1; i++) {
 	    model->popsizes[2*i] = exp(log_popsizes[i]);
 	    if (i != 0) model->popsizes[2*i-1] = model->popsizes[2*i];
-	    printf("%i\t%f\t%f\t%f\taccept\t%i\t%i\n", i, orig_popsizes[i], model->popsizes[2*i], momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
+	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\taccept\t%i\t%i\n", i, orig_popsizes[i], model->popsizes[2*i], momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
 	}
-	printf("\n");
+	printLog(LOG_LOW, "\n");
     } else {
-	printf("reject HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
+	printLog(LOG_LOW, "reject HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
 	for (int i=0; i < model->ntimes-1; i++)
-	    printf("%i\t%f\t%f\t%f\treject\t%i\t%i\n", i, orig_popsizes[i], exp(log_popsizes[i]), momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
-	printf("\n");
+	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\treject\t%i\t%i\n", i, orig_popsizes[i], exp(log_popsizes[i]), momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
+	printLog(LOG_LOW, "\n");
     }
 
 #ifdef ARGWEAVER_MPI
