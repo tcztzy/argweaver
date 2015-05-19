@@ -1029,7 +1029,8 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
     // first re-sample the momentums
     double current_K=0.0;
     for (int i=0; i < model->ntimes - 1; i++) {
-	momentum[i] = rand_norm(0, sd);
+	double momentum_scale = (i == 0 ? 1.0 : log((model->coal_time_steps[2*i-1] + model->coal_time_steps[2*i])/model->coal_time_steps[0]) + 1.0);
+	momentum[i] = rand_norm(0, sd*sqrt(momentum_scale));
 	current_K += momentum[i]*momentum[i]/2.0;
     }
 
