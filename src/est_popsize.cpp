@@ -1022,7 +1022,7 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 #endif
 
     static double sd=1;
-    static double epsilon=0.01;
+    static double epsilon=model->popsize_config.epsilon;
     double momentum[model->ntimes];
     static int numsteps=100;
     
