@@ -17,12 +17,12 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
      };*/
 
  struct popsize_mle_data {
-     int *arr_alloc;
-     int arr_size;
-     int ***coal_counts;
-     int ***nocoal_counts;
-     int *coal_totals;
-     int *nocoal_totals;
+     double *arr_alloc;
+     double arr_size;
+     double ***coal_counts;
+     double ***nocoal_counts;
+     double *coal_totals;
+     double *nocoal_totals;
      int ntimes;
      int popsize_idx;
      int numleaf;

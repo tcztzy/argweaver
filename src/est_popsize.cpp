@@ -798,8 +798,8 @@ void mle_one_popsize_like_and_dlike(double log_popsize, struct popsize_mle_data 
     double t1 = data->t1;
     double t2 = data->t2;
     int numleaf = data->numleaf;
-    int **coal_counts = data->coal_counts[data->popsize_idx];
-    int **nocoal_counts = data->nocoal_counts[data->popsize_idx];
+    double **coal_counts = data->coal_counts[data->popsize_idx];
+    double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
     double like=0.0, dlike=0.0;
     /*    if (log_popsize < 0) {
 	*likelihood = -INFINITY;
@@ -835,8 +835,8 @@ double mle_one_popsize_likelihood(double log_popsize, struct popsize_mle_data *d
     double t1 = data->t1;
     double t2 = data->t2;
     int numleaf = data->numleaf;
-    int **coal_counts = data->coal_counts[data->popsize_idx];
-    int **nocoal_counts = data->nocoal_counts[data->popsize_idx];
+    double **coal_counts = data->coal_counts[data->popsize_idx];
+    double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
     double pr=0.0;
     /*    if (log_popsize < 0.0)
 	  return -INFINITY;*/
@@ -858,8 +858,8 @@ double mle_one_popsize_dlikelihood(double log_popsize, struct popsize_mle_data *
     double t1 = data->t1;
     double t2 = data->t2;
     int numleaf = data->numleaf;
-    int **coal_counts = data->coal_counts[data->popsize_idx];
-    int **nocoal_counts = data->nocoal_counts[data->popsize_idx];
+    double **coal_counts = data->coal_counts[data->popsize_idx];
+    double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
     double pr=0.0;
     for (int i=0; i < numleaf; i++) {
 	for (int j=0; j < numleaf; j++) {
@@ -892,7 +892,7 @@ double mle_one_popsize(double init_popsize, void *data0) {
     static double max_popsize = log(1e7);
     opt_newton_1d(mle_one_popsize_neg_likelihood, &log_popsize, data0, &likelihood, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
     popsize = exp(log_popsize);
-    printf("mle_popsize %i\t%f\t%f\t%i\t%i\n", data->popsize_idx, popsize, likelihood, data->coal_totals[data->popsize_idx], data->nocoal_totals[data->popsize_idx]);
+    printf("mle_popsize %i\t%f\t%f\t%.1f\t%.1f\n", data->popsize_idx, popsize, likelihood, data->coal_totals[data->popsize_idx], data->nocoal_totals[data->popsize_idx]);
     return popsize;
 }
 
@@ -908,11 +908,11 @@ void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, co
     //nocoal_counts is the same, but for non-coalescing segments; so counted
     // for each segment from the recomb up until before the coal
     int arr_size = 2*(model->ntimes * numleaf * numleaf + model->ntimes);
-    int *arr_alloc = new int[arr_size]();
-    int ***coal_counts = new int**[model->ntimes];
-    int ***nocoal_counts = new int**[model->ntimes];
-    int *coal_totals = &arr_alloc[0];
-    int *nocoal_totals = &arr_alloc[model->ntimes];
+    double *arr_alloc = new double[arr_size]();
+    double ***coal_counts = new double**[model->ntimes];
+    double ***nocoal_counts = new double**[model->ntimes];
+    double *coal_totals = &arr_alloc[0];
+    double *nocoal_totals = &arr_alloc[model->ntimes];
     int pos = model->ntimes * 2;
     int pseudocount=1;
 
@@ -923,23 +923,28 @@ void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, co
     if (rank > 0) pseudocount = 0;
 #endif
     for (int i=0; i < model->ntimes; i++) {
-	coal_counts[i] = new int*[numleaf];
-	nocoal_counts[i] = new int*[numleaf];
+	coal_counts[i] = new double*[numleaf];
+	nocoal_counts[i] = new double*[numleaf];
 	for (int j = 0; j < numleaf; j++) {
 	    coal_counts[i][j] = &(arr_alloc[pos]);
 	    pos += numleaf;
 	    nocoal_counts[i][j] = &(arr_alloc[pos]);
 	    pos += numleaf;
 	}
-	if (i==0) {
-	    coal_counts[i][0][1] = pseudocount;
-	    nocoal_counts[i][0][1] = pseudocount;
-	} else {
-	    coal_counts[i][1][1] = pseudocount;
-	    nocoal_counts[i][1][1] = pseudocount;
+	if (pseudocount > 0) {
+	    double pr_nocoal;
+	    if (i==0) {
+		pr_nocoal = exp(-model->coal_time_steps[0]/20000.0);
+		coal_counts[i][0][1] = (1.0 - pr_nocoal) * pseudocount;
+		nocoal_counts[i][0][1] = pr_nocoal * pseudocount;
+	    } else {
+		pr_nocoal = exp(-(model->coal_time_steps[2*i-1] + model->coal_time_steps[2*i])/20000.0);
+		coal_counts[i][1][1] = (1.0 - pr_nocoal) * pseudocount;
+		nocoal_counts[i][1][1] = pr_nocoal * pseudocount;
+	    }
+	    coal_totals[i] += (1.0 - pr_nocoal) * pseudocount;
+	    nocoal_totals[i] += pr_nocoal * pseudocount;
 	}
-	coal_totals[i] += pseudocount;
-	nocoal_totals[i] += pseudocount;
     }
     if (pos != arr_size) {
 	printf("pos=%i arr_size=%i ntimes=%i numleaf=%i\n", pos, arr_size, model->ntimes, numleaf);
@@ -1017,7 +1022,7 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 #ifdef ARGWEAVER_MPI
     MPI::Intracomm *comm = model->mc3.group_comm;
     int rank = comm->Get_rank();
-    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::INT, MPI_SUM, 0);
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::DOUBLE, MPI_SUM, 0);
     if (rank == 0) {
 #endif
 
@@ -1074,13 +1079,13 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 	for (int i=0; i < model->ntimes-1; i++) {
 	    model->popsizes[2*i] = exp(log_popsizes[i]);
 	    if (i != 0) model->popsizes[2*i-1] = model->popsizes[2*i];
-	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\taccept\t%i\t%i\n", i, orig_popsizes[i], model->popsizes[2*i], momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
+	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\taccept\t%.1f\t%.1f\n", i, orig_popsizes[i], model->popsizes[2*i], momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
 	}
 	printLog(LOG_LOW, "\n");
     } else {
 	printLog(LOG_LOW, "reject HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
 	for (int i=0; i < model->ntimes-1; i++)
-	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\treject\t%i\t%i\n", i, orig_popsizes[i], exp(log_popsizes[i]), momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
+	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\treject\t%.1f\t%.1f\n", i, orig_popsizes[i], exp(log_popsizes[i]), momentum[i], data.coal_totals[i], data.nocoal_totals[i]);
 	printLog(LOG_LOW, "\n");
     }
 
