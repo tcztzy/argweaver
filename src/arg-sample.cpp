@@ -945,7 +945,9 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
             if (model->popsize_config.config_buildup > 0 &&
                 i > 0 && i % model->popsize_config.config_buildup == 0)
                 model->popsize_config.split_config();
-            resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
+	    //            resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
+	    //	    mle_popsize(model, trees);
+	    update_popsize_hmc(model, trees);
         }
 
         printTimerLog(timer, LOG_LOW, "sample time:");

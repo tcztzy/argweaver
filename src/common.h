@@ -121,7 +121,7 @@ inline int irand(int min, int max)
     return (i == max) ? max - 1 : i;
 }
 
-/*inline double rand_norm(const double mean=0, const double sd=1) {
+inline double rand_norm(const double mean=0, const double sd=1) {
   static bool gen_new=true;
   static double y=0;
   double x;
@@ -139,7 +139,7 @@ inline int irand(int min, int max)
   x *= sd;
   x += mean;
   return x;
-}*/
+}
 
 /* make a draw from an exponential distribution with parameter
  *    (expected value) 'b' */
