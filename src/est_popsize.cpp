@@ -907,7 +907,7 @@ void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, co
     // the recombination (which is implied if coal_time==0), then j is always 0
     //nocoal_counts is the same, but for non-coalescing segments; so counted
     // for each segment from the recomb up until before the coal
-    int arr_size = 2*(model->ntimes * numleaf + model->ntimes);
+    int arr_size = 2*(model->ntimes * numleaf * numleaf + model->ntimes);
     int *arr_alloc = new int[arr_size]();
     int ***coal_counts = new int**[model->ntimes];
     int ***nocoal_counts = new int**[model->ntimes];
@@ -926,9 +926,9 @@ void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, co
 	coal_counts[i] = new int*[numleaf];
 	nocoal_counts[i] = new int*[numleaf];
 	for (int j = 0; j < numleaf; j++) {
-	    coal_counts[i][j] = &arr_alloc[pos];
+	    coal_counts[i][j] = &(arr_alloc[pos]);
 	    pos += numleaf;
-	    nocoal_counts[i][j] = &arr_alloc[pos];
+	    nocoal_counts[i][j] = &(arr_alloc[pos]);
 	    pos += numleaf;
 	}
 	if (i==0) {
@@ -941,7 +941,10 @@ void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, co
 	coal_totals[i] += pseudocount;
 	nocoal_totals[i] += pseudocount;
     }
-    assert(pos == arr_size);
+    if (pos != arr_size) {
+	printf("pos=%i arr_size=%i ntimes=%i numleaf=%i\n", pos, arr_size, model->ntimes, numleaf);
+	assert(pos == arr_size);
+    }
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
 	end += it->blocklen;
 	LocalTree *tree = it->tree;
@@ -1005,13 +1008,8 @@ void set_data_time(struct popsize_mle_data *data, int t, ArgModel *model) {
 
 
 //use Hamiltonian MC to update popsize
-//TODO: is there any reason to do these updates together? Would it make more sense to update each popsize one at a time? I think so!
 void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
     struct popsize_mle_data data;
-    static double sd=1;
-    static double epsilon=0.1;
-    double momentum[model->ntimes];
-    static int numsteps=100;
 
     //compute all the coal_counts and nocoal_counts to be used for likelihood calculations
     popsize_sufficient_stats(&data, model, trees);
@@ -1019,9 +1017,14 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 #ifdef ARGWEAVER_MPI
     MPI::Intracomm *comm = model->mc3.group_comm;
     int rank = comm->Get_rank();
-    comm->Reduce(MPI_IN_PLACE, data.arr_alloc, data.arr_size, MPI::DOUBLE, MPI_SUM, 0);
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::INT, MPI_SUM, 0);
     if (rank == 0) {
 #endif
+
+    static double sd=1;
+    static double epsilon=0.1;
+    double momentum[model->ntimes];
+    static int numsteps=100;
     
     // first re-sample the momentums
     double current_K=0.0;
