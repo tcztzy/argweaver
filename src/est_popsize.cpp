@@ -801,10 +801,10 @@ void mle_one_popsize_like_and_dlike(double log_popsize, struct popsize_mle_data 
     int **coal_counts = data->coal_counts[data->popsize_idx];
     int **nocoal_counts = data->nocoal_counts[data->popsize_idx];
     double like=0.0, dlike=0.0;
-    if (log_popsize < 1) {
+    /*    if (log_popsize < 0) {
 	*likelihood = -INFINITY;
 	*dlikelihood = 100.0; //want to go up from here
-    }
+	}*/
     for (int i=0; i < numleaf; i++) {
 	for (int j=0; j < numleaf; j++) {
 	    double rate = (t1*i + t2*j)/(2.0*popsize);
@@ -838,8 +838,8 @@ double mle_one_popsize_likelihood(double log_popsize, struct popsize_mle_data *d
     int **coal_counts = data->coal_counts[data->popsize_idx];
     int **nocoal_counts = data->nocoal_counts[data->popsize_idx];
     double pr=0.0;
-    if (log_popsize < 1.0)
-	return -INFINITY;
+    /*    if (log_popsize < 0.0)
+	  return -INFINITY;*/
     for (int i=0; i < numleaf; i++) {
 	for (int j=0; j < numleaf; j++) {
 	    double rate = (t1*i + t2*j)/(2.0*popsize);
