@@ -212,6 +212,11 @@ public:
         config.add(new ConfigSwitch
                    ("", "--overwrite", &overwrite,
                     "force an overwrite of a previous run"));
+	config.add(new ConfigSwitch
+		   ("", "--no-sample-arg", &no_sample_arg,
+		    "Do not sample the ARG; hold at initial value "
+		    "(usually for use with --sample-popsize)",
+		    DEBUG_OPT));
 
         // misc
         config.add(new ConfigParamComment("Miscellaneous"));
@@ -370,6 +375,7 @@ public:
     bool mpi;
 #endif
     string mcmcmc_prefix;
+    bool no_sample_arg;
 
     // search
     int nclimb;
@@ -941,11 +947,15 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
         double heat = model->mc3.heat;
-        if (config->gibbs)
-            resample_arg(model, sequences, trees);
-        else
-            resample_arg_mcmc_all(model, sequences, trees, do_leaf[i],
-                                  window, step, niters, heat);
+
+	if ( ! config->no_sample_arg) {
+	    if (config->gibbs)
+		resample_arg(model, sequences, trees);
+	    else
+		resample_arg_mcmc_all(model, sequences, trees, do_leaf[i],
+				      window, step, niters, heat);
+	}
+
         if (model->popsize_config.sample) {
             if (model->popsize_config.config_buildup > 0 &&
                 i > 0 && i % model->popsize_config.config_buildup == 0)
@@ -964,7 +974,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                     sites_mapping, config);
 
         // sample saving
-        if (i % config->sample_step == 0)
+        if (i % config->sample_step == 0 && ! config->no_sample_arg)
             log_local_trees(model, sequences, trees, sites_mapping, config, i);
 
         if (config->sample_phase > 0 && i%config->sample_phase == 0)
