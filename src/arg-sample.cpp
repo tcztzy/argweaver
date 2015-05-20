@@ -94,7 +94,8 @@ public:
 #ifdef ARGWEAVER_MPI
         config.add(new ConfigSwitch
                    ("", "--mpi", &mpi, "this is an mpi run, add <rank>.sites"
-                    " to sites file name and <rank>. to out root"));
+                    " to sites file name and <rank>. to out root, and"
+                    " <rank>.smc.gz to --arg option (if given)"));
 #endif
 
         // model parameters
@@ -1236,6 +1237,10 @@ int main(int argc, char **argv)
         sprintf(tmp, "%s%i", c.out_prefix.c_str(),
                 sites_num);
         c.out_prefix = (string)tmp;
+	if (c.arg_file) {
+	    sprintf(tmp, "%s%i.smc.gz", c.arg_file.c_str(), sites_num);
+	    c.arg_file = (string)tmp;
+	}
     }
 #endif
 
