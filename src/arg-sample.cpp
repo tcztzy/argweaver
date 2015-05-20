@@ -1237,7 +1237,7 @@ int main(int argc, char **argv)
         sprintf(tmp, "%s%i", c.out_prefix.c_str(),
                 sites_num);
         c.out_prefix = (string)tmp;
-	if (c.arg_file) {
+	if (c.arg_file != "") {
 	    sprintf(tmp, "%s%i.smc.gz", c.arg_file.c_str(), sites_num);
 	    c.arg_file = (string)tmp;
 	}
