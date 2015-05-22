@@ -104,9 +104,11 @@ elif conf.model == "smc":
 
 elif conf.model == "dsmc":
     print "simulating using the DSMC model..."
+    if len(conf.popsize)==1:
+        conf.popsize=[conf.popsize[0]*2] * conf.ntimes
     times = argweaver.get_time_points(ntimes=conf.ntimes, maxtime=conf.maxtime)
     arg = argweaver.sim.sample_arg_dsmc(
-        conf.nseqs, 2*conf.popsize, conf.recombrate,
+        conf.nseqs, conf.popsize, conf.recombrate,
         recombmap=recombmap,
         start=0, end=conf.seqlen, times=times)
     muts = argweaver.sim.sample_arg_mutations(arg, conf.mutrate, times=times)
