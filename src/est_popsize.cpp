@@ -316,213 +316,6 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
 }
 
 
-void resample_popsizes_old(ArgModel *model, const LocalTrees *trees,
-                       double heat) {
-
-#ifdef ARGWEAVER_MPI
-    printLog(0, "resample_popsizes %i\t%i\n", MPI::COMM_WORLD.Get_rank(),
-             model->mc3.group_comm->Get_rank()); fflush(stdout);
-    //    MPI::COMM_WORLD.Barrier();
-    MPI::Intracomm *comm = model->mc3.group_comm;
-    int rank = comm->Get_rank();
-    printLog(0, "rank=%i\n", rank);
-    if (rank == 0) {
-#endif
-        int num_accept=0, total=0;
-        list<PopsizeConfigParam> &l = model->popsize_config.params;
-        double *num_coal, *num_nocoal;
-        vector<double> lrs(2 * model->ntimes),
-            trans(2 * model->ntimes),
-            prior(2 * model->ntimes),
-            oldn(2 * model->ntimes),
-            newn(2 * model->ntimes),
-            praccept(2 * model->ntimes);
-        vector<int> accepted(2 * model->ntimes);
-        num_coal = (double*)malloc(2 * model->ntimes * sizeof(double));
-        num_nocoal = (double*)malloc(2 * model->ntimes * sizeof(double));
-        double curr_like = calc_arg_prior_recomb_integrate(model, trees,
-                                                           //        double curr_like = calc_arg_prior(model, trees,
-                                                           num_coal, num_nocoal);
-#ifdef ARGWEAVER_MPI
-        comm->Reduce(MPI_IN_PLACE, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-        comm->Reduce(MPI_IN_PLACE, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                     MPI_SUM, 0);
-        comm->Reduce(MPI_IN_PLACE, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                     MPI_SUM, 0);
-#endif
-        for (int rep=0; rep < model->popsize_config.numsample; rep++) {
-            for (list<PopsizeConfigParam>::iterator it = l.begin();
-                          it != l.end(); it++) {
-                if (it->sample == false) continue;
-                int maxpop=-1;
-                for (set<int>::iterator it2 = it->pops.begin();
-                     it2 != it->pops.end(); it2++)
-                    if ((*it2) > maxpop) maxpop = *it2;
-                double old_popsize = model->popsizes[maxpop];
-                double s = min(500.0, old_popsize / 2.0);
-                s *= s;  //variance of gamma proposal from
-                         // old_popsize to new_popsize
-
-                double new_popsize = rand_gamma(old_popsize * old_popsize / s,
-                                                s / old_popsize);
-#ifdef ARGWEAVER_MPI
-                comm->Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
-#endif
-                double sp = min(500.0, new_popsize / 2.0);
-                sp *= sp;  //variance of proposal from new_popsize
-                           // to old_popsize
-                double logn = log(old_popsize); //log N
-                double lognp = log(new_popsize); //log N'
-                double nsquare = old_popsize * old_popsize;
-                double npsquare = new_popsize * new_popsize;
-                double trans_ratio = (npsquare / sp - nsquare / s - 1.0) * logn
-                    + (1.0 - nsquare / s + npsquare / sp) * lognp
-                    - old_popsize * new_popsize / sp
-                    + old_popsize * new_popsize / s
-                    - npsquare / sp * log(sp)
-                    + nsquare / s* log(s)
-                    - lgamma(npsquare / sp)
-                    + lgamma(nsquare / s);
-
-                // using an uninformative gamma prior which slowly goes to zero
-                // as you move out to infinity, still allows N to be at least a
-                // million (maybe this is too big?)
-                // has mean of 200000 (k*theta) and sd of 200000, and is pretty
-                // flat from 0 to 400k or so
-                double prior_ratio;
-                double prior_theta = 200000;
-                // double prior_k=1.0;  //this is the value but it is
-                // commented-out since never used
-                if (( ! model->popsize_config.neighbor_prior) ||
-                    maxpop >= 2 * model->ntimes - 2)
-                    prior_ratio = (old_popsize - new_popsize) / prior_theta;
-                else {
-                    double prev_popsize = model->popsizes[maxpop + 1];
-                    double pneighbor=0.99999;
-                    static double neighbor_sigma = 50.0;
-                    static double neighbor_sigma22 = 2.0 * 50.0 * 50.0;
-                    static double neighbor_scale = 1.0 / (neighbor_sigma *
-                                                          sqrt(2.0 * 3.141593));
-                    double newprior = (1.0 - pneighbor)*
-                        (exp(-new_popsize / prior_theta) / prior_theta) +
-                        pneighbor * neighbor_scale *
-                        exp(-(new_popsize - prev_popsize) *
-                            (new_popsize - prev_popsize) / neighbor_sigma22);
-                    double oldprior = (1.0 - pneighbor) *
-                        (exp(- old_popsize / prior_theta) / prior_theta) +
-                        pneighbor * neighbor_scale *
-                        exp(- (old_popsize - prev_popsize) *
-                            (old_popsize - prev_popsize) / neighbor_sigma22);
-                    prior_ratio = log(newprior / oldprior);
-                }
-
-
-                for (set<int>::iterator it2 = it->pops.begin();
-                     it2 != it->pops.end(); it2++)
-                    model->popsizes[*it2] = new_popsize;
-                double new_like = calc_arg_prior_recomb_integrate(model, trees);
-                //                double new_like = calc_arg_prior(model, trees);
-#ifdef ARGWEAVER_MPI
-                comm->Reduce(MPI_IN_PLACE, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-#endif
-                double lr = new_like - curr_like;
-                double ln_accept = trans_ratio + prior_ratio + lr;
-                ln_accept *= heat;
-                double pr_accept = (ln_accept > 0 ? 1.0 : exp(ln_accept));
-                bool accept = (ln_accept > 0 || frand() < pr_accept);
-#ifdef ARGWEAVER_MPI
-                comm->Bcast(&accept, 1, MPI::BOOL, 0);
-#endif
-                for (set<int>::iterator it2 = it->pops.begin();
-                     it2 != it->pops.end(); it2++) {
-                    lrs[*it2] = new_like - curr_like;
-                    trans[*it2] = trans_ratio;
-                    prior[*it2] = prior_ratio;
-                    oldn[*it2] = old_popsize;
-                    newn[*it2] = new_popsize;
-                    accepted[*it2] = (accept == true);
-                    praccept[*it2] = pr_accept;
-                }
-                if (accept) {
-                    num_accept++;
-                    curr_like = new_like;
-                } else {
-                    for (set<int>::iterator it2 = it->pops.begin();
-                         it2 != it->pops.end(); it2++) {
-                        model->popsizes[*it2] = old_popsize;
-                    }
-                }
-                total++;
-            }
-        }
-        printLog(LOG_LOW, "done resample_popsizes num_accept=%i/%i\n",
-                 num_accept, total);
-        for (int i=0; i < 2*model->ntimes-1; i++) {
-            for (list<PopsizeConfigParam>::iterator it = l.begin();
-                 it != l.end(); it++) {
-                if (it->pops.find(i) != it->pops.end()) {
-                    if (it->sample) {
-                        printLog(LOG_LOW,
-                                 "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%f\t%f\t%s\n",
-                                 i, num_coal[i], num_nocoal[i], oldn[i], newn[i],
-                                 lrs[i], trans[i], prior[i],
-                                 accepted[i] == 1 ? "accept" : "reject");
-                    } else {
-                        printLog(LOG_LOW,
-                                 "%i\t%.1f\t%.1f\t%f\tnot_sampled\n",
-                                 i, num_coal[i], num_nocoal[i],
-                                 model->popsizes[i]);
-                    }
-                }
-            }
-        }
-        fflush(stdout);
-        free(num_coal);
-        free(num_nocoal);
-#ifdef ARGWEAVER_MPI
-    } else {
-        list<PopsizeConfigParam> l = model->popsize_config.params;
-        double *num_coal = (double*)malloc(2 * model->ntimes*sizeof(double));
-        double *num_nocoal = (double*)malloc(2 * model->ntimes * sizeof(double));
-        double curr_like = calc_arg_prior_recomb_integrate(model, trees,
-                                                           //        double curr_like = calc_arg_prior(model, trees,
-                                                           num_coal, num_nocoal);
-        comm->Reduce(&curr_like, &curr_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-        comm->Reduce(num_coal, num_coal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                     MPI_SUM, 0);
-        comm->Reduce(num_nocoal, num_nocoal, 2 * model->ntimes - 1, MPI::DOUBLE,
-                     MPI_SUM, 0);
-
-        for (int rep=0; rep < model->popsize_config.numsample; rep++) {
-            for (list<PopsizeConfigParam>::iterator it=l.begin();
-                 it != l.end(); it++) {
-                if (it->sample == false) continue;
-                double old_popsize = model->popsizes[*(it->pops.begin())];
-                double new_popsize;
-                comm->Bcast(&new_popsize, 1, MPI::DOUBLE, 0);
-                for (set<int>::iterator it2 = it->pops.begin();
-                     it2 != it->pops.end(); it2++)
-                    model->popsizes[*it2] = new_popsize;
-                double new_like = calc_arg_prior_recomb_integrate(model, trees);
-                //                double new_like = calc_arg_prior(model, trees);
-                comm->Reduce(&new_like, &new_like, 1, MPI::DOUBLE, MPI_SUM, 0);
-                bool accept;
-                comm->Bcast(&accept, 1, MPI::BOOL, 0);
-                if (!accept) {
-                    for (set<int>::iterator it2 = it->pops.begin();
-                         it2 != it->pops.end(); it2++) {
-                        model->popsizes[*it2] = old_popsize;
-                    }
-                }
-            }
-        }
-        free(num_coal);
-        free(num_nocoal);
-    }
-    printLog(0, "done resample popsizes\n");
-#endif
-}
-
 
 #define DERIV_EPSILON 1e-6      /* for numerical computation of
                                    derivatives */
@@ -756,44 +549,22 @@ bool opt_newton_1d(double (*f)(double, void*), double (*x), void *data,
     
     return(!converged);
 }
-    
-    /*double popsize_likelihood_func(double log_popsize, void *data0) {
-    struct popsize_mle_data *data = (struct popsize_mle_data*)data0;
-    int t = data->popsize_idx;
-    double old_popsize1, old_popsize2, prob;
-    ArgModel *model = data->model;
-    double popsize = exp(log_popsize);
-    old_popsize1 = model->popsizes[2*t];
-    model->popsizes[2*t] = popsize;
-    if (t > 0) {
-	old_popsize2 = model->popsizes[2*t-1];
-	model->popsizes[2*t-1] = popsize;
-    }
-    //    printf("calling calc_arg_prior_recomb_integrate %i %f\n", t, popsize);
-    prob = calc_arg_prior_recomb_integrate(model, data->trees);
-    if (t == 0) {
-	model->popsizes[0] = old_popsize1;
-    } else {
-	model->popsizes[2*t-1] = old_popsize1;
-	model->popsizes[2*t] = old_popsize2;
-    }
-    //    printf("popsize_likelihood_func\t%i\t%f\t%f\n", t, popsize, prob);
-    return -prob;
-    }*/
 
-double mle_one_popsize_likelihood(double log_popsize, struct popsize_mle_data *data);
-
-void numeric_deriv_check(double log_popsize, struct popsize_mle_data *data, double deriv0) {
+void numeric_deriv_check(double log_popsize, struct popsize_data *data, double deriv0) {
     double delta=1e-5;
-    double like1 = mle_one_popsize_likelihood(log_popsize, data);
-    double like2 = mle_one_popsize_likelihood(log_popsize+delta, data);
+    double like1 = one_popsize_likelihood(data->popsize_idx, log_popsize, data);
+    double like2 = one_popsize_likelihood(data->popsize_idx, log_popsize+delta, data);
     double deriv = (like2-like1)/delta;
     printf("check: %f\t%f\t%f\n", deriv, deriv0, fabs(deriv-deriv0));
 }
 
 
-void mle_one_popsize_like_and_dlike(double log_popsize, struct popsize_mle_data *data, 
-				    double *likelihood, double *dlikelihood) {
+void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *data, 
+				double *likelihood, double *dlikelihood) {
+    if (data->popsize_idx != t) {
+	set_data_time(data, t);
+    }
+
     double popsize = exp(log_popsize);
     double t1 = data->t1;
     double t2 = data->t2;
@@ -801,6 +572,8 @@ void mle_one_popsize_like_and_dlike(double log_popsize, struct popsize_mle_data 
     double **coal_counts = data->coal_counts[data->popsize_idx];
     double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
     double like=0.0, dlike=0.0;
+    bool do_like = (likelihood != NULL);
+    bool do_dlike = (dlikelihood != NULL);
     /*    if (log_popsize < 0) {
 	*likelihood = -INFINITY;
 	*dlikelihood = 100.0; //want to go up from here
@@ -812,12 +585,12 @@ void mle_one_popsize_like_and_dlike(double log_popsize, struct popsize_mle_data 
 	    double erate1 = 1.0-erate;
             if (j==0) assert(coal_counts[i][j] == 0 && nocoal_counts[i][j]==0);
 	    if (coal_counts[i][j] > 0) {
-		like += coal_counts[i][j]*log(erate1);
-		dlike -= coal_counts[i][j]/(erate1)*erate*rate;
+		if (do_like) like += coal_counts[i][j]*log(erate1);
+		if (do_dlike) dlike -= coal_counts[i][j]/(erate1)*erate*rate;
 	    }
 	    if (nocoal_counts[i][j] > 0) {
-		like -= nocoal_counts[i][j]*rate;
-		dlike += nocoal_counts[i][j]*rate;
+		if (do_like) like -= nocoal_counts[i][j]*rate;
+		if (do_dlike) dlike += nocoal_counts[i][j]*rate;
 	    }
 	}
     }
@@ -825,79 +598,186 @@ void mle_one_popsize_like_and_dlike(double log_popsize, struct popsize_mle_data 
 	// these values always seem very close, not checking anymore
 	numeric_deriv_check(log_popsize, data, dlike);
     }
-    *likelihood = like;
-    *dlikelihood = dlike;
+    if (do_like) *likelihood = like;
+    if (do_dlike) *dlikelihood = dlike;
 }
 
 
-double mle_one_popsize_likelihood(double log_popsize, struct popsize_mle_data *data) {
-    double popsize = exp(log_popsize);
-    double t1 = data->t1;
-    double t2 = data->t2;
-    int numleaf = data->numleaf;
-    double **coal_counts = data->coal_counts[data->popsize_idx];
-    double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
-    double pr=0.0;
-    /*    if (log_popsize < 0.0)
-	  return -INFINITY;*/
-    for (int i=0; i < numleaf; i++) {
-	for (int j=0; j < numleaf; j++) {
-	    double rate = (t1*i + t2*j)/(2.0*popsize);
-            if (j==0) assert(coal_counts[i][j] == 0 && nocoal_counts[i][j]==0);
-	    if (coal_counts[i][j] > 0) pr += coal_counts[i][j]*log(1.0-exp(-rate));
-	    if (nocoal_counts[i][j] > 0) pr -= nocoal_counts[i][j]*rate;
-	}
-    }
-    return pr;
+double one_popsize_likelihood(int t, double log_popsize, struct popsize_data *data) {
+    double like;
+    one_popsize_like_and_dlike(t, log_popsize, data, &like, NULL);
+    return like;
+}
+
+
+//log_popsize should be a vector of length ntimes-1 with one popsize per whole time interval
+double popsize_likelihood(double *log_popsize, struct popsize_data *data) {
+    double like=0.0;
+    for (int i = 0 ; i < data->model->ntimes - 1; i++)
+	like += one_popsize_likelihood(i, log_popsize[i], data);
+    return like;
 }
 
 
 //return first derivative of likelihood
-double mle_one_popsize_dlikelihood(double log_popsize, struct popsize_mle_data *data) {
-    double popsize = exp(log_popsize);
-    double t1 = data->t1;
-    double t2 = data->t2;
-    int numleaf = data->numleaf;
-    double **coal_counts = data->coal_counts[data->popsize_idx];
-    double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
-    double pr=0.0;
-    for (int i=0; i < numleaf; i++) {
-	for (int j=0; j < numleaf; j++) {
-	    double rate = (t1*i + t2*j)/(2.0*popsize);
-	    if (j==0) assert(coal_counts[i][j] == 0 && nocoal_counts[i][j]==0);
-	    if (coal_counts[i][j] > 0) pr -= coal_counts[i][j]/(1.0-exp(-rate))*exp(-rate)*rate;
-	    if (nocoal_counts[i][j] > 0) pr += nocoal_counts[i][j]*rate;
-	    //note: above formulas should be divided by popsize, but then multiplied by popsize
-	    // to take into account that we are maximizing x=log(popsize)
-	    // log_like(no_coal) = count*t/2N = count*t/(2*exp(x))
-            // dlike = -count*t/(2*exp(x))^2 (2 exp(x)) = -count*t/(2*exp(x)) = 
-	}
-    }
-    return pr;
+double one_popsize_dlikelihood(int t, double log_popsize, struct popsize_data *data) {
+     double dlike;
+     one_popsize_like_and_dlike(t, log_popsize, data, NULL, &dlike);
+     return dlike;
 }
 
 
-double mle_one_popsize_neg_likelihood(double log_popsize, void *data0) {
-    struct popsize_mle_data *data = (struct popsize_mle_data*) data0;
-    double like = mle_one_popsize_likelihood(log_popsize, data);
+
+//wrapper to send to newton1d program; assume set_data_time has already been called
+double one_popsize_neg_likelihood(double log_popsize, void *data0) {
+    struct popsize_data *data = (struct popsize_data*) data0;
+    double like = one_popsize_likelihood(data->popsize_idx, log_popsize, data);
     return -like;
 }
 
-double mle_one_popsize(double init_popsize, void *data0) {
+
+double mle_one_popsize(int t, double init_popsize, void *data0) {
     double popsize, log_popsize = log(init_popsize);
     double likelihood;
     int sigfigs=4;
-    struct popsize_mle_data *data = (struct popsize_mle_data*)data0;
+    struct popsize_data *data = (struct popsize_data*)data0;
     static double min_popsize = log(100);
     static double max_popsize = log(1e7);
-    opt_newton_1d(mle_one_popsize_neg_likelihood, &log_popsize, data0, &likelihood, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
+    set_data_time(data, t);
+    opt_newton_1d(one_popsize_neg_likelihood, &log_popsize, data0, &likelihood, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
     popsize = exp(log_popsize);
     printf("mle_popsize %i\t%f\t%f\t%.1f\t%.1f\n", data->popsize_idx, popsize, likelihood, data->coal_totals[data->popsize_idx], data->nocoal_totals[data->popsize_idx]);
     return popsize;
 }
 
 
-void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, const LocalTrees *trees) {
+    /*void popsize_sufficient_stats_recomb_integrate(struct popsize_data *data, ArgModel *model, const LocalTrees *trees) {
+    int end = trees->start_coord;
+    LineageCounts lineages(model->ntimes);
+    int numleaf = trees->get_num_leaves();
+    //coal_counts[i][j][k] gives number of SPRs which coalesce in time i, with j
+    // lineages in the tree interval before time i, and k lineages in the
+    // interval after time i. If coalescence happens at the same time as 
+    // the recombination (which is implied if coal_time==0), then j is always 0
+    //nocoal_counts is the same, but for non-coalescing segments; so counted
+    // for each segment from the recomb up until before the coal
+    int arr_size = 2*(model->ntimes * numleaf * numleaf + model->ntimes);
+    double *arr_alloc = new double[arr_size]();
+    double ***coal_counts = new double**[model->ntimes];
+    double ***nocoal_counts = new double**[model->ntimes];
+    double *coal_totals = &arr_alloc[0];
+    double *nocoal_totals = &arr_alloc[model->ntimes];
+    int pos = model->ntimes * 2;
+    int pseudocount=1;
+
+#ifdef ARGWEAVER_MPI
+    //Set pseudocount to zero for all but one MPI, since it will all get combined
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
+    if (rank > 0) pseudocount = 0;
+#endif
+    for (int i=0; i < model->ntimes; i++) {
+	coal_counts[i] = new double*[numleaf];
+	nocoal_counts[i] = new double*[numleaf];
+	for (int j = 0; j < numleaf; j++) {
+	    coal_counts[i][j] = &(arr_alloc[pos]);
+	    pos += numleaf;
+	    nocoal_counts[i][j] = &(arr_alloc[pos]);
+	    pos += numleaf;
+	}
+	if (pseudocount > 0) {
+	    double pr_nocoal;
+	    if (i==0) {
+		pr_nocoal = exp(-model->coal_time_steps[0]/20000.0);
+		coal_counts[i][0][1] = (1.0 - pr_nocoal) * pseudocount;
+		nocoal_counts[i][0][1] = pr_nocoal * pseudocount;
+	    } else {
+		pr_nocoal = exp(-(model->coal_time_steps[2*i-1] + model->coal_time_steps[2*i])/20000.0);
+		coal_counts[i][1][1] = (1.0 - pr_nocoal) * pseudocount;
+		nocoal_counts[i][1][1] = pr_nocoal * pseudocount;
+	    }
+	    coal_totals[i] += (1.0 - pr_nocoal) * pseudocount;
+	    nocoal_totals[i] += pr_nocoal * pseudocount;
+	}
+    }
+    if (pos != arr_size) {
+	printf("pos=%i arr_size=%i ntimes=%i numleaf=%i\n", pos, arr_size, model->ntimes, numleaf);
+	assert(pos == arr_size);
+    }
+    int rho_idx = 0;
+    for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
+	end += it->blocklen;
+	LocalTree *tree = it->tree;
+
+	int blocklen = it->blocklen;
+	double treelen = get_treelen(tree, model->times, model->ntimes, false);
+	double recomb_rate = max(model->get_local_rho(trees->start_coord, &rho_idx)*treelen, 
+				 model->rho);
+
+	//for single site, probability of no recomb
+	double pr_no_recomb = exp(-recomb_rate);
+	double pr_recomb = 1.0 - pr_no_recomb;
+	const int root_age = tree->nodes[tree->root].age;
+	lineages.count(tree);
+	if (end >= trees->end_coord)
+	    blocklen++;
+
+	if (blocklen > 1) {
+	    double recomb_sum = 0.0;
+	    for (int i=0; i < tree->nnodes; i++) {
+		const LocalNode *node = &(tree->nodes[i]);
+		if (node->parent != -1) {
+		    int maxage = tree->nodes[node->parent].age;
+		    assert(node->age <= maxage);
+		    for (int age=node->age; age <= maxage; age++) {
+			Spr spr(i, age, node->parent, maxage);
+			double val = exp(calc_spr_prob(model, tree, spr, lineages,
+						       treelen, NULL, NULL, 0, true));
+
+	}
+
+	++it;
+	if (end >= trees->end_coord) break;
+	const Spr *spr = &it->spr;
+	int broken_age = tree->nodes[tree->nodes[spr->recomb_node].parent].age;
+	int nlineage1=0;
+	int nlineage2=lineages.nbranches[spr->recomb_time] - int(spr->recomb_time < broken_age);
+
+	if (spr->recomb_time == spr->coal_time) {
+	    coal_counts[spr->coal_time][0][nlineage2]++;
+	    coal_totals[spr->coal_time]++;
+	} else {
+	    nocoal_counts[spr->recomb_time][0][nlineage2]++;
+	    nocoal_totals[spr->recomb_time]++;
+	}
+	for (int i=spr->recomb_time + 1; i < spr->coal_time; i++) {
+	    nlineage1 = nlineage2;
+	    nlineage2 = lineages.nbranches[i] - int(i < broken_age);
+	    nocoal_counts[i][nlineage1][nlineage2]++;
+	    nocoal_totals[i]++;
+	}
+	if (spr->recomb_time != spr->coal_time) {
+	    nlineage1 = nlineage2;
+	    nlineage2 = lineages.nbranches[spr->coal_time] - int(spr->coal_time < broken_age);
+	    coal_counts[spr->coal_time][nlineage1][nlineage2]++;
+	    coal_totals[spr->coal_time]++;
+	}
+    }
+    data->coal_counts = coal_counts;
+    data->nocoal_counts = nocoal_counts;
+    data->coal_totals = coal_totals;
+    data->nocoal_totals = nocoal_totals;
+    data->numleaf = numleaf;
+    data->arr_alloc = arr_alloc;
+    data->arr_size = arr_size;
+    data->model = model;
+    data->popsize_idx = -1;
+    data->t1 = -1;
+    data->t2 = -1;
+    }*/
+
+
+void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const LocalTrees *trees) {
     int end = trees->start_coord;
     LineageCounts lineages(model->ntimes);
     int numleaf = trees->get_num_leaves();
@@ -986,13 +866,16 @@ void popsize_sufficient_stats(struct popsize_mle_data *data, ArgModel *model, co
     data->coal_totals = coal_totals;
     data->nocoal_totals = nocoal_totals;
     data->numleaf = numleaf;
-    data->ntimes = model->ntimes;
     data->arr_alloc = arr_alloc;
     data->arr_size = arr_size;
+    data->model = model;
+    data->popsize_idx = -1;
+    data->t1 = -1;
+    data->t2 = -1;
 }
 
-void delete_popsize_data(struct popsize_mle_data *data) {
-    int ntimes = data->ntimes;
+void delete_popsize_data(struct popsize_data *data) {
+    int ntimes = data->model->ntimes;
     for (int i=0; i < ntimes; i++) {
 	delete data->coal_counts[i];
 	delete data->nocoal_counts[i];
@@ -1003,29 +886,84 @@ void delete_popsize_data(struct popsize_mle_data *data) {
 }
 
 
-void set_data_time(struct popsize_mle_data *data, int t, ArgModel *model) {
+void set_data_time(struct popsize_data *data, int t) {
     data->popsize_idx = t;
-    data->t2 = model->coal_time_steps[2*t];
+    data->t2 = data->model->coal_time_steps[2*t];
     if (t == 0)
 	data->t1 = 0;
-    else data->t1 = model->coal_time_steps[2*t-1];
+    else data->t1 = data->model->coal_time_steps[2*t-1];
 }
 
+double dotProduct(double *x, int len) {
+    double val=0.0;
+    for (int i=0; i < len; i++)
+	val += x[i]*x[i];
+    return val;
+}
+
+double kineticEnergy(double *x, int len) {
+    return dotProduct(x, len)/2.0;
+}
+
+    // perform L leapfrog steps
+void leapFrogL(double *theta, double *r, double epsilon, int L, 
+	       double *thetaPrime, double *rPrime, struct popsize_data *data) {
+    assert(L >= 1);
+    int len = data->model->ntimes - 1;
+    for (int i=0; i < len; i++) {
+	rPrime[i] = r[i] + one_popsize_dlikelihood(i, theta[i], data)*epsilon/2.0;
+	thetaPrime[i] = theta[i] + epsilon*rPrime[i];
+    }
+    
+    for (int l=1; l < L; l++) {
+	for (int i=0; i < len; i++) {
+	    rPrime[i] += one_popsize_dlikelihood(i, thetaPrime[i], data)*epsilon;
+	    thetaPrime[i] += epsilon*rPrime[i];
+	}
+    }
+
+    for (int i=0; i < len; i++)
+	rPrime[i] += one_popsize_dlikelihood(i, thetaPrime[i], data)*epsilon/2.0;
+}
+
+// Taken from Algorithm 6, No U-Turn Sampler with Dual Averaging
+// www.stat.columbia.edu/~gelman/research/published/nuts.pdf
+// "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"
+// Matthew D Hoffman, Andrew Gelman, Journal of Machine Learning Resaerch 15 (2014) 1351-1381
+//return variables are thetaMinus, rMinus, thetaPlus, rPlus, thetaPrime, nprime, sprime
+/*void buildTree(double *theta, double *r, double u, double v, int j, double epsilon, 
+	       double *theta0, double *r0,
+	       double *thetaMinus, double *rMinus, double *thetaPlus, double *rPlus, 
+	       double *thetaPrime, int *nprime, int *sprime, double *alpha, int *nalpha,
+	       struct popsize_data *data) {
+    static double deltaMax = 1000.0;
+    int len = data->model->ntimes - 1;
+
+    if (j == 0) {
+	leapFrogL(theta, r, v*epsilon, 1, thetaPrime, rprime);
+	double val = popsize_likelihood(thetaPrime, data) - kineticEnergy(rprime, len);
+	if (u <= exp(val)) {
+	    *nprime = 1;
+	} else *nprime = 0;
+	if (u < 0 || log(u) < deltaMax + val) {
+	    *sprime = 1;
+	} else *sprime = 0;
+	if (thetaMinus != NULL) memcpy(thetaMinus, thetaPrime, len);
+	if (rMinus != NULL) memcpy(rMinus, rPrime, len);
+	if (thetaPlus != NULL) memcpy(thetaPlus, thetaPrime, len);
+	if (rPlus != NULL) memcpy(rPlus, rPrime, len);
+	val -= popsize_likelihood(theta0, data);
+	val += kineticEnergy(r0);
+	if (val > 0) {
+	    *nprime 
+    }
+    
+    }
+    
 
 //use Hamiltonian MC to update popsize
-void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
-    struct popsize_mle_data data;
-
-    //compute all the coal_counts and nocoal_counts to be used for likelihood calculations
-    popsize_sufficient_stats(&data, model, trees);
-
-#ifdef ARGWEAVER_MPI
-    MPI::Intracomm *comm = model->mc3.group_comm;
-    int rank = comm->Get_rank();
-    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::DOUBLE, MPI_SUM, 0);
-    if (rank == 0) {
-#endif
-
+//no u-turn sampler for adaptively choosing stepsize (and also dual averaging to choose epsilon)
+void hmc_update_nuts(struct popsize_data *data, ArgModel *model) {
     static double sd=1;
     static double epsilon=model->popsize_config.epsilon;
     double momentum[model->ntimes];
@@ -1046,8 +984,7 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 	double like, dlike;
 	log_popsizes[i] = log(model->popsizes[2*i]);
 	orig_popsizes[i] = model->popsizes[2*i];
-	set_data_time(&data, i, model);
-	mle_one_popsize_like_and_dlike(log_popsizes[i], &data, &like, &dlike);
+	one_popsize_like_and_dlike(i, log_popsizes[i], &data, &like, &dlike);
 	current_likelihood -= like;
 	momentum[i] += epsilon * dlike / 2.0;
     }
@@ -1056,9 +993,8 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
     for (int step=1; step <= numsteps; step++) {
 	for (int i=0; i < model->ntimes-1; i++) {
 	    log_popsizes[i] += epsilon * momentum[i];
-	    set_data_time(&data, i, model);
 	    if (step != numsteps)
-		momentum[i] += epsilon * mle_one_popsize_dlikelihood(log_popsizes[i], &data);
+		momentum[i] += epsilon * one_popsize_dlikelihood(i, log_popsizes[i], &data);
 	}
     }
 
@@ -1066,8 +1002,7 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
     double proposed_K = 0.0;
     for (int i=0; i < model->ntimes-1; i++) {
 	double like, dlike;
-	set_data_time(&data, i, model);
-	mle_one_popsize_like_and_dlike(log_popsizes[i], &data, &like, &dlike);
+	one_popsize_like_and_dlike(i, log_popsizes[i], &data, &like, &dlike);
 	proposed_likelihood -= like;
 	momentum[i] += epsilon * dlike / 2.0;
 	proposed_K += momentum[i] * momentum[i] / 2.0;
@@ -1089,6 +1024,93 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 	printLog(LOG_LOW, "\n");
     }
 
+}
+*/
+
+
+//use Hamiltonian MC to update popsize
+void hmc_update(struct popsize_data *data) {
+    ArgModel *model = data->model;
+    static double sd=1;
+    static double epsilon=model->popsize_config.epsilon;
+    double momentum[model->ntimes];
+    static int numsteps=1000;
+    
+    // first re-sample the momentums
+    double current_K=0.0;
+    for (int i=0; i < model->ntimes - 1; i++) {
+	// TODO: should momentum_scale just be 1? should test
+	//	double momentum_scale = (i == 0 ? 1.0 : log((model->coal_time_steps[2*i-1] + model->coal_time_steps[2*i])/model->coal_time_steps[0]) + 1.0);
+	double momentum_scale = 1.0;
+	momentum[i] = rand_norm(0, sd*sqrt(momentum_scale));
+	current_K += momentum[i]*momentum[i]/2.0;
+    }
+
+    double log_popsizes[model->ntimes];
+    double orig_popsizes[model->ntimes];  // just for printing
+    double current_likelihood=0;
+    for (int i=0; i < model->ntimes-1; i++) {
+	double like, dlike;
+	log_popsizes[i] = log(model->popsizes[2*i]);
+	orig_popsizes[i] = model->popsizes[2*i];
+	one_popsize_like_and_dlike(i, log_popsizes[i], data, &like, &dlike);
+	current_likelihood -= like;
+	momentum[i] += epsilon * dlike / 2.0;
+    }
+    
+    for (int step=1; step <= numsteps; step++) {
+	for (int i=0; i < model->ntimes-1; i++) {
+	    log_popsizes[i] += epsilon * momentum[i];
+	    if (step != numsteps)
+		momentum[i] += epsilon * one_popsize_dlikelihood(i, log_popsizes[i], data);
+	}
+    }
+
+    double proposed_likelihood = 0.0;
+    double proposed_K = 0.0;
+    for (int i=0; i < model->ntimes-1; i++) {
+	double like, dlike;
+	one_popsize_like_and_dlike(i, log_popsizes[i], data, &like, &dlike);
+	proposed_likelihood -= like;
+	momentum[i] += epsilon * dlike / 2.0;
+	proposed_K += momentum[i] * momentum[i] / 2.0;
+    }
+    
+    double lr = current_likelihood - proposed_likelihood + current_K - proposed_K;
+    if (lr > 0 || frand() < exp(lr)) {
+	printLog(LOG_LOW, "accept HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
+	for (int i=0; i < model->ntimes-1; i++) {
+	    model->popsizes[2*i] = exp(log_popsizes[i]);
+	    if (i != 0) model->popsizes[2*i-1] = model->popsizes[2*i];
+	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\taccept\t%.1f\t%.1f\n", i, orig_popsizes[i], model->popsizes[2*i], momentum[i], data->coal_totals[i], data->nocoal_totals[i]);
+	}
+	printLog(LOG_LOW, "\n");
+    } else {
+	printLog(LOG_LOW, "reject HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
+	for (int i=0; i < model->ntimes-1; i++)
+	    printLog(LOG_LOW, "%i\t%f\t%f\t%f\treject\t%.1f\t%.1f\n", i, orig_popsizes[i], exp(log_popsizes[i]), momentum[i], data->coal_totals[i], data->nocoal_totals[i]);
+	printLog(LOG_LOW, "\n");
+    }
+
+}
+
+
+
+//use Hamiltonian MC to update popsize
+void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
+    struct popsize_data data;
+
+    //compute all the coal_counts and nocoal_counts to be used for likelihood calculations
+    popsize_sufficient_stats(&data, model, trees);
+
+#ifdef ARGWEAVER_MPI
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::DOUBLE, MPI_SUM, 0);
+    if (rank == 0) {
+#endif
+	hmc_update(&data);
+	
 #ifdef ARGWEAVER_MPI
     }
     comm->Bcast(model->popsizes, model->ntimes*2-1, MPI::DOUBLE, 0);
@@ -1101,125 +1123,15 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 
 
 void mle_popsize(ArgModel *model, const LocalTrees *trees) {
-    struct popsize_mle_data data;
+    struct popsize_data data;
     popsize_sufficient_stats(&data, model, trees);
 	
     for (int i=0; i < model->ntimes-1; i++) {
-	set_data_time(&data, i, model);
-	model->popsizes[2*i] = mle_one_popsize(model->popsizes[2*i], &data);
+	model->popsizes[2*i] = mle_one_popsize(i, model->popsizes[2*i], &data);
 	if (i > 0) model->popsizes[2*i-1] = model->popsizes[2*i];
     }
     delete_popsize_data(&data);
 }
-
-
-
-// reset popsize for each time interval to maximum likelihood value
-/*void mle_popsize_2(ArgModel *model, const LocalTrees *trees)
-{
-    double maxlike, new_popsize;
-    struct popsize_mle_data data;
-    int sigfigs=4;
-    static double min_popsize=log(100);
-    static double max_popsize=log(1e7);
-    data.model = model;
-    data.trees = trees;
-    
-    for (int i=0; i < model->ntimes - 1; i++) {
-	data.popsize_idx = i;
-	new_popsize = log(model->popsizes[2*i]);
-	opt_newton_1d(popsize_likelihood_func, &new_popsize, &data,
-		      &maxlike, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
-	model->popsizes[2*i] = exp(new_popsize);
-	if (i > 0) model->popsizes[2*i-1] = model->popsizes[2*i];
-	printf("mle_popsize %i\t%f\t%f\n", i, exp(new_popsize), maxlike);
-    }
-}
-
-
-
-
-double popsize_mle_get_prob(ArgModel *model, const LocalTrees *trees, int t, double popsize) {
-    double old_popsize1, old_popsize2, prob;
-    if (t == 0) {
-	old_popsize1 = model->popsizes[0];
-	model->popsizes[0] = popsize;
-    } else {
-	old_popsize1 = model->popsizes[2*t-1];
-	old_popsize2 = model->popsizes[2*t];
-	model->popsizes[2*t-1] = popsize;
-	model->popsizes[2*t] = popsize;
-    }
-    prob = calc_arg_prior_recomb_integrate(model, trees);
-    if (t == 0) {
-	model->popsizes[0] = old_popsize1;
-    } else {
-	model->popsizes[2*t-1] = old_popsize1;
-	model->popsizes[2*t] = old_popsize2;
-    }
-    return prob;
-}
-
-
-// reset popsize for each time interval to maximum likelihood value
-void mle_popsize_old(ArgModel *model, const LocalTrees *trees)
-{
-    double minx, maxx, midx, minpr, maxpr, midpr;
-    double tol=1;
-
-    for (int i=0; i < model->ntimes - 1; i++) {
-	minx = 1;
-	maxx = 100000;
-	midx = 30000;
-	minpr = popsize_mle_get_prob(model, trees, i, minx);
-	midpr = popsize_mle_get_prob(model, trees, i, midx);
-	maxpr = popsize_mle_get_prob(model, trees, i, maxx);
-	if (midpr < maxpr || midpr < minpr) {
-	    fprintf(stderr, "Error: bad bounds for golden section search in mle_popsize\n");
-	    assert(0);
-	}
-	while (maxx - minx > tol) {
-	    double newx, newpr;
- 	    static double p = (1.0 + sqrt(5))/2.0;  //golden ratio
-	    bool new_is_greater = (maxx - midx > midx - minx);
-	    if (new_is_greater) {
-		newx = (midx - minx)/p + midx;
-		assert(newx > midx && newx < maxx);
-	    } else {
-		newx = midx - (maxx - midx)/p;
-		assert(newx > minx && newx < midx);
-	    }
-	    newpr = popsize_mle_get_prob(model, trees, i, newx);
-	    if (new_is_greater) {
-		if (newpr > midpr) {
-		    minpr = midpr;
-		    minx = midx;
-		    midpr = newpr;
-		    midx = newx;
-		} else {
-		    maxpr = newpr;
-		    maxx = newx;
-		}
-	    } else {
-		if (newpr > midpr) {
-		    maxpr = midpr;
-		    maxx = midx;
-		    midpr = newpr;
-		    midx = newx;
-		} else {
-		    minpr = newpr;
-		    minx = newx;
-		}
-	    }
-	}
-	if (i == 0) {
-	    model->popsizes[i] = midx;
-	} else {
-	    model->popsizes[2*i-1] = midx;
-	    model->popsizes[2*i] = midx;
-	}
-    }
-    }*/
 
 
 

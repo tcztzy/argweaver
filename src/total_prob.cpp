@@ -515,6 +515,8 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
             }
             lnl += log(pr_recomb * recomb_sum +
                        (possible_no_recomb ? pr_no_recomb : 0.0));
+	    if (isinf(lnl))
+		assert(0);
         } else {
             ++it;
         }
