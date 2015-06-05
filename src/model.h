@@ -98,7 +98,8 @@ class PopsizeConfig
     int numsample;  //number of times to do the sampling per threading operation
     bool neighbor_prior;
     int config_buildup;
-    double epsilon;  // Hamiltonian MCMC parameter stepsize
+    double epsilon;  // Hamiltonian MCMC stepsize parameter
+    double pseudocount; // gives weight for prior
     list<PopsizeConfigParam> params;
 };
 

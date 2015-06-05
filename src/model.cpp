@@ -261,7 +261,8 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
     popsize_prior_alpha(1.0),
     popsize_prior_beta(1.0e-4),
     config_buildup(0),
-    epsilon(0.01)
+    epsilon(0.01),
+    pseudocount(1)
   {
     if (filename=="") {
 	for (int i=0; i < 2*ntimes-1; i++) {

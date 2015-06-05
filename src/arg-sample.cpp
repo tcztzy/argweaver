@@ -154,6 +154,10 @@ public:
 		   ("", "--epsilon", "<val>", &epsilon,
 		    0.01, "(for use with --sample-popsize) epsilon value for"
 		    "Hamiltonian population size updates", DEBUG_OPT));
+        config.add(new ConfigParam<double>
+		   ("", "--pseudocount", "<val>", &pseudocount,
+		    1.0, "(for use with --sample-popsize) gives weight to prior",
+		    DEBUG_OPT));
 #ifdef ARGWEAVER_MPI
         config.add(new ConfigParam<int>
                    ("", "--mcmcmc", "<int>", &mcmcmc_numgroup,
@@ -369,6 +373,7 @@ public:
     string popsize_config_file;
     int sample_popsize_num;
     double epsilon;
+    double pseudocount;
 #ifdef ARGWEAVER_MPI
     double mcmcmc_heat;
     int mcmcmc_group;
@@ -1453,6 +1458,7 @@ int main(int argc, char **argv)
         c.model.popsize_config.numsample = c.sample_popsize_num;
         c.model.popsize_config.neighbor_prior = c.popsize_prior_neighbor;
 	c.model.popsize_config.epsilon = c.epsilon;
+	c.model.popsize_config.pseudocount = c.pseudocount;
     }
 #ifdef ARGWEAVER_MPI
     c.model.mc3 = Mc3Config(c.mcmcmc_group, c.mcmcmc_heat);
