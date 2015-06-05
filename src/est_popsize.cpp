@@ -794,7 +794,7 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
     double *coal_totals = &arr_alloc[0];
     double *nocoal_totals = &arr_alloc[model->ntimes];
     int pos = model->ntimes * 2;
-    int pseudocount=model->popsize_config.pseudocount;
+    double pseudocount=model->popsize_config.pseudocount;
 
 #ifdef ARGWEAVER_MPI
     //Set pseudocount to zero for all but one MPI, since it will all get combined
