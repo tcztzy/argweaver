@@ -10,9 +10,37 @@
 namespace argweaver {
 
 
+double get_delta_diff(double log_delta, const double *times, int ntimes, double maxtime) {
+    double delta = exp(log_delta);
+    int i=1;
+    return get_time_point(i, ntimes-1, maxtime, delta) - times[i];
+}
+
+double get_delta(const double *times, int ntimes, double maxtime) {
+    double min_log_delta=-10, max_log_delta=10.0, tol=1e-10, mid_log_delta=0;
+    double min_diff, max_diff, mid_diff;
+    min_diff = get_delta_diff(min_log_delta, times, ntimes, maxtime);
+    max_diff = get_delta_diff(max_log_delta, times, ntimes, maxtime);
+    assert(min_diff * max_diff < 0.0);
+    while (max_log_delta - min_log_delta > tol) {
+	mid_diff = get_delta_diff(mid_log_delta, times, ntimes, maxtime);
+	if (min_diff * mid_diff > 0) {
+	    min_diff = mid_diff;
+	    min_log_delta = mid_log_delta;
+	} else {
+	    assert(max_diff * mid_diff > 0);
+	    max_diff = mid_diff;
+	    max_log_delta = mid_log_delta;
+	}
+	mid_log_delta = (min_log_delta + max_log_delta)/2.0;
+    }
+    double delta = exp(mid_log_delta);
+    printLog(LOG_LOW, "using delta=%e\n", delta);
+    return delta;
+}
+
 void get_coal_time_steps(const double *times, int ntimes,
-                         double *coal_time_steps, bool linear,
-                         double delta)
+                         double *coal_time_steps, bool linear)
 {
     // get midpoints
     double times2[2*ntimes+1];
@@ -22,10 +50,15 @@ void get_coal_time_steps(const double *times, int ntimes,
         for (int i=0; i < ntimes-1; i++)
             times2[2*i+1] = 0.5*(times[i+1] + times[i]);
     } else {
-        for (int i=0; i < ntimes-1; i++)
-            times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, times[ntimes-1],
-                                           delta);
+	double delta = get_delta(times, ntimes, times[ntimes-1]);
+        for (int i=0; i < ntimes-1; i++) {
+	    //	    times2[2*i+1] = sqrt((times2[2*i]+1.0)*(times2[2*i+2]+1.0));
+	    times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, times[ntimes-1],
+					   delta);
+	}
     }
+    for (int i=0; i < 2*ntimes; i++)
+	printf("times2[%i]=%f\n", i, times2[i]);
 
     for (int i=0; i<2*ntimes-2; i++) {
         coal_time_steps[i] = times2[min(i+1, 2*ntimes)] - times2[i];

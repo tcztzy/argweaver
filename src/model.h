@@ -35,8 +35,7 @@ inline void get_time_points(int ntimes, double maxtime,
 
 
 void get_coal_time_steps(const double *times, int ntimes,
-                         double *coal_time_steps, bool linear,
-                         double delta);
+			 double *coal_time_steps, bool linear);
 
 
 
@@ -457,7 +456,7 @@ protected:
 
         clear_array(&coal_time_steps);
         coal_time_steps = new double [2*ntimes];
-        get_coal_time_steps(times, ntimes, coal_time_steps, linear, delta);
+        get_coal_time_steps(times, ntimes, coal_time_steps, linear);
     }
 
  public:
