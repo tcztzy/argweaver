@@ -232,6 +232,9 @@ public:
         config.add(new ConfigParam<int>
                    ("", "--climb", "<# of climb iterations>", &nclimb, 0,
                     "(default=0)"));
+	config.add(new ConfigParam<int>
+		   ("", "--num-buildup", "<# of buildup iterations>", &num_buildup,
+		    1, "(default=0)"));
         config.add(new ConfigParam<int>
                    ("", "--sample-step", "<sample step size>", &sample_step,
                     10, "number of iterations between steps (default=10)"));
@@ -385,6 +388,7 @@ public:
 
     // search
     int nclimb;
+    int num_buildup;
     int niters;
     string resample_region_str;
     int resample_region[2];
@@ -839,13 +843,15 @@ bool read_init_arg(const char *arg_file, const ArgModel *model,
 void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                     SitesMapping* sites_mapping, Config *config)
 {
+
     if (trees->get_num_leaves() < sequences->get_num_seqs()) {
         printLog(LOG_LOW, "Sequentially Sample Initial ARG (%d sequences)\n",
                  sequences->get_num_seqs());
         printLog(LOG_LOW, "------------------------------------------------\n");
-        sample_arg_seq(model, sequences, trees, true);
+        sample_arg_seq(model, sequences, trees, true, config->num_buildup);
         print_stats(config->stats_file, "seq", trees->get_num_leaves(),
                     model, sequences, trees, sites_mapping, config);
+
     }
 }
 
@@ -978,7 +984,6 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     int window = config->resample_window;
     int niters = config->resample_window_iters;
     window /= config->compress_seq;
-    int step = window / 2;
 
     // set iteration counter
     int iter = 1;
@@ -1013,7 +1018,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 		resample_arg(model, sequences, trees);
 	    else
 		resample_arg_mcmc_all(model, sequences, trees, do_leaf[i],
-				      window, step, niters, heat);
+				      window, niters, heat);
 	}
 
         if (model->popsize_config.sample) {

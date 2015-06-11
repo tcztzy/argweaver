@@ -19,8 +19,7 @@ namespace argweaver {
 using namespace std;
 
 void sample_arg_seq(const ArgModel *model, Sequences *sequences,
-                    LocalTrees *trees, bool random=false);
-
+                    LocalTrees *trees, bool random=false, int num_buildup=1);
 void resample_arg(const ArgModel *model, Sequences *sequences,
                   LocalTrees *trees, int nremove=1);
 
@@ -38,7 +37,7 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
 
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
                            LocalTrees *trees, bool do_leaf,
-                           int window, int step, int niters, double heat=1.0);
+                           int window, int niters, double heat=1.0);
 
 void resample_arg_climb(const ArgModel *model, Sequences *sequences,
                         LocalTrees *trees, double recomb_preference);
@@ -69,7 +68,7 @@ double resample_arg_cut(
 
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int step, int niters=1,
+    LocalTrees *trees, int window, int niters=1,
                             double heat=1.0);
 
 } // namespace argweaver

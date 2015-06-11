@@ -24,7 +24,7 @@ using namespace std;
 // sequentially sample an ARG from scratch
 // sequences are sampled in the order given unless random is true
 void sample_arg_seq(const ArgModel *model, Sequences *sequences,
-                    LocalTrees *trees, bool random)
+                    LocalTrees *trees, bool random, int num_buildup)
 {
     const int nseqs = sequences->get_num_seqs();
     const int seqlen = sequences->length();
@@ -62,6 +62,11 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
                      sequences->names[new_chrom].c_str());
             sample_arg_thread(model, sequences, trees, new_chrom);
             printLog(LOG_LOW, "\n");
+	    for (int buildup=1; buildup < num_buildup; buildup++) {
+		printLog(LOG_LOW, "buildup rep %d of %d\n", buildup, num_buildup);
+		resample_arg_random_leaf(model, sequences, trees);
+		printLog(LOG_LOW, "\n");
+	    }
         }
     }
 }
@@ -195,14 +200,14 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
 // Also sometimes resample leaves specifically
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
                            LocalTrees *trees, bool do_leaf,
-                           int window, int step, int niters, double heat)
+                           int window, int niters, double heat)
 {
     if (do_leaf) {
         resample_arg_random_leaf(model, sequences, trees);
         printLog(LOG_LOW, "resample_arg_leaf: accept=%f\n", 1.0);
     } else {
         double accept_rate = resample_arg_regions(
-            model, sequences, trees, window, step, niters, heat);
+            model, sequences, trees, window, niters, heat);
         printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
     }
 }
@@ -537,7 +542,7 @@ double resample_arg_region(
 // resample an ARG a region at a time in a sliding window
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int step, int niters, double heat)
+    LocalTrees *trees, int window, int niters, double heat)
 {
     decLogLevel();
     double accept_rate = 0.0;
@@ -752,7 +757,7 @@ LocalTrees *arghmm_resample_mcmc_arg(
 {
     // setup model, local trees, sequences
     double frac_leaf = 0.5;
-    int step = window / 2;
+    //    int step = window / 2;
     ArgModel model(ntimes, times, popsizes, rho, mu);
     Sequences sequences(seqs, nseqs, seqlen);
 
@@ -763,7 +768,7 @@ LocalTrees *arghmm_resample_mcmc_arg(
     for (int i=0; i<niters; i++) {
         printLog(LOG_LOW, "sample %d\n", i);
         resample_arg_mcmc_all(&model, &sequences, trees, frand() < frac_leaf,
-                              window, step, niters2);
+                              window, niters2);
     }
 
     return trees;
