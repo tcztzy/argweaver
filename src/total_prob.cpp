@@ -350,8 +350,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         if (end < trees->end_coord) {
             // not last block
             // probability of recombining after blocklen
-       //     lnl += log(recomb_rate) - recomb_rate * blocklen;
-            lnl += -recomb_rate * (blocklen - 1) + log(1.0 - exp(-recomb_rate));
+	    lnl += log(recomb_rate) - recomb_rate * blocklen;
 
             // get SPR move information
             ++it;
