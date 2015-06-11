@@ -513,7 +513,7 @@ void log_model(const ArgModel &model)
 // alignment compression
 
 template<class T>
-void compress_track(Track<T> &track, SitesMapping *sites_mapping,
+void compress_track(Track<T> &track, const SitesMapping *sites_mapping,
                     double compress_seq, bool is_rate)
 {
     Track<T> track2;
@@ -552,6 +552,45 @@ void compress_track(Track<T> &track, SitesMapping *sites_mapping,
 
 
 template<class T>
+void uncompress_track(Track<T> &track, const SitesMapping *sites_mapping,
+                    double compress_seq, bool is_rate)
+{
+    Track<T> track2;
+
+    if (sites_mapping) {
+        // get block lengths
+        vector<int> blocks;
+        for (unsigned int i=0; i<track.size(); i++)
+            blocks.push_back(track[i].length());
+
+        // compress block lengths
+        vector<int> blocks2;
+        sites_mapping->uncompress_blocks(blocks, blocks2);
+
+        // build compress track
+        int start = sites_mapping->old_start;
+        for (unsigned int i=0; i<track.size(); i++) {
+            int end = start + blocks2[i];
+            if (end > start)
+                track2.append(track[i].chrom, start, end, track[i].value);
+            start = end;
+        }
+
+        // replace track
+        track.clear();
+        track.insert(track.begin(), track2.begin(), track2.end());
+    }
+
+
+    // compress rate
+    if (is_rate) {
+        for (unsigned int i=0; i<track.size(); i++)
+            track[i].value /= compress_seq;
+    }
+}
+
+
+template<class T>
 void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
 {
     if (sites_mapping) {
@@ -570,7 +609,18 @@ void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
 }
 
 
-void compress_model(ArgModel *model, SitesMapping *sites_mapping,
+void uncompress_model(ArgModel *model, const SitesMapping *sites_mapping,
+		      double compress_seq)
+{
+    model->rho /= compress_seq;
+    model->mu /= compress_seq;
+
+    uncompress_track(model->mutmap, sites_mapping, compress_seq, true);
+    uncompress_track(model->recombmap, sites_mapping, compress_seq, true);
+}
+
+
+void compress_model(ArgModel *model, const SitesMapping *sites_mapping,
                     double compress_seq)
 {
     model->rho *= compress_seq;
@@ -624,8 +674,10 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
 
     // calculate likelihood, prior, and joint probabilities
     // uncompressed local trees
-    if (sites_mapping)
+    if (sites_mapping) {
         uncompress_local_trees(trees, sites_mapping);
+	uncompress_model(model, sites_mapping, config->compress_seq);
+    }
 
     double prior = calc_arg_prior(model, trees);
     double likelihood = calc_arg_likelihood(model, sequences, trees,
@@ -634,8 +686,10 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     double arglen = get_arglen(trees, model->times);
 
     // recompress local trees
-    if (sites_mapping)
+    if (sites_mapping) {
         compress_local_trees(trees, sites_mapping);
+	compress_model(model, sites_mapping, config->compress_seq);
+    }
 
     // output stats
     fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f",

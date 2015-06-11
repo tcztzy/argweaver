@@ -339,7 +339,7 @@ public:
     }
 
     // uncompress a series of block lengths
-    void uncompress_blocks(const vector<int> &blocks,
+    const void uncompress_blocks(const vector<int> &blocks,
                            vector<int> &blocks2) const
     {
         int cur = old_start;
