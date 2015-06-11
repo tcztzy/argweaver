@@ -131,7 +131,7 @@ def get_coal_time_steps(times):
 
 def sample_dsmc_sprs(
         k, popsize, rho, recombmap=None, start=0.0, end=0.0, times=None,
-        init_tree=None, names=None, make_names=True):
+        times2=None, init_tree=None, names=None, make_names=True):
     """
     Sample ARG using Discrete Sequentially Markovian Coalescent (SMC)
 
@@ -147,20 +147,22 @@ def sample_dsmc_sprs(
     """
 
     assert times is not None
+    assert times2 is not None
     ntimes = len(times) - 1
     time_steps = [times[i] - times[i-1] for i in range(1, ntimes+1)]
-    times2 = get_coal_times(times)
+#    times2 = get_coal_times(times)
 
     if hasattr(popsize, "__len__"):
         popsizes = popsize
     else:
         popsizes = [popsize] * len(time_steps)
 
+
     # yield initial tree first
     if init_tree is None:
         init_tree = sample_tree(k, popsizes, times, start=start, end=end,
                                 names=names, make_names=make_names)
-        argweaver.discretize_arg(init_tree, times, ignore_top=True)
+        argweaver.discretize_arg(init_tree, times2)
     yield init_tree
 
     # sample SPRs
@@ -263,7 +265,7 @@ def sample_dsmc_sprs(
 
 
 def sample_arg_dsmc(k, popsize, rho, recombmap=None,
-                    start=0.0, end=0.0, times=None,
+                    start=0.0, end=0.0, times=None, times2=None,
                     init_tree=None, names=None, make_names=True):
     """
     Returns an ARG sampled from the Discrete Sequentially Markov Coalescent
@@ -286,7 +288,7 @@ def sample_arg_dsmc(k, popsize, rho, recombmap=None,
 
     it = sample_dsmc_sprs(
         k, popsize, rho, recombmap=recombmap,
-        start=start, end=end, times=times,
+        start=start, end=end, times=times, times2=times2,
         init_tree=init_tree, names=names, make_names=make_names)
     tree = it.next()
     arg = arglib.make_arg_from_sprs(tree, it)

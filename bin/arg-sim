@@ -47,6 +47,8 @@ o.add_option("-R", "--recombmap", metavar="<recombination rate map file>",
 o.add_option("--output-mutations",
              action="store_true",
              help="Output mutations")
+o.add_option("--delta", type="float", default=0.01,
+             help="Delta value for time point distribution in DSMC model")
 
 
 if len(sys.argv) == 1:
@@ -106,11 +108,16 @@ elif conf.model == "dsmc":
     print "simulating using the DSMC model..."
     if len(conf.popsize)==1:
         conf.popsize=[conf.popsize[0]*2] * conf.ntimes
-    times = argweaver.get_time_points(ntimes=conf.ntimes, maxtime=conf.maxtime)
+    times = argweaver.get_time_points(ntimes=conf.ntimes, maxtime=conf.maxtime,
+                                      delta=conf.delta)
+    times2 = argweaver.get_time_points(ntimes=2*conf.ntimes-1, maxtime=conf.maxtime,
+                                       delta=conf.delta)
+    print times
+    print times2
     arg = argweaver.sim.sample_arg_dsmc(
         conf.nseqs, conf.popsize, conf.recombrate,
         recombmap=recombmap,
-        start=0, end=conf.seqlen, times=times)
+        start=0, end=conf.seqlen, times=times, times2=times2)
     muts = argweaver.sim.sample_arg_mutations(arg, conf.mutrate, times=times)
 
 else:

@@ -207,34 +207,26 @@ def get_nlineages_recomb_coal(tree, times):
     return nbranches, nrecombs, ncoals
 
 
-def discretize_arg(arg, times, ignore_top=True, round_age="closer"):
+def discretize_arg(arg, times2):
     """
     Round node ages to the nearest time point
-
-    If 'ignore_top' is True, then do not use last time point for rounding
+    times2 has 2n time points; the even indices give the discretized time
+    points and the odd indices give the boundaries for rounding; ie
+    a time between times2[2i-1] and times2[2i] will have time set to times2[2i]
     """
 
-    if ignore_top:
-        times = times[:-1]
-
     for node in arg:
-        i, j = util.binsearch(times, node.age)
+        i, j = util.binsearch(times2, node.age)
         if j is None:
-            j = len(times) - 1
-        if i is None:
-            i = 0
-
-        if round_age == "up":
-            node.age = times[j]
-        elif round_age == "down":
-            node.age = times[i]
-        elif round_age == "closer":
-            if node.age - times[i] < times[j] - node.age:
-                node.age = times[i]
-            else:
-                node.age = times[j]
+            j = len(times2) - 1
+            node.age = times2[ length(times2) - 1 ]
         else:
-            raise Exception("unknown round_age '%s'" % round_age)
+            assert i is not None
+            if i % 2 == 0:
+                node.age = times2[i]
+            else:
+                assert i+1 == j
+                node.age = times2[j]
 
     recombs = [node for node in arg if node.event == "recomb"]
     recombs.sort(key=lambda x: x.pos)
