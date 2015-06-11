@@ -1095,6 +1095,26 @@ void hmc_update(struct popsize_data *data) {
 }
 
 
+void no_update_popsize(ArgModel *model, const LocalTrees *trees) {
+    struct popsize_data data;
+
+    //compute all the coal_counts and nocoal_counts to be used for likelihood calculations
+    popsize_sufficient_stats(&data, model, trees);
+
+#ifdef ARGWEAVER_MPI
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::DOUBLE, MPI_SUM, 0);
+    if (rank == 0) {
+#endif
+	for (int i=0; i< model->ntimes-1; i++)
+	    printLog(LOG_LOW, "%i\t%f\t%.f\t%.1f\n", i, model->popsizes[2*i], data.coal_totals[i], data.nocoal_totals[i]);
+	
+#ifdef ARGWEAVER_MPI
+    }
+#endif
+    delete_popsize_data(&data);
+}
 
 //use Hamiltonian MC to update popsize
 void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {

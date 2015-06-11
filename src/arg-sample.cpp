@@ -1023,7 +1023,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 	    //            resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
 	    //	    mle_popsize(model, trees);
 	    update_popsize_hmc(model, trees);
-        }
+        } else no_update_popsize(model, trees);
 
         printTimerLog(timer, LOG_LOW, "sample time:");
 

@@ -42,6 +42,7 @@ void delete_popsize_data(struct popsize_data *data);
 
 void update_popsize_hmc(ArgModel *model, const LocalTrees *trees);
 void set_data_time(struct popsize_data *data, int t);
+void no_update_popsize(ArgModel *model, const LocalTrees *trees);
 
 
 // functions for adaptive HMC; may want to move to separate file
