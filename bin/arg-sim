@@ -3,6 +3,7 @@
 import optparse
 import os
 import sys
+import random
 
 import argweaver
 import argweaver.sim
@@ -48,8 +49,9 @@ o.add_option("--output-mutations",
              action="store_true",
              help="Output mutations")
 o.add_option("--delta", type="float", default=0.01,
-             help="Delta value for time point distribution in DSMC model")
-
+             help="Delta value for time point distribution in DSMC model (default=0.01)")
+o.add_option("--seed", type="int", default=0,
+             help="Set random number seed (default; use time)")
 
 if len(sys.argv) == 1:
     o.print_help()
@@ -69,6 +71,10 @@ def discretize_mutations(muts):
 
 
 #=============================================================================
+
+if conf.seed:
+    random.seed(conf.seed)
+
 
 # log model parameters
 print "model parameters:"
