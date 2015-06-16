@@ -11,7 +11,7 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
 
  struct popsize_data {
      double *arr_alloc;
-     double arr_size;
+     int arr_size;
      double ***coal_counts;
      double ***nocoal_counts;
      double *coal_totals;
@@ -20,11 +20,13 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
      int popsize_idx;
      int numleaf;
      double t1, t2;
+     int min_t, max_t;
  };
 
 void est_popsize_local_trees(const ArgModel *model, const LocalTrees *trees,
                              double *popsizes);
-void mle_popsize(ArgModel *model, const LocalTrees *trees);
+void mle_popsize(ArgModel *model, const struct popsize_data *data, double min_total=0);
+void mle_popsize(ArgModel *model, const LocalTrees *trees, double min_total=0);
 void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *data,
 				double *likelihood, double *dlikelihood);
 double one_popsize_likelihood(int t, double log_popsize, struct popsize_data *data);
@@ -35,9 +37,7 @@ double popsize_likelihood(double *log_popsize, struct popsize_data *data);
 double one_popsize_likelihood(int t, double log_popsize, struct popsize_data *data);
 double one_popsize_dlikelihood(int t, double log_popsize, struct popsize_data *data);
 
-double mle_popsize(double init_popsize, void *data0);
-
-void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const LocalTrees *trees);
+void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const LocalTrees *trees, bool add=false);
 void delete_popsize_data(struct popsize_data *data);
 
 void update_popsize_hmc(ArgModel *model, const LocalTrees *trees);

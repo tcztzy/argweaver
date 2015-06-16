@@ -104,6 +104,15 @@ public:
                    ("-N", "--popsize", "<population size>", &popsize_str,
                     "10000",
                     "effective population size (default=1e4)"));
+	config.add(new ConfigParam<int>
+		   ("", "--popsize-em", "<n>", &popsize_em, 0,
+		    "Do EM update of popsizes after every n threading operations"));
+	config.add(new ConfigParam<double>
+		   ("", "--popsize-em-min-event", "<num>", &popsize_em_min_event,
+		    2000.0,
+		    "Minimum number of events per time interval; time intervals with"
+		    " fewer events will be combined with previous time interval for"
+		    " EM computations"));
         config.add(new ConfigSwitch
                    ("", "--sample-popsize", &sample_popsize,
                     "sample population size for each time interval using"
@@ -367,6 +376,8 @@ public:
     string recombmap;
     string maskmap;
     ArgModel model;
+    int popsize_em;
+    double popsize_em_min_event;
     bool sample_popsize;
     bool sample_popsize_const;
     bool popsize_prior_neighbor;
@@ -1021,7 +1032,9 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 				      window, niters, heat);
 	}
 
-        if (model->popsize_config.sample) {
+	if (config->popsize_em > 0 && iter % config->popsize_em == 0)
+	    mle_popsize(model, trees, config->popsize_em_min_event);
+        else if (model->popsize_config.sample) {
             if (model->popsize_config.config_buildup > 0 &&
                 i > 0 && i % model->popsize_config.config_buildup == 0)
                 model->popsize_config.split_config();
@@ -1497,6 +1510,10 @@ int main(int argc, char **argv)
     if (c.sample_popsize_const)
         c.sample_popsize=true;
     if (c.sample_popsize) {
+	if (c.popsize_em) {
+	    printError("Error: cannot use --popsize-em with --sample-popsize\n");
+	    return 1;
+	}
         if (c.sample_popsize_buildup) {
             if (c.popsize_config_file != "" || c.sample_popsize_const) {
                 printError("Error: cannot use --sample-popsize-buildup with"

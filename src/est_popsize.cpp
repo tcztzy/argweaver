@@ -631,19 +631,24 @@ double one_popsize_dlikelihood(int t, double log_popsize, struct popsize_data *d
 //wrapper to send to newton1d program; assume set_data_time has already been called
 double one_popsize_neg_likelihood(double log_popsize, void *data0) {
     struct popsize_data *data = (struct popsize_data*) data0;
-    double like = one_popsize_likelihood(data->popsize_idx, log_popsize, data);
+    double like=0;
+    for (int t = data->min_t; t <= data->max_t; t++)
+	like += one_popsize_likelihood(t, log_popsize, data);
     return -like;
 }
 
 
-double mle_one_popsize(int t, double init_popsize, void *data0) {
+//gets MLE for time interval start_t through end_t inclusive- one parameter for
+// whole combined interval
+double mle_one_popsize(int start_t, int end_t, double init_popsize, void *data0) {
     double popsize, log_popsize = log(init_popsize);
     double likelihood;
     int sigfigs=4;
     struct popsize_data *data = (struct popsize_data*)data0;
     static double min_popsize = log(100);
     static double max_popsize = log(1e7);
-    set_data_time(data, t);
+    data->min_t = start_t;
+    data->max_t = end_t;
     opt_newton_1d(one_popsize_neg_likelihood, &log_popsize, data0, &likelihood, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
     popsize = exp(log_popsize);
     printf("mle_popsize %i\t%f\t%f\t%.1f\t%.1f\n", data->popsize_idx, popsize, likelihood, data->coal_totals[data->popsize_idx], data->nocoal_totals[data->popsize_idx]);
@@ -777,7 +782,7 @@ double mle_one_popsize(int t, double init_popsize, void *data0) {
     }*/
 
 
-void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const LocalTrees *trees) {
+void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const LocalTrees *trees, bool add) {
     int end = trees->start_coord;
     LineageCounts lineages(model->ntimes);
     int numleaf = trees->get_num_leaves();
@@ -787,48 +792,70 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
     // the recombination (which is implied if coal_time==0), then j is always 0
     //nocoal_counts is the same, but for non-coalescing segments; so counted
     // for each segment from the recomb up until before the coal
-    int arr_size = 2*(model->ntimes * numleaf * numleaf + model->ntimes);
-    double *arr_alloc = new double[arr_size]();
-    double ***coal_counts = new double**[model->ntimes];
-    double ***nocoal_counts = new double**[model->ntimes];
-    double *coal_totals = &arr_alloc[0];
-    double *nocoal_totals = &arr_alloc[model->ntimes];
-    int pos = model->ntimes * 2;
-    double pseudocount=model->popsize_config.pseudocount;
-
+    double ***coal_counts;
+    double ***nocoal_counts;
+    double *coal_totals;
+    double *nocoal_totals;
+    if (!add) {
+	int arr_size = 2*(model->ntimes * numleaf * numleaf + model->ntimes);
+	double *arr_alloc = new double[arr_size]();
+	double pseudocount;
+	int pos=model->ntimes * 2;
+	coal_counts = new double**[model->ntimes];
+	nocoal_counts = new double**[model->ntimes];
+	coal_totals = &arr_alloc[0];
+	nocoal_totals = &arr_alloc[model->ntimes];
+	pseudocount=model->popsize_config.pseudocount;
 #ifdef ARGWEAVER_MPI
-    //Set pseudocount to zero for all but one MPI, since it will all get combined
-    MPI::Intracomm *comm = model->mc3.group_comm;
-    int rank = comm->Get_rank();
-    if (rank > 0) pseudocount = 0;
+	//Set pseudocount to zero for all but one MPI, since it will all get combined
+	MPI::Intracomm *comm = model->mc3.group_comm;
+	int rank = comm->Get_rank();
+	if (rank > 0) pseudocount = 0;
 #endif
-    for (int i=0; i < model->ntimes; i++) {
-	coal_counts[i] = new double*[numleaf];
-	nocoal_counts[i] = new double*[numleaf];
-	for (int j = 0; j < numleaf; j++) {
-	    coal_counts[i][j] = &(arr_alloc[pos]);
-	    pos += numleaf;
-	    nocoal_counts[i][j] = &(arr_alloc[pos]);
-	    pos += numleaf;
-	}
-	if (pseudocount > 0) {
-	    double pr_nocoal;
-	    if (i==0) {
-		pr_nocoal = exp(-model->coal_time_steps[0]/20000.0);
-		coal_counts[i][0][1] = (1.0 - pr_nocoal) * pseudocount;
-		nocoal_counts[i][0][1] = pr_nocoal * pseudocount;
-	    } else {
-		pr_nocoal = exp(-(model->coal_time_steps[2*i-1] + model->coal_time_steps[2*i])/20000.0);
-		coal_counts[i][1][1] = (1.0 - pr_nocoal) * pseudocount;
-		nocoal_counts[i][1][1] = pr_nocoal * pseudocount;
+	for (int i=0; i < model->ntimes; i++) {
+	    coal_counts[i] = new double*[numleaf];
+	    nocoal_counts[i] = new double*[numleaf];
+	    for (int j = 0; j < numleaf; j++) {
+		coal_counts[i][j] = &(arr_alloc[pos]);
+		pos += numleaf;
+		nocoal_counts[i][j] = &(arr_alloc[pos]);
+		pos += numleaf;
 	    }
-	    coal_totals[i] += (1.0 - pr_nocoal) * pseudocount;
-	    nocoal_totals[i] += pr_nocoal * pseudocount;
+	    if (pseudocount > 0) {
+		double pr_nocoal;
+		if (i==0) {
+		    pr_nocoal = exp(-model->coal_time_steps[0]/20000.0);
+		    coal_counts[i][0][1] = (1.0 - pr_nocoal) * pseudocount;
+		    nocoal_counts[i][0][1] = pr_nocoal * pseudocount;
+		} else {
+		    pr_nocoal = exp(-(model->coal_time_steps[2*i-1] + model->coal_time_steps[2*i])/20000.0);
+		    coal_counts[i][1][1] = (1.0 - pr_nocoal) * pseudocount;
+		    nocoal_counts[i][1][1] = pr_nocoal * pseudocount;
+		}
+		coal_totals[i] += (1.0 - pr_nocoal) * pseudocount;
+		nocoal_totals[i] += pr_nocoal * pseudocount;
+	    }
 	}
-    }
-    if (pos != arr_size) {
-	printf("pos=%i arr_size=%i ntimes=%i numleaf=%i\n", pos, arr_size, model->ntimes, numleaf);
-	assert(pos == arr_size);
+	if (pos != arr_size) {
+	    printf("pos=%i arr_size=%i ntimes=%i numleaf=%i\n", pos, arr_size, model->ntimes, numleaf);
+	    assert(pos == arr_size);
+	}
+	data->arr_alloc = arr_alloc;
+	data->arr_size = arr_size;
+	data->coal_counts = coal_counts;
+	data->nocoal_counts = nocoal_counts;
+	data->coal_totals = coal_totals;
+	data->nocoal_totals = nocoal_totals;
+	data->numleaf = numleaf;
+	data->model = model;
+	data->popsize_idx = -1;
+	data->t1 = -1;
+	data->t2 = -1;
+    } else {  // add counts to already initialized structure
+	coal_counts = data->coal_counts;
+	nocoal_counts = data->nocoal_counts;
+	coal_totals = data->coal_totals;
+	nocoal_totals = data->nocoal_totals;
     }
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
 	end += it->blocklen;
@@ -861,17 +888,6 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
 	    coal_totals[spr->coal_time]++;
 	}
     }
-    data->coal_counts = coal_counts;
-    data->nocoal_counts = nocoal_counts;
-    data->coal_totals = coal_totals;
-    data->nocoal_totals = nocoal_totals;
-    data->numleaf = numleaf;
-    data->arr_alloc = arr_alloc;
-    data->arr_size = arr_size;
-    data->model = model;
-    data->popsize_idx = -1;
-    data->t1 = -1;
-    data->t2 = -1;
 }
 
 void delete_popsize_data(struct popsize_data *data) {
@@ -1141,15 +1157,27 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
 
 
 
+void mle_popsize(ArgModel *model, const struct popsize_data *data, double min_total) {
+    int start_time = 0;
+    double curr_total = 0.0;
+    for (int i=0; i < model->ntimes-1; i++) {
+	curr_total += data->coal_totals[i] + data->nocoal_totals[i];
+	if (curr_total < min_total && i < model->ntimes - 1) continue;
+	double popsize = mle_one_popsize(start_time, i, model->popsizes[2*i], (void*)data);
+	for (int j = start_time; j <= i; j++) {
+	    model->popsizes[2*j] = popsize;
+	    if (j > 0) model->popsizes[2*j-1] = popsize;
+	}
+	start_time = i+1;
+	curr_total = 0.0;
+    }
+}
 
-void mle_popsize(ArgModel *model, const LocalTrees *trees) {
+
+void mle_popsize(ArgModel *model, const LocalTrees *trees, double min_total) {
     struct popsize_data data;
     popsize_sufficient_stats(&data, model, trees);
-	
-    for (int i=0; i < model->ntimes-1; i++) {
-	model->popsizes[2*i] = mle_one_popsize(i, model->popsizes[2*i], &data);
-	if (i > 0) model->popsizes[2*i-1] = model->popsizes[2*i];
-    }
+    mle_popsize(model, &data, min_total);
     delete_popsize_data(&data);
 }
 
