@@ -1162,7 +1162,7 @@ void mle_popsize(ArgModel *model, const struct popsize_data *data, double min_to
     double curr_total = 0.0;
     for (int i=0; i < model->ntimes-1; i++) {
 	curr_total += data->coal_totals[i] + data->nocoal_totals[i];
-	if (curr_total < min_total && i < model->ntimes - 1) continue;
+	if (curr_total < min_total && i < model->ntimes - 2) continue;
 	double popsize = mle_one_popsize(start_time, i, model->popsizes[2*i], (void*)data);
 	for (int j = start_time; j <= i; j++) {
 	    model->popsizes[2*j] = popsize;

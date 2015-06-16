@@ -1032,7 +1032,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 				      window, niters, heat);
 	}
 
-	if (config->popsize_em > 0 && iter % config->popsize_em == 0)
+	if (config->popsize_em > 0 && i % config->popsize_em == 0)
 	    mle_popsize(model, trees, config->popsize_em_min_event);
         else if (model->popsize_config.sample) {
             if (model->popsize_config.config_buildup > 0 &&
