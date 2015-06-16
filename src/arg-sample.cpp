@@ -663,6 +663,10 @@ void print_stats_header(Config *config) {
              it != l.end(); ++it) {
             fprintf(config->stats_file, "\t%s", it->name.c_str());
         }
+    } else if (config->popsize_em) {
+	for (int i=0; i < config->model.ntimes-1; i++) {
+	    fprintf(config->stats_file, "\tN%i", i);
+	}
     }
     fprintf(config->stats_file, "\n");
 }
@@ -727,6 +731,9 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
                 it2++;
             }
         }
+    } else if (config->popsize_em) {
+	for (int i=0; i < model->ntimes-1; i++)
+	    fprintf(stats_file, "\t%f", model->popsizes[2*i]);
     }
     fprintf(stats_file, "\n");
     fflush(stats_file);
