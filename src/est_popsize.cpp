@@ -1177,7 +1177,17 @@ void mle_popsize(ArgModel *model, const struct popsize_data *data, double min_to
 void mle_popsize(ArgModel *model, const LocalTrees *trees, double min_total) {
     struct popsize_data data;
     popsize_sufficient_stats(&data, model, trees);
-    mle_popsize(model, &data, min_total);
+#ifdef ARGWEAVER_MPI
+    MPI::Intracomm *comm = model->mc3.group_comm;
+    int rank = comm->Get_rank();
+    comm->Reduce(rank == 0 ? MPI_IN_PLACE : data.arr_alloc, data.arr_alloc, data.arr_size, MPI::DOUBLE, MPI_SUM, 0);
+    if (rank == 0) {
+#endif
+	mle_popsize(model, &data, min_total);
+#ifdef ARGWEAVER_MPI
+    }
+    comm->Bcast(model->popsizes, model->ntimes*2-1, MPI::DOUBLE, 0);
+#endif
     delete_popsize_data(&data);
 }
 
