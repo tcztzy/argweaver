@@ -651,7 +651,8 @@ double mle_one_popsize(int start_t, int end_t, double init_popsize, void *data0)
     data->max_t = end_t;
     opt_newton_1d(one_popsize_neg_likelihood, &log_popsize, data0, &likelihood, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
     popsize = exp(log_popsize);
-    printf("mle_popsize %i\t%f\t%f\t%.1f\t%.1f\n", data->popsize_idx, popsize, likelihood, data->coal_totals[data->popsize_idx], data->nocoal_totals[data->popsize_idx]);
+    for (int t=start_t; t <= end_t; t++)
+	printLog(LOG_LOW, "mle_popsize %i\t%f\t%f\t%.1f\t%.1f\n", t, popsize, likelihood, data->coal_totals[t], data->nocoal_totals[t]);
     return popsize;
 }
 
