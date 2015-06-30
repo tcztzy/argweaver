@@ -694,6 +694,8 @@ void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping)
         }
         sites->positions[i] = sites_mapping->old_sites[j];
     }
+    /*    for (int i=0; i < ncols; i++)
+	  sites->positions[i] = sites_mapping->old_sites[i];*/
 }
 
 
