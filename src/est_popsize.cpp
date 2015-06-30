@@ -560,7 +560,7 @@ void numeric_deriv_check(double log_popsize, struct popsize_data *data, double d
 
 
 void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *data, 
-				double *likelihood, double *dlikelihood) {
+				double *likelihood, double *dlikelihood, double *dlikelihood2) {
     if (data->popsize_idx != t) {
 	set_data_time(data, t);
     }
@@ -571,9 +571,10 @@ void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *
     int numleaf = data->numleaf;
     double **coal_counts = data->coal_counts[data->popsize_idx];
     double **nocoal_counts = data->nocoal_counts[data->popsize_idx];
-    double like=0.0, dlike=0.0;
+    double like=0.0, dlike=0.0, dlike2=0.0;
     bool do_like = (likelihood != NULL);
     bool do_dlike = (dlikelihood != NULL);
+    bool do_dlike2 = (dlikelihood2 != NULL);
     /*    if (log_popsize < 0) {
 	*likelihood = -INFINITY;
 	*dlikelihood = 100.0; //want to go up from here
@@ -586,11 +587,16 @@ void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *
             if (j==0) assert(coal_counts[i][j] == 0 && nocoal_counts[i][j]==0);
 	    if (coal_counts[i][j] > 0) {
 		if (do_like) like += coal_counts[i][j]*log(erate1);
+		// NOTE: we are optimizing log_popsize so need to take this into consideration for derivative computations
 		if (do_dlike) dlike -= coal_counts[i][j]/(erate1)*erate*rate;
+		if (do_dlike2) dlike2 -= coal_counts[i][j]*
+				   ((erate*rate/erate1)*(erate*rate/erate1) 
+				    + erate*rate*(rate - 1.0)/erate1);
 	    }
 	    if (nocoal_counts[i][j] > 0) {
 		if (do_like) like -= nocoal_counts[i][j]*rate;
 		if (do_dlike) dlike += nocoal_counts[i][j]*rate;
+		if (do_dlike2) dlike2 -= nocoal_counts[i][j]*rate;
 	    }
 	}
     }
@@ -600,6 +606,7 @@ void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *
     }
     if (do_like) *likelihood = like;
     if (do_dlike) *dlikelihood = dlike;
+    if (do_dlike2) *dlikelihood2 = dlike2;
 }
 
 
@@ -651,9 +658,19 @@ double mle_one_popsize(int start_t, int end_t, double init_popsize, void *data0)
     data->max_t = end_t;
     opt_newton_1d(one_popsize_neg_likelihood, &log_popsize, data0, &likelihood, sigfigs, min_popsize, max_popsize, NULL, NULL, NULL);
     popsize = exp(log_popsize);
-    for (int t=start_t; t <= end_t; t++)
-	printLog(LOG_LOW, "mle_popsize %i\t%f\t%f\t%.1f\t%.1f\n", t, popsize, likelihood, data->coal_totals[t], data->nocoal_totals[t]);
-    return popsize;
+    double dlike2=0.0;
+    for (int t=start_t; t <= end_t; t++)  {
+	double tmp;
+	one_popsize_like_and_dlike(t, log_popsize, data, NULL, NULL, &tmp);
+	dlike2 += tmp;
+    }
+    double sd = sqrt(-1.0/dlike2);
+    double popsize_min = exp(log_popsize - 2*sd);
+    double popsize_max = exp(log_popsize + 2*sd);
+    for (int t=start_t; t <= end_t; t++) {
+	printLog(LOG_LOW, "mle_popsize %i\t%f\t%f\t%.1f\t%.1f\t%f\t%.1f\t%.1f\n", t, popsize, likelihood, data->coal_totals[t], data->nocoal_totals[t], sqrt(-1.0/dlike2), popsize_min, popsize_max);
+    }
+   return popsize;
 }
 
 

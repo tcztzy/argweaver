@@ -28,7 +28,7 @@ void est_popsize_local_trees(const ArgModel *model, const LocalTrees *trees,
 void mle_popsize(ArgModel *model, const struct popsize_data *data, double min_total=0);
 void mle_popsize(ArgModel *model, const LocalTrees *trees, double min_total=0);
 void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *data,
-				double *likelihood, double *dlikelihood);
+				double *likelihood, double *dlikelihood, double *dlikelihood2=NULL);
 double one_popsize_likelihood(int t, double log_popsize, struct popsize_data *data);
 
 //note log_popsize should be length ntimes-1 (one for each whole time interval)
