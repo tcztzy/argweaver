@@ -74,6 +74,7 @@ ARGWEAVER_SRC = \
     src/model.cpp \
     src/newick.cpp \
     src/parsing.cpp \
+    src/pop_model.cpp \
     src/popsize-post.cpp \
     src/ptree.cpp \
     src/recomb.cpp \
