@@ -12,6 +12,7 @@
 #include <list>
 #include <algorithm>
 #include <vector>
+#include <string>
 
 // arghmm includes
 #include "common.h"
@@ -46,7 +47,7 @@ class MigrationMatrix
 	 delete matrix;
      }
  }
-     
+
  int npop;
  int ntime;
  double ***matrix;
@@ -55,7 +56,7 @@ class MigrationMatrix
 
 class PopulationPath {
  public:
-   PopulationPath(int ntime, int start_pop, double start_prob=1.0) : 
+   PopulationPath(int ntime, int start_pop, double start_prob=1.0) :
       ntime(ntime) {
         pop = new int[ntime]();
         pathprob = new double[ntime]();
@@ -63,6 +64,7 @@ class PopulationPath {
         pathprob[0]=start_prob;
     }
     PopulationPath(const PopulationPath &other) {
+        ntime = other.ntime;
         pop = new int [ntime];
         pathprob = new double[ntime];
         for (int i=0; i < ntime; i++) {
@@ -74,6 +76,18 @@ class PopulationPath {
         delete pop;
         delete pathprob;
     }
+    void print() {
+        printf("path: %i (t=0)", pop[0]);
+        int prev = pop[0];
+        for (int i=1; i <ntime; i++) {
+            if (pop[i] != prev) {
+                printf(", %i (t=%i)", pop[i], i);
+                prev = pop[i];
+            }
+        }
+        printf("\tprob=%f\n", pathprob[ntime-1]);
+    }
+
     int ntime;
     int *pop;
     double *pathprob;
@@ -86,7 +100,14 @@ class MigrationEvent {
     from_pop(from_pop), to_pop(to_pop), prob(prob), optimize(optimize) {
     }
 
-    int from_pop; 
+    MigrationEvent(const MigrationEvent &other) {
+        from_pop = other.from_pop;
+        to_pop = other.to_pop;
+        prob = other.prob;
+        optimize = other.optimize;
+    }
+
+    int from_pop;
     int to_pop;
     double prob;
     bool optimize;
@@ -105,6 +126,18 @@ class PopulationTree {
         }
         pop_paths.clear();
         pathPtr=NULL;
+  }
+  PopulationTree(string filename, const double *coal_time_steps, int ntime);
+  PopulationTree(PopulationTree *other) {
+      npop = other->npop;
+      ntime = other->ntime;
+      mig_events = new vector<MigrationEvent>*[2*ntime-1];
+      for (int i=0; i < ntime-1; i++) {
+          mig_events[2*i+1] = new vector<MigrationEvent>[npop];
+          for (int j=0; j < npop; j++)
+              mig_events[2*i+1][j] = other->mig_events[2*i+1][j];
+      }
+      setUpPopulationPaths();
   }
 
  ~PopulationTree() {
@@ -125,15 +158,18 @@ class PopulationTree {
   }
 
  void addMigration(int t, int from_pop, int to_pop, double prob, bool optimize=false) {
-     if (t%2 != 1) {
-         fprintf(stderr, "Error: addMigration expects only odd times\n");
-         assert(false);
-     }
-     if (t < 0 || t > 2*ntime-3) {
-         fprintf(stderr, "Error: migratation index %i out of range\n", t);
-         assert(false);
-     }
-     MigrationEvent mig = MigrationEvent(from_pop, to_pop, prob, optimize);
+     if (t%2 != 1)
+         exitError("Error: addMigration expects only odd times\n");
+     if (t < 0 || t > 2*ntime-3)
+         exitError("Error: migratation index %i out of range\n", t);
+     if (from_pop >= npop || from_pop < 0)
+         exitError("Error: from_pop (%i) out of range\n", from_pop);
+     if (to_pop >= npop || to_pop < 0)
+         exitError("Error: to_pop (%i) out of range\n", to_pop);
+     MigrationEvent mig(from_pop, to_pop, prob, optimize);
+     for (unsigned int i=0; i < mig_events[t][from_pop].size(); i++)
+         if (mig_events[t][from_pop][i].to_pop == to_pop)
+             exitError("Error: trying to add same migration event twice (t=%i, from_pop=%i, to_pop=%i\n", t, from_pop, to_pop);
      mig_events[t][from_pop].push_back(mig);
  }
  int setUpPopulationPaths();
@@ -150,13 +186,14 @@ class PopulationTree {
 
  private:
  void getAllPopulationPathsRec(int idx, int start_pop, int time=0, double tol=1.0e-6);
+ int get_closest_half_time(double treal, const double *time_steps, int ntime);
 };
 
 
 /*
 class PopulationTree {
  public:
-    // 
+    //
  PopulationTree(int npop_leaf, int ntime, double *coal_time_steps) :
     npop_leaf(npop_leaf), ntime(ntime) {
     npop = 2*npop_present - 1;

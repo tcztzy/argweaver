@@ -16,6 +16,7 @@
 #include "track.h"
 #include "common.h"
 #include "mcmcmc.h"
+#include "pop_model.h"
 
 namespace argweaver {
 
@@ -119,7 +120,8 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    unphased_file("")        {}
+    unphased_file(""),
+    poptree(NULL) {}
 
     // Model with constant population sizes and log-spaced time points
  ArgModel(int ntimes, double maxtime, double popsize,
@@ -134,7 +136,8 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0)
+    sample_phase(0),
+    poptree(NULL)
         {
             set_log_times(maxtime, ntimes);
             set_popsizes(popsize, ntimes);
@@ -153,7 +156,8 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0)
+    sample_phase(0),
+    poptree(NULL)
         {
             set_log_times(maxtime, ntimes);
             if (_popsizes)
@@ -174,7 +178,8 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0)
+    sample_phase(0),
+    poptree(NULL)
         {
             set_times(_times, ntimes);
             if (_popsizes)
@@ -197,8 +202,8 @@ class ArgModel
     sample_phase(other.sample_phase),
     unphased_file(other.unphased_file),
     popsize_config(other.popsize_config),
-    mc3(other.mc3)
-        {}
+    mc3(other.mc3),
+    poptree(other.poptree) {}
 
 
     // Copy constructor
@@ -235,6 +240,8 @@ class ArgModel
             delete [] coal_time_steps;
             if (popsizes)
                 delete [] popsizes;
+            if (poptree)
+                delete poptree;
         }
     }
 
@@ -272,6 +279,10 @@ class ArgModel
         if (other.recombmap.size() > 0)
             recombmap.insert(recombmap.begin(),
                              other.recombmap.begin(), other.recombmap.end());
+
+        if (other.poptree)
+            poptree = new PopulationTree(other.poptree);
+        else poptree = NULL;
     }
 
     // Returns dummy time used for root of tree with internal branch removed
@@ -442,6 +453,12 @@ class ArgModel
         mc3 = Mc3Config(group, heat_interval);
     }
 
+    int read_poptree(string filename) {
+        if (poptree != NULL) delete poptree;
+        poptree = new PopulationTree(filename, coal_time_steps, ntimes);
+        return poptree->npop;
+    }
+
 protected:
     // Setup time steps between time points
     // if linear=true, ignore delta and set mid-points halfway between
@@ -480,6 +497,7 @@ protected:
     Mc3Config mc3;
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
+    PopulationTree *poptree;
 };
 
 

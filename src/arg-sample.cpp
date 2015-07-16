@@ -104,6 +104,9 @@ public:
                    ("-N", "--popsize", "<population size>", &popsize_str,
                     "10000",
                     "effective population size (default=1e4)"));
+        config.add(new ConfigParam<string>
+                   ("-P", "--popfile", "<population file", &pop_file,
+                    "", "File describing population tree (for multiple populations)"));
 	config.add(new ConfigParam<int>
 		   ("", "--popsize-em", "<n>", &popsize_em, 0,
 		    "Do EM update of popsizes after every n threading operations"));
@@ -365,6 +368,7 @@ public:
     // model parameters
     double popsize;
     string popsize_str;
+string pop_file;
     double mu;
     double rho;
     int ntimes;
@@ -1499,6 +1503,9 @@ int main(int argc, char **argv)
         c.model.set_linear_times(c.time_step, c.ntimes);
     else
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
+    if (c.pop_file != "")
+        c.model.read_poptree(c.pop_file);
+
     c.model.rho = c.rho;
     c.model.mu = c.mu;
     const double infsites_penalty = 1e-100; // TODO: make configurable
