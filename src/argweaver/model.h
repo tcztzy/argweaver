@@ -191,7 +191,7 @@ public:
 	unphased_file = other.unphased_file;
 
         // copy popsizes and times
-        set_times(other.times, ntimes);
+        set_times(other.times, other.coal_time_steps, ntimes);
         if (other.popsizes)
             set_popsizes(other.popsizes, ntimes);
 
@@ -215,6 +215,16 @@ public:
 
     //=====================================================================
     // setting time points and population sizes
+
+    // Sets the model time points from an array
+    void set_times(double *_times, double *_coal_time_steps, int _ntimes) {
+        ntimes = _ntimes;
+        clear_array(&times);
+        times = new double [ntimes];
+        std::copy(_times, _times + ntimes, times);
+        setup_time_steps(false, 0, _coal_time_steps);
+    }
+
 
     // Sets the model time points from an array
     void set_times(double *_times, int _ntimes) {
@@ -348,7 +358,7 @@ protected:
     // Setup time steps between time points
     // if linear=true, ignore delta and set mid-points halfway between
     //   each time step
-    void setup_time_steps(bool linear=false, double delta=0.01)
+    void setup_time_steps(bool linear=false, double delta=0.01, double *_coal_time_steps=NULL)
     {
         clear_array(&time_steps);
         time_steps = new double [ntimes];
@@ -358,7 +368,9 @@ protected:
 
         clear_array(&coal_time_steps);
         coal_time_steps = new double [2*ntimes];
-        get_coal_time_steps(times, ntimes, coal_time_steps, linear, delta);
+	if (_coal_time_steps == NULL)
+	    get_coal_time_steps(times, ntimes, coal_time_steps, linear, delta);
+	else std::copy(_coal_time_steps, _coal_time_steps + 2*ntimes, coal_time_steps);
     }
 
 public:
