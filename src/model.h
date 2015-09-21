@@ -39,6 +39,101 @@ void get_coal_time_steps(const double *times, int ntimes,
 			 double delta);
 
 
+class MigrationMatrix
+{
+ public:
+ MigrationMatrix() :
+    npop(0), ntime(0), matrix(NULL);
+
+ MigrationMatrix(int npop, int ntime) :
+    npop(npop), ntime(ntime)
+    {
+	matrix = new double**[ntime];
+	for (int i=0; i < ntime; i++) {
+	    matrix[i] = new double*[npop];
+	    for (int j=0; j < ntime; j++) {
+		matrix[i][j] = new double[npop]();
+	    }
+	}
+    }
+
+ ~MigrationMatrix() {
+     if (matrix != NULL) {
+	 for (int i=0; i < ntime; i++) {
+	     for (int j=0; j < npop; j++)
+		 delete matrix[i][j];
+	     delete matrix[i];
+	 }
+	 delete matrix;
+     }
+ }
+     
+ int npop;
+ int ntime;
+ double ***matrix;
+};
+
+
+class PopulationTree {
+ public:
+    // 
+ PopulationTree(int npop_leaf, int ntime, double *coal_time_steps) :
+    npop_leaf(npop_leaf), ntime(ntime) {
+    npop = 2*npop_present - 1;
+    mig_matrix = new MigrationMatrix(npop, ntime);
+    half_times = new double[ntime-1];
+    int j=0;
+    for (int i=0; i < ntime - 1; i++) {
+	half_times[j++] = coal_time_steps[2*i+1];
+    }
+    active_times = new set<int>[ntime-1];
+    for (int i=0; i < ntime - 1; i++) {
+	for (int j=0; j < npop_leaf; j++)
+	    active_times[i].insert(j);
+    }
+ }
+
+ ~PopulationTree() {
+     delete mig_matrix;
+     delete half_times;
+     delete active_times;
+ }
+
+ void set_pop_divergence(int pop1, int pop2, int new_pop, double tdiv_exact) {
+     int tdiv = get_closest_time(tdiv_exact, half_times, ntime-1);
+     if (fabs(half_times[tdiv] - tdiv_exact) > 1) {
+	 printLog(LOG_LOW, "Warning: setting tdiv of pops %i and %i to %.0f (closest interval to desired time %.0f)\n",
+		  pop1, pop2, half_times[tdiv], tdiv_exact);
+     }
+     for (int i=0; i < npop; i++) {
+	 mig_matrix.matrix[tdiv][pop1][i] = (i == new_pop ? 1.0 : 0.0);
+	 mig_matrix.matrix[tdiv][pop2][i] = (i == new_pop ? 1.0 : 0.0);
+	 if (i != pop1 && i != pop2 && i != new_pop) {
+	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop1];
+	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop2];
+	     mig_matrix.matrix[tdiv][i][pop1] = 0.0;
+	     mig_matrix.matrix[tdiv][i][pop2] = 0.0;
+	 }
+     }
+     for (int i=tdiv; i < ntime - 1; i++) {
+	 active_times[i].erase(pop1);
+	 active_times[i].erase(pop2);
+	 active_times[i].insert(new_pop);
+     }
+ }
+
+
+ int npop_leaf;
+ int npop;
+ int ntime;
+ set<int> *active_times;
+ double *half_times;
+ MigrationMatrix mig_matrix;
+    
+
+
+};
+
 
 //describe a set of time intervals with a single popsize, and whether
 // they should be sampled

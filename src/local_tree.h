@@ -85,12 +85,15 @@ public:
 class LocalNode
 {
 public:
-    LocalNode() {}
+    LocalNode() {
+	pop = NULL;
+    }
     LocalNode(int parent, int left_child, int right_child, int age=-1) :
         parent(parent), age(age)
     {
         child[0] = left_child;
         child[1] = right_child;
+	pop = NULL;
     }
     LocalNode(const LocalNode &other) :
         parent(other.parent),
@@ -98,7 +101,18 @@ public:
     {
         child[0] = other.child[0];
         child[1] = other.child[1];
+	if (other.pop != NULL) {
+	    ntime = other.ntime;
+	    pop = new int[ntime];
+	    for (int i=0; i < ntime; i++)
+		pop[i] = other.pop[i];
+	}
     }
+
+    ~LocalNode() {
+	if (pop != NULL)
+	    delete pop;
+    }	
 
     inline bool is_leaf() const
     {
@@ -125,11 +139,40 @@ public:
         age = other.age;
         child[0] = other.child[0];
         child[1] = other.child[1];
+	if (other.pop != NULL) {
+	    ntime = other.ntime;
+	    pop = new int[ntime];
+	    for (int i=0; i < ntime; i++)
+		pop[i] = other.pop[i];
+	}
     }
+
+    void set_pop(int _pop, int _ntime) {
+	if (pop == NULL) {
+	    ntime = _ntime;
+	    pop = new int[ntime];
+	} else if (_ntime != ntime) {
+	    delete pop;
+	    ntime = _ntime;
+	    pop = new int[ntime];
+	}
+	for (int i=0; i < ntime; i++)
+	    pop[i] = _pop;
+    }
+
+    int get_pop(int time, int npop=-1) {
+	if (pop == NULL) return 0;
+	if (npop > 0)
+	    assert(pop[time] >= 0 && pop[time] < npop);
+	return pop[time];
+    }
+
 
     int parent;
     int child[2];
     int age;
+    int *pop;
+    int ntime;
 };
 
 extern LocalNode null_node;
@@ -181,6 +224,8 @@ public:
 
     ~LocalTree() {
         if (nodes) {
+	    for (int i=0; i < nnodes; i++)
+		delete nodes[i];
             delete [] nodes;
             nodes = NULL;
         }
@@ -189,15 +234,19 @@ public:
     // initialize a local tree by on a parent array
     void set_ptree(int *ptree, int _nnodes, int *ages=NULL, int _capacity=-1)
     {
+        // delete existing nodes if they exist
+        if (nodes) {
+	    for (int i=0; i < nnodes; i++)
+		delete nodes[i];
+	    delete [] nodes;
+	}
+
         nnodes = _nnodes;
         if (_capacity >= 0)
             capacity = _capacity;
         if (capacity < nnodes)
             capacity = nnodes;
 
-        // delete existing nodes if they exist
-        if (nodes)
-            delete [] nodes;
         nodes = new LocalNode [capacity];
 
         // populate parent pointers
@@ -249,10 +298,13 @@ public:
             return;
 
         LocalNode *tmp = new LocalNode[_capacity];
-        assert(tmp);
-
-        // copy over nodes
-        std::copy(nodes, nodes + capacity, tmp);
+	assert(tmp);
+	for (int i=0; i < min(capacity, _capacity); i++) {
+	    if (i < capacity) {
+		tmp[i] = new LocalNode(nodes[i]);
+		delete(nodes[i]);
+	    } else tmp[i] = new LocalNode();
+	}
         delete [] nodes;
 
         nodes = tmp;
@@ -675,9 +727,9 @@ public:
 
 
 // count the lineages in a tree
-void count_lineages(const LocalTree *tree, int ntimes,
+void count_lineages(const LocalTree *tree, int npops, int ntimes,
                     int *nbranches, int *nrecombs, int *ncoals);
-void count_lineages_internal(const LocalTree *tree, int ntimes,
+void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
                     int *nbranches, int *nrecombs, int *ncoals);
 
 
@@ -685,16 +737,26 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
 class LineageCounts
 {
 public:
-    LineageCounts(int ntimes) :
-        ntimes(ntimes)
+   LineageCounts(int ntimes, int npops = 1) :
+    ntimes(ntimes), npops(npops)
     {
-        nbranches = new int [ntimes];
-        nrecombs = new int [ntimes];
-        ncoals = new int [ntimes];
+	nbranches = new int [npops];
+	nrecombs = new int [npops];
+	ncoals = new int [npops];
+	for (int i=0; i < npops; i++) {
+	    nbranches[i] = new int [ntimes];
+	    nrecombs[i] = new int [ntimes];
+	    ncoals[i] = new int [ntimes];
+	}
     }
 
     ~LineageCounts()
     {
+	for (int i=0; i < npops; i++) {
+	    delete [] nbranches[i];
+	    delete [] nrecombs[i];
+	    delete [] ncoals[i];
+	}
         delete [] nbranches;
         delete [] nrecombs;
         delete [] ncoals;
@@ -703,15 +765,16 @@ public:
     // Counts the number of lineages for a tree
     inline void count(const LocalTree *tree, bool internal=false) {
         if (internal)
-            count_lineages_internal(tree, ntimes, nbranches, nrecombs, ncoals);
+            count_lineages_internal(tree, npops, ntimes, nbranches, nrecombs, ncoals);
         else
-            count_lineages(tree, ntimes, nbranches, nrecombs, ncoals);
+            count_lineages(tree, npops, ntimes, nbranches, nrecombs, ncoals);
     }
 
-    int ntimes;      // number of time points
-    int *nbranches;  // number of branches per time slice
-    int *nrecombs;   // number of recombination points per time slice
-    int *ncoals;     // number of coalescing points per time slice
+    int npops;        // number of populations
+    int ntimes;       // number of time points
+    int **nbranches;  // number of branches per time slice
+    int **nrecombs;   // number of recombination points per time slice
+    int **ncoals;     // number of coalescing points per time slice
 };
 
 

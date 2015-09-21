@@ -852,13 +852,15 @@ void cond_sample_arg_thread_internal(
     time.start();
     vector<int> recomb_pos;
     vector<NodePoint> recombs;
+    int **thread_pop = NULL;
     sample_recombinations(trees, model, &matrix_iter2,
-                          thread_path, recomb_pos, recombs, internal);
+                          thread_path, recomb_pos, recombs, internal, &thread_pop);
+
 
     // add thread to ARG
     add_arg_thread_path(trees, matrix_iter.states_model,
                         model->ntimes, thread_path,
-                        recomb_pos, recombs);
+                        recomb_pos, recombs, thread_pop);
     printTimerLog(time, LOG_LOW,
                   "add thread:                         ");
 
