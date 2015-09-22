@@ -212,7 +212,7 @@ void arghmm_forward_block(const LocalTree *tree, const int ntimes,
     for (int a=0; a<ntimes-1; a++) {
         for (int b=0; b<ntimes-1; b++) {
             tmatrix[a][b] = matrix->get_time(a, b, 0, minage, false);
-            assert(!isnan(tmatrix[a][b]));
+            //assert(!isnan(tmatrix[a][b]));
         }
 
         for (int k=0; k<nstates; k++) {

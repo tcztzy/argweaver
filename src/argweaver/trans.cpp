@@ -490,13 +490,14 @@ double calc_recoal(
                        (2.0*model->popsizes[j]) - Z);
     }
 
-    // asserts
-    if (ncoals_j <= 0 || nbranches_j <= 0) {
+    // asserts- these may not hold for ancient samples, if threading the non-ancient
+    // subtree could have 0 branches in recent time intervals with 0 prob of coal
+ /*   if (ncoals_j <= 0 || nbranches_j <= 0) {
         printError("counts %d %d %e\n",
                    ncoals_j, nbranches_j, p);
         assert(false);
     }
-    assert(!isnan(p) && p>0);
+    assert(!isnan(p) && p>0);*/
 
     return p;
 }
