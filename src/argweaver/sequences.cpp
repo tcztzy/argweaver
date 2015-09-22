@@ -595,6 +595,12 @@ void Sequences::randomize_phase(double frac) {
 }
 
 
+void Sequences::set_age() {
+    int nseqs = names.size();
+    ages.resize(nseqs, 0);
+    real_ages.resize(nseqs, 0);
+}
+
 void Sequences::set_age(string agefile, int ntimes, const double *times) {
     char currseq[1000];
     FILE *infile = fopen(agefile.c_str(), "r");
@@ -629,7 +635,7 @@ void Sequences::set_age(string agefile, int ntimes, const double *times) {
 	    }
 	}
 	if (!found) {
-	    fprintf(stderr, 
+	    fprintf(stderr,
 		    "WARNING: could not find sequence %s (from %s) in sequences\n",
 		    currseq, agefile.c_str());
 	}

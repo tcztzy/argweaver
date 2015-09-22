@@ -735,7 +735,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
 			for (LocalTrees::iterator it=trees->begin();
 			     it != trees->end(); ++it) {
-			    
+
 			    if (it->spr.recomb_node == j && it->spr.recomb_time < mintime) {
 				assert(it->spr.coal_time >= mintime);
 				it->spr.recomb_time = mintime;
@@ -1160,7 +1160,8 @@ int main(int argc, char **argv)
 
     if (c.age_file != "")
 	sequences.set_age(c.age_file, c.model.ntimes, c.model.times);
-
+    else sequences.set_age();
+ 
     c.model.set_popsizes(c.popsize_str, c.model.ntimes);
 
     // setup phasing options

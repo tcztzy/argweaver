@@ -153,6 +153,7 @@ public:
     void set_pairs(const ArgModel *mod);
 
     void set_age(string agefile, int ntimes, const double *times);
+    void set_age();
 
     int get_pair(int i) {
 	if ((int)pairs.size() < i) return -1;
