@@ -114,6 +114,9 @@ public:
                    ("", "--sample-popsize-const", &sample_popsize_const,
 		    "sample popsize, keep constant across times", DEBUG_OPT));
 	config.add(new ConfigParam<double>
+                   ("", "--time-step", "<time>", &time_step, 0,
+                    "linear time step in generations (optional)"));
+	config.add(new ConfigParam<double>
 		   ("", "--epsilon", "<val>", &epsilon,
 		    0.01, "(for use with --sample-popsize) epsilon value for"
 		    "Hamiltonian population size updates", DEBUG_OPT));
@@ -214,6 +217,7 @@ public:
     int ntimes;
     double maxtime;
     double delta;
+    double time_step;
     string times_file;
     ArgModel model;
     bool init_popsize_random;
@@ -421,6 +425,8 @@ int main(int argc, char **argv)
     // setup model parameters
     if (c.times_file != "")
         c.model.set_times_from_file(c.times_file);
+    else if (c.time_step)
+        c.model.set_linear_times(c.time_step, c.ntimes);
     else
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     c.model.rho = c.rho;
