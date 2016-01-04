@@ -55,9 +55,6 @@ void get_coal_time_steps(const double *times, int ntimes,
 	    times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, times[ntimes-1],
 					   delta);
     }
-    for (int i=0; i < 2*ntimes; i++)
-	printf("times2[%i]=%f\n", i, times2[i]);
-
     for (int i=0; i<2*ntimes-2; i++) {
         coal_time_steps[i] = times2[min(i+1, 2*ntimes)] - times2[i];
 	if (coal_time_steps[i] < 0) {
