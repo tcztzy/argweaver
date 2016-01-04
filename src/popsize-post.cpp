@@ -432,6 +432,7 @@ int main(int argc, char **argv)
     c.model.rho = c.rho;
     c.model.mu = c.mu;
     c.model.set_popsizes(c.popsize_str, c.model.ntimes);
+    c.model.popsize_config.pseudocount = c.pseudocount;
 
     // log original model
     ArgModel model(c.model);
