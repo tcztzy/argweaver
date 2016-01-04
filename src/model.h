@@ -36,8 +36,104 @@ inline void get_time_points(int ntimes, double maxtime,
 
 
 void get_coal_time_steps(const double *times, int ntimes,
-			 double *coal_time_steps, bool linear);
+			 double *coal_time_steps, bool linear,
+			 double delta);
 
+
+class MigrationMatrix
+{
+ public:
+ MigrationMatrix() :
+    npop(0), ntime(0), matrix(NULL);
+
+ MigrationMatrix(int npop, int ntime) :
+    npop(npop), ntime(ntime)
+    {
+	matrix = new double**[ntime];
+	for (int i=0; i < ntime; i++) {
+	    matrix[i] = new double*[npop];
+	    for (int j=0; j < ntime; j++) {
+		matrix[i][j] = new double[npop]();
+	    }
+	}
+    }
+
+ ~MigrationMatrix() {
+     if (matrix != NULL) {
+	 for (int i=0; i < ntime; i++) {
+	     for (int j=0; j < npop; j++)
+		 delete matrix[i][j];
+	     delete matrix[i];
+	 }
+	 delete matrix;
+     }
+ }
+     
+ int npop;
+ int ntime;
+ double ***matrix;
+};
+
+
+class PopulationTree {
+ public:
+    // 
+ PopulationTree(int npop_leaf, int ntime, double *coal_time_steps) :
+    npop_leaf(npop_leaf), ntime(ntime) {
+    npop = 2*npop_present - 1;
+    mig_matrix = new MigrationMatrix(npop, ntime);
+    half_times = new double[ntime-1];
+    int j=0;
+    for (int i=0; i < ntime - 1; i++) {
+	half_times[j++] = coal_time_steps[2*i+1];
+    }
+    active_times = new set<int>[ntime-1];
+    for (int i=0; i < ntime - 1; i++) {
+	for (int j=0; j < npop_leaf; j++)
+	    active_times[i].insert(j);
+    }
+ }
+
+ ~PopulationTree() {
+     delete mig_matrix;
+     delete half_times;
+     delete active_times;
+ }
+
+ void set_pop_divergence(int pop1, int pop2, int new_pop, double tdiv_exact) {
+     int tdiv = get_closest_time(tdiv_exact, half_times, ntime-1);
+     if (fabs(half_times[tdiv] - tdiv_exact) > 1) {
+	 printLog(LOG_LOW, "Warning: setting tdiv of pops %i and %i to %.0f (closest interval to desired time %.0f)\n",
+		  pop1, pop2, half_times[tdiv], tdiv_exact);
+     }
+     for (int i=0; i < npop; i++) {
+	 mig_matrix.matrix[tdiv][pop1][i] = (i == new_pop ? 1.0 : 0.0);
+	 mig_matrix.matrix[tdiv][pop2][i] = (i == new_pop ? 1.0 : 0.0);
+	 if (i != pop1 && i != pop2 && i != new_pop) {
+	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop1];
+	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop2];
+	     mig_matrix.matrix[tdiv][i][pop1] = 0.0;
+	     mig_matrix.matrix[tdiv][i][pop2] = 0.0;
+	 }
+     }
+     for (int i=tdiv; i < ntime - 1; i++) {
+	 active_times[i].erase(pop1);
+	 active_times[i].erase(pop2);
+	 active_times[i].insert(new_pop);
+     }
+ }
+
+
+ int npop_leaf;
+ int npop;
+ int ntime;
+ set<int> *active_times;
+ double *half_times;
+ MigrationMatrix mig_matrix;
+    
+
+
+};
 
 
 //describe a set of time intervals with a single popsize, and whether
@@ -70,7 +166,8 @@ class PopsizeConfig
     popsize_prior_beta(1.0e-4),
     numsample(1),
     neighbor_prior(false),
-    config_buildup(0)
+    config_buildup(0),
+    pseudocount(0)
   {
       if (sample) {
           if (onepop) {
@@ -268,7 +365,7 @@ class ArgModel
         mc3 = other.mc3;
 
         // copy popsizes and times
-        set_times(other.times, ntimes);
+        set_times(other.times, other.coal_time_steps, ntimes);
         if (other.popsizes)
             set_popsizes(other.popsizes, ntimes);
 
@@ -296,6 +393,16 @@ class ArgModel
 
     //=====================================================================
     // setting time points and population sizes
+
+    // Sets the model time points from an array
+    void set_times(double *_times, double *_coal_time_steps, int _ntimes) {
+        ntimes = _ntimes;
+        clear_array(&times);
+        times = new double [ntimes];
+        std::copy(_times, _times + ntimes, times);
+        setup_time_steps(false, 0, _coal_time_steps);
+    }
+
 
     // Sets the model time points from an array
     void set_times(double *_times, int _ntimes) {
@@ -463,7 +570,7 @@ protected:
     // Setup time steps between time points
     // if linear=true, ignore delta and set mid-points halfway between
     //   each time step
-    void setup_time_steps(bool linear=false, double delta=0.01)
+    void setup_time_steps(bool linear=false, double delta=0.01, double *_coal_time_steps=NULL)
     {
         clear_array(&time_steps);
         time_steps = new double [ntimes];
@@ -473,7 +580,9 @@ protected:
 
         clear_array(&coal_time_steps);
         coal_time_steps = new double [2*ntimes];
-        get_coal_time_steps(times, ntimes, coal_time_steps, linear);
+	if (_coal_time_steps == NULL)
+	    get_coal_time_steps(times, ntimes, coal_time_steps, linear, delta);
+	else std::copy(_coal_time_steps, _coal_time_steps + 2*ntimes, coal_time_steps);
     }
 
  public:

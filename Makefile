@@ -55,7 +55,7 @@ PKG_DIR=$(DIST)/$(PKG_NAME)-$(PKG_VERSION)
 
 # program files
 SCRIPTS = bin/*
-PROGS = bin/arg-sample bin/arg-summarize bin/smc2bed bin/popsize-post
+PROGS = bin/arg-sample bin/arg-summarize bin/smc2bed bin/popsize-post bin/compress-sites
 BINARIES = $(PROGS) $(SCRIPTS)
 
 ARGWEAVER_SRC = \
@@ -75,7 +75,6 @@ ARGWEAVER_SRC = \
     src/newick.cpp \
     src/parsing.cpp \
     src/pop_model.cpp \
-    src/popsize-post.cpp \
     src/ptree.cpp \
     src/recomb.cpp \
     src/sample_arg.cpp \
@@ -100,7 +99,9 @@ ALL_SRC = \
     $(ARGWEAVER_SRC) \
     src/arg-sample.cpp \
     src/arg-summarize.cpp \
-    src/smc2bed.cpp
+    src/smc2bed.cpp \
+    src/popsize-post.cpp \
+    src/compress-sites.cpp
 
 
 ARGWEAVER_OBJS = $(ARGWEAVER_SRC:.cpp=.o)
@@ -151,6 +152,9 @@ bin/arg-summarize: src/arg-summarize.o $(LIBARGWEAVER)
 
 bin/popsize-post: src/popsize-post.o $(LIBARGWEAVER)
 	$(CXX) $(CFLAGS) -o bin/popsize-post src/popsize-post.o $(LIBARGWEAVER)
+
+bin/compress-sites: src/compress-sites.o $(LIBARGWEAVER)
+	$(CXX) $(CFLAGS) -o bin/compress-sites src/compress-sites.o $(LIBARGWEAVER)
 
 #-----------------------------
 # ARGWEAVER C-library

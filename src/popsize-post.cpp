@@ -57,6 +57,12 @@ public:
 	ntimes = 20;
 	maxtime = 200e3;
 	delta = 0.01;
+
+        // note that population size is independent of mutation and
+        // and recombination rate conditional on ARG so these are really just
+        // dummy variables needed to define the model
+	mu = 2.5e-8;
+	rho = 1.25e-8;
     }
 
     void make_parser()
@@ -107,6 +113,9 @@ public:
 	config.add(new ConfigSwitch
                    ("", "--sample-popsize-const", &sample_popsize_const,
 		    "sample popsize, keep constant across times", DEBUG_OPT));
+	config.add(new ConfigParam<double>
+                   ("", "--time-step", "<time>", &time_step, 0,
+                    "linear time step in generations (optional)"));
 	config.add(new ConfigParam<double>
 		   ("", "--epsilon", "<val>", &epsilon,
 		    0.01, "(for use with --sample-popsize) epsilon value for"
@@ -208,6 +217,7 @@ public:
     int ntimes;
     double maxtime;
     double delta;
+    double time_step;
     string times_file;
     ArgModel model;
     bool init_popsize_random;
@@ -327,18 +337,18 @@ void print_stats_popsizes(Config *config, int iter, ArgModel *model) {
 
 
 /*void print_stats(FILE *stats_file, const char *stage, int iter,
-                 ArgModel *model, const struct popsize_data &popsize_data_prior, 
+                 ArgModel *model, const struct popsize_data &popsize_data_prior,
 		 const struct popsize_data *popsize_data_post, int popsize_data_len,
                  const Config *config)
 {
 
     double prior = calc_popsize_prob(model, popsize_data_prior);
-    double likelihood = calc_avg_popsize_prob(model, popsize_data_post, popsize_data_len); 
+    double likelihood = calc_avg_popsize_prob(model, popsize_data_post, popsize_data_len);
     double joint = prior + likelihood;
 
     // output stats
     fprintf(stats_file, "%s\t%d\t%f\t%f\t%f", stage, iter, likelihood);
-    for (int i=0; i < config->model.ntimes-1; i++) 
+    for (int i=0; i < config->model.ntimes-1; i++)
 	fprintf(stats_file, "\t%f", model->popsizes[i]);
     fprintf(stats_file, "\n");
     fflush(stats_file);
@@ -415,16 +425,18 @@ int main(int argc, char **argv)
     // setup model parameters
     if (c.times_file != "")
         c.model.set_times_from_file(c.times_file);
+    else if (c.time_step)
+        c.model.set_linear_times(c.time_step, c.ntimes);
     else
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     c.model.rho = c.rho;
     c.model.mu = c.mu;
     c.model.set_popsizes(c.popsize_str, c.model.ntimes);
+    c.model.popsize_config.pseudocount = c.pseudocount;
 
     // log original model
     ArgModel model(c.model);
     log_model(model);
-
 
     // init stats file
     string stats_filename = c.outfile;
@@ -454,7 +466,7 @@ int main(int argc, char **argv)
 		//	    popsize_sufficient_stats(&data, model, trees);
 		//	    suff_stats.push(&data);
 		popsize_sufficient_stats(&data, &model, trees, mpi != 0);
-	    } 
+	    }
 	    delete trees;
 	    if (!new_arg) break;
 	    num_read++;

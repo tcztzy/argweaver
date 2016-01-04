@@ -971,13 +971,13 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 if (html) printf("</td><td>");
                 printf("%i\t", snpStream.coord);
                 if (html) printf("</td><td>");
-                printf("%c\t", l->derAllele);
+                printf("%c\t", derAllele);
                 if (html) printf("</td><td>");
-                printf("%c\t", l->otherAllele);
+                printf("%c\t", otherAllele);
                 if (html) printf("</td><td>");
-                printf("%i\t", l->derFreq);
+                printf("%i\t", derFreq);
                 if (html) printf("</td><td>");
-                printf("%i\t", l->otherFreq);
+                printf("%i\t", otherFreq);
                 if (html) printf("</td><td>");
                 printf("%i\t", (int)bedlist.size());
                 if (html) printf("</td><td>");

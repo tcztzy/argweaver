@@ -814,6 +814,7 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
     double ***nocoal_counts;
     double *coal_totals;
     double *nocoal_totals;
+
     if (!add) {
 	int arr_size = 2*(model->ntimes * numleaf * numleaf + model->ntimes);
 	double *arr_alloc = new double[arr_size]();
@@ -824,6 +825,7 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
 	coal_totals = &arr_alloc[0];
 	nocoal_totals = &arr_alloc[model->ntimes];
 	pseudocount=model->popsize_config.pseudocount;
+	//	printf("pseudocount=%f\n", pseudocount);
 #ifdef ARGWEAVER_MPI
 	//Set pseudocount to zero for all but one MPI, since it will all get combined
 	MPI::Intracomm *comm = model->mc3.group_comm;
@@ -911,12 +913,12 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
 void delete_popsize_data(struct popsize_data *data) {
     int ntimes = data->model->ntimes;
     for (int i=0; i < ntimes; i++) {
-	delete data->coal_counts[i];
-	delete data->nocoal_counts[i];
+	delete [] data->coal_counts[i];
+	delete [] data->nocoal_counts[i];
     }
-    delete data->coal_counts;
-    delete data->nocoal_counts;
-    delete data->arr_alloc;
+    delete [] data->coal_counts;
+    delete [] data->nocoal_counts;
+    delete [] data->arr_alloc;
 }
 
 

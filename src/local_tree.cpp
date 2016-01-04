@@ -27,20 +27,23 @@ LocalNode null_node;
 // point (ntimes - 1).
 //
 // tree      -- local tree to count
+// npops     -- number of populations
 // ntimes    -- number of time segments
 // nbranches -- number of branches that exists between time i and i+1
 // nrecombs  -- number of possible recombination points at time i
 // ncoals    -- number of possible coalescing points at time i
-void count_lineages(const LocalTree *tree, int ntimes,
-                    int *nbranches, int *nrecombs, int *ncoals)
+void count_lineages(const LocalTree *tree, int npops, int ntimes,
+                    int **nbranches, int **nrecombs, int **ncoals)
 {
     const LocalNode *nodes = tree->nodes;
 
     // initialize counts
-    for (int i=0; i<ntimes; i++) {
-        nbranches[i] = 0;
-        nrecombs[i] = 0;
-        ncoals[i] = 0;
+    for (int i=0; i < npops; i++) {
+	for (int j=0; j<ntimes; j++) {
+	    nbranches[i][j] = 0;
+	    nrecombs[i][j] = 0;
+	    ncoals[i][j] = 0;
+	}
     }
 
     // iterate over the branches of the tree
@@ -52,20 +55,23 @@ void count_lineages(const LocalTree *tree, int ntimes,
 
         // add counts for every segment along branch
         for (int j=nodes[i].age; j<parent_age; j++) {
-            nbranches[j]++;
-            nrecombs[j]++;
-            ncoals[j]++;
+	    int pop = nodes[i].get_pop(j, npops);
+            nbranches[pop][j]++;
+            nrecombs[pop][j]++;
+            ncoals[pop][j]++;
         }
 
+	int pop = nodes[i].get_pop(j, npops);
         // recomb and coal are also allowed at the top of a branch
-        nrecombs[parent_age]++;
-        ncoals[parent_age]++;
+        nrecombs[pop][parent_age]++;
+        ncoals[pop][parent_age]++;
         if (parent == -1)
-            nbranches[parent_age]++;
+            nbranches[pop][parent_age]++;
     }
 
     // ensure last time segment always has one branch
-    nbranches[ntimes - 1] = 1;
+    for (int i=0; i < npops; i++)
+	nbranches[i][ntimes - 1] = 1;
 }
 
 
@@ -75,11 +81,12 @@ void count_lineages(const LocalTree *tree, int ntimes,
 // point (ntimes - 1).
 //
 // tree      -- local tree to count
+// npops     -- number of populations
 // ntimes    -- number of time segments
 // nbranches -- number of branches that exists between time i and i+1
 // nrecombs  -- number of possible recombination points at time i
 // ncoals    -- number of possible coalescing points at time i
-void count_lineages_internal(const LocalTree *tree, int ntimes,
+void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
                              int *nbranches, int *nrecombs, int *ncoals)
 {
     const LocalNode *nodes = tree->nodes;
@@ -87,10 +94,12 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
     const int minage = nodes[subtree_root].age;
 
     // initialize counts
-    for (int i=0; i<ntimes; i++) {
-        nbranches[i] = 0;
-        nrecombs[i] = 0;
-        ncoals[i] = 0;
+    for (int i=0; i < npops; i++) {
+	for (int j=0; j<ntimes; j++) {
+	    nbranches[i][j] = 0;
+	    nrecombs[i][j] = 0;
+	    ncoals[i][j] = 0;
+	}
     }
 
     // iterate over the branches of the tree
@@ -106,28 +115,33 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
 
         // add counts for every segment along branch
         for (int j=nodes[i].age; j<parent_age; j++) {
-            nbranches[j]++;
-            nrecombs[j]++;
-            ncoals[j]++;
+	    int pop = nodes[i].get_pop(j, npops);
+            nbranches[pop][j]++;
+            nrecombs[pop][j]++;
+            ncoals[pop][j]++;
         }
-
+	
         // recomb and coal are also allowed at the top of a branch
-        nrecombs[parent_age]++;
-        ncoals[parent_age]++;
+	int pop = nodes[i].get_pop(parent_age, npops);
+        nrecombs[pop][parent_age]++;
+        ncoals[pop][parent_age]++;
         if (parent == tree->root)
-            nbranches[parent_age]++;
+            nbranches[pop][parent_age]++;
     }
 
     // discount one lineage from within subtree, since it will be added
     // back by other procedures
     for (int i=0; i<minage; i++) {
-        nbranches[i]--;
-        ncoals[i]--;
-        nrecombs[i]--;
+	for (j=0; j < npops; j++) {
+	    nbranches[j][i]--;
+	    ncoals[j][i]--;
+	    nrecombs[j][i]--;
+	}
     }
 
     // ensure last time segment always has one branch
-    nbranches[ntimes - 1] = 1;
+    for (int i=0; i < npops; i++)
+	nbranches[i][ntimes - 1] = 1;
 }
 
 

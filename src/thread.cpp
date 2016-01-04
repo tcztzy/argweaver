@@ -44,7 +44,7 @@ void rename_node(LocalTree *tree, int src_node, int dest_node)
 //   - Node currently named 'nleaves' will be displaced to 'nnodes' (displaced)
 //   - New internal node will be named 'nnodes+1' (newcoal)
 //
-void add_tree_branch(LocalTree *tree, int node, int time)
+void add_tree_branch(LocalTree *tree, int node, int time, int *pop, int ntime)
 {
     // Ensure tree has capacity to add nodes.
     // This is the responsibility of the caller.
@@ -81,6 +81,17 @@ void add_tree_branch(LocalTree *tree, int node, int time)
     nodes[newcoal].child[0] = newleaf;
     nodes[newcoal].child[1] = node2;
     nodes[newcoal].age = time;
+
+    if (pop != NULL) {
+	for (int i=0; i <= time; i++)
+	    nodes[newleaf].pop[i] = pop[i];
+	assert(pop[time] == nodes[node].pop[time]);
+	int maxage = (parent == -1 ? ntime - 1 : nodes[parent].age);
+	for (int i=time; i <= maxage; i++)
+	    nodes[newcoal].pop[i] = nodes[node].pop[i];
+	if (parent != -1)
+	    assert(nodes[newcoal].pop[maxage] == nodes[parent].pop[maxage]);
+    }
 
     // fix pointers
     nodes[node2].parent = newcoal;
@@ -271,7 +282,8 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
 // add a leaf thread to an ARG
 void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
                     int ntimes, int *thread_path, int seqid,
-                    vector<int> &recomb_pos, vector<NodePoint> &recombs)
+                    vector<int> &recomb_pos, vector<NodePoint> &recombs,
+		    int **thread_pop)
 {
     unsigned int irecomb = 0;
     int nleaves = trees->get_num_leaves();
@@ -305,7 +317,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
         // add new branch to local tree
         it->ensure_capacity(nnodes2);
         State state = states[thread_path[start]];
-        add_tree_branch(tree, state.node, state.time);
+        add_tree_branch(tree, state.node, state.time, thread_pop[start], ntimes);
 
         // update mapping and spr
         int *mapping = it->mapping;
@@ -1313,7 +1325,8 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
 // Add a branch to a partial ARG
 void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
                          int ntimes, const int *thread_path,
-                         vector<int> &recomb_pos, vector<NodePoint> &recombs)
+                         vector<int> &recomb_pos, vector<NodePoint> &recombs,
+			 int **thread_pop)
 {
     States states;
     LocalTree *last_tree = NULL;
@@ -1344,6 +1357,11 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
             Spr add_spr(subtree_root, nodes[subtree_root].age,
                         state.node, state.time);
             apply_spr(tree, add_spr);
+	    if (thread_pop != NULL) {
+		for (int i=nodes[subtree_root].age; i <= state.time; i++)
+		    nodes[subtree_root].pop[i] = thread_pop[i];
+		assert(nodes[subtree_root].pop[state.time] == nodes[state.node].pop[state.time]);
+	    }
         } else {
             // set null state
             state.set_null();
@@ -1403,7 +1421,7 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
 
 
             // determine mapping:
-            // all nodes keep their name accept the broken node, which is the
+            // all nodes keep their name except the broken node, which is the
             // parent of recomb
             int *mapping2 = new int [tree->capacity];
             for (int j=0; j<tree->nnodes; j++)
