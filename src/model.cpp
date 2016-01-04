@@ -40,7 +40,8 @@ double get_delta(const double *times, int ntimes, double maxtime) {
 }
 
 void get_coal_time_steps(const double *times, int ntimes,
-                         double *coal_time_steps, bool linear)
+			 double *coal_time_steps, bool linear,
+			 double delta)
 {
     // get midpoints
     double times2[2*ntimes+1];
@@ -50,12 +51,9 @@ void get_coal_time_steps(const double *times, int ntimes,
         for (int i=0; i < ntimes-1; i++)
             times2[2*i+1] = 0.5*(times[i+1] + times[i]);
     } else {
-	double delta = get_delta(times, ntimes, times[ntimes-1]);
-        for (int i=0; i < ntimes-1; i++) {
-	    //	    times2[2*i+1] = sqrt((times2[2*i]+1.0)*(times2[2*i+2]+1.0));
+	for (int i=0; i < ntimes-1; i++)
 	    times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, times[ntimes-1],
 					   delta);
-	}
     }
     for (int i=0; i < 2*ntimes; i++)
 	printf("times2[%i]=%f\n", i, times2[i]);
