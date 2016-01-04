@@ -57,6 +57,12 @@ public:
 	ntimes = 20;
 	maxtime = 200e3;
 	delta = 0.01;
+
+        // note that population size is independent of mutation and
+        // and recombination rate conditional on ARG so these are really just
+        // dummy variables needed to define the model
+	mu = 2.5e-8;
+	rho = 1.25e-8;
     }
 
     void make_parser()
