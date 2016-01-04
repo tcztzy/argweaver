@@ -46,24 +46,23 @@ void get_coal_time_steps(const double *times, int ntimes,
     // get midpoints
     double times2[2*ntimes+1];
     for (int i=0; i < ntimes; i++)
-        times2[2*i] = times[i];
+	times2[2*i] = times[i];
     if (linear) {
-        for (int i=0; i < ntimes-1; i++)
-            times2[2*i+1] = 0.5*(times[i+1] + times[i]);
+	for (int i=0; i < ntimes-1; i++)
+	    times2[2*i+1] = 0.5*(times[i+1] + times[i]);
     } else {
 	for (int i=0; i < ntimes-1; i++)
 	    times2[2*i+1] = get_time_point(2*i+1, 2*ntimes-2, times[ntimes-1],
 					   delta);
     }
-    for (int i=0; i<2*ntimes-2; i++) {
-        coal_time_steps[i] = times2[min(i+1, 2*ntimes)] - times2[i];
+    for (int i=0; i < 2*ntimes-2; i++) {
+	coal_time_steps[i] = times2[min(i+1, 2*ntimes)] - times2[i];
 	if (coal_time_steps[i] < 0) {
 	    assert(0);
 	}
     }
     coal_time_steps[2*ntimes-2] = INFINITY;
 }
-
 
 
 // returns true if regions in track are flush with one another
