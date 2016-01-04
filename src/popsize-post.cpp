@@ -337,18 +337,18 @@ void print_stats_popsizes(Config *config, int iter, ArgModel *model) {
 
 
 /*void print_stats(FILE *stats_file, const char *stage, int iter,
-                 ArgModel *model, const struct popsize_data &popsize_data_prior, 
+                 ArgModel *model, const struct popsize_data &popsize_data_prior,
 		 const struct popsize_data *popsize_data_post, int popsize_data_len,
                  const Config *config)
 {
 
     double prior = calc_popsize_prob(model, popsize_data_prior);
-    double likelihood = calc_avg_popsize_prob(model, popsize_data_post, popsize_data_len); 
+    double likelihood = calc_avg_popsize_prob(model, popsize_data_post, popsize_data_len);
     double joint = prior + likelihood;
 
     // output stats
     fprintf(stats_file, "%s\t%d\t%f\t%f\t%f", stage, iter, likelihood);
-    for (int i=0; i < config->model.ntimes-1; i++) 
+    for (int i=0; i < config->model.ntimes-1; i++)
 	fprintf(stats_file, "\t%f", model->popsizes[i]);
     fprintf(stats_file, "\n");
     fflush(stats_file);
@@ -437,7 +437,6 @@ int main(int argc, char **argv)
     ArgModel model(c.model);
     log_model(model);
 
-
     // init stats file
     string stats_filename = c.outfile;
     const char *stats_mode = (c.resume ? "a" : "w");
@@ -466,7 +465,7 @@ int main(int argc, char **argv)
 		//	    popsize_sufficient_stats(&data, model, trees);
 		//	    suff_stats.push(&data);
 		popsize_sufficient_stats(&data, &model, trees, mpi != 0);
-	    } 
+	    }
 	    delete trees;
 	    if (!new_arg) break;
 	    num_read++;
