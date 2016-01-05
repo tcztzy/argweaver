@@ -16,239 +16,151 @@
 
 // arghmm includes
 #include "common.h"
+#include "model.h"
 
 namespace argweaver {
 
-class MigrationMatrix
-{
- public:
- MigrationMatrix() :
-    npop(0), ntime(0), matrix(NULL) {}
-
- MigrationMatrix(int npop, int ntime) :
-    npop(npop), ntime(ntime)
-    {
-	matrix = new double**[ntime];
-	for (int i=0; i < ntime; i++) {
-	    matrix[i] = new double*[npop];
-	    for (int j=0; j < ntime; j++) {
-		matrix[i][j] = new double[npop]();
-	    }
-	}
-    }
-
- ~MigrationMatrix() {
-     if (matrix != NULL) {
-	 for (int i=0; i < ntime; i++) {
-	     for (int j=0; j < npop; j++)
-		 delete matrix[i][j];
-	     delete matrix[i];
-	 }
-	 delete matrix;
-     }
- }
-
- int npop;
- int ntime;
- double ***matrix;
-};
-
+class ArgModel;
 
 class PopulationPath {
  public:
-   PopulationPath(int ntime, int start_pop, double start_prob=1.0) :
-      ntime(ntime) {
-        pop = new int[ntime]();
-        pathprob = new double[ntime]();
-        pop[0] = start_pop;
-        pathprob[0]=start_prob;
+    PopulationPath(int ntime) {
+        path = vector<int>(ntime, -1);
+        pathprob = 1.0;
     }
     PopulationPath(const PopulationPath &other) {
-        ntime = other.ntime;
-        pop = new int [ntime];
-        pathprob = new double[ntime];
-        for (int i=0; i < ntime; i++) {
-            pop[i] = other.pop[i];
-            pathprob[i] = other.pathprob[i];
-        }
+        pathprob = other.pathprob;
+        path = vector<int>(other.path);
     }
-    ~PopulationPath() {
-        delete pop;
-        delete pathprob;
+    bool operator< (const PopulationPath &other) const {
+        if (path.size() != other.path.size())
+            return ( path.size() < other.path.size());
+        if (pathprob != other.pathprob)
+            return (pathprob < other.pathprob);
+        for (unsigned int i=0; i < path.size(); i++)
+            if (path[i] != other.path[i]) return (path[i] < other.path[i]);
+        return false;
+    }
+    void set(int time, int pop, double prob=1.0) {
+        path[time] = pop;
+        pathprob *= prob;
     }
     void print() {
-        printf("path: %i (t=0)", pop[0]);
-        int prev = pop[0];
-        for (int i=1; i <ntime; i++) {
-            if (pop[i] != prev) {
-                printf(", %i (t=%i)", pop[i], i);
-                prev = pop[i];
+        int start_pop;
+        for (unsigned int start_pop=0; start_pop < path.size(); start_pop++)
+            if (path[start_pop] != -1) break;
+        printf("path: %i (t=%i)", path[start_pop], start_pop);
+        int prev = path[start_pop];
+        for (unsigned int i=start_pop + 1; i < path.size(); i++) {
+            if (path[i] == -1) break;
+            if (path[i] != prev) {
+                printf(", %i (t=%i)", path[i], i);
+                prev = path[i];
             }
         }
-        printf("\tprob=%f\n", pathprob[ntime-1]);
+        printf("\tprob=%f\n", pathprob);
     }
 
-    int ntime;
-    int *pop;
-    double *pathprob;
-};
+    double pathprob;
+    vector<int> path;
+};  /* class PopulationPath */
 
 
-class MigrationEvent {
+/* Represents the migration matrix for a single time period.
+   Is simply a two-dimensional matrix giving the probability of
+   migrating from each pop to each other pop.
+ */
+class MigMatrix {
  public:
-   MigrationEvent(int from_pop, int to_pop, double prob, bool optimize=false) :
-    from_pop(from_pop), to_pop(to_pop), prob(prob), optimize(optimize) {
+   MigMatrix() {
+       npop=0;
+   }
+   MigMatrix(int npop) : 
+    npop(npop) {
+        init();
+   }
+    MigMatrix(const MigMatrix &other) {
+        npop = other.npop;
+        init();
+        if (npop > 0)
+            std::copy(other.mat, other.mat + npop*npop, mat);
     }
-
-    MigrationEvent(const MigrationEvent &other) {
-        from_pop = other.from_pop;
-        to_pop = other.to_pop;
-        prob = other.prob;
-        optimize = other.optimize;
+    ~MigMatrix() {
+        if (npop > 0) delete [] mat;
     }
-
-    int from_pop;
-    int to_pop;
-    double prob;
-    bool optimize;
-};
-
-
-class PopulationTree {
- public:
- PopulationTree(int npop, int ntime) :
-    npop(npop), ntime(ntime) {
-        mig_events = new vector<MigrationEvent>*[2*ntime-1];
-        for (int i=0; i < ntime-1; i++) {
-            mig_events[2*i+1] = new vector<MigrationEvent>[npop];
-            for (int j=0; j < npop; j++)
-                mig_events[2*i+1][j].clear();
+    /*    void copy(MigMatrix &other) {
+        std::copy(other.mat, other.mat + pop*pop, mat);
+        }*/
+    void set(int from_pop, int to_pop, double val) {
+        mat[from_pop * npop + to_pop] = val;
+    }
+    void update(int from_pop, int to_pop, double val) {
+        set(from_pop, to_pop, val);
+        set(from_pop, from_pop, 1.0-val);
+    }
+    void resize(int new_npop) {
+        if (new_npop != npop) {
+            if (npop > 0) delete [] mat;
+            npop = new_npop;
+            init();
         }
-        pop_paths.clear();
-        pathPtr=NULL;
-  }
-  PopulationTree(string filename, const double *coal_time_steps, int ntime);
-  PopulationTree(PopulationTree *other) {
-      npop = other->npop;
-      ntime = other->ntime;
-      mig_events = new vector<MigrationEvent>*[2*ntime-1];
-      for (int i=0; i < ntime-1; i++) {
-          mig_events[2*i+1] = new vector<MigrationEvent>[npop];
-          for (int j=0; j < npop; j++)
-              mig_events[2*i+1][j] = other->mig_events[2*i+1][j];
-      }
-      setUpPopulationPaths();
-  }
+    }
+    double get(int from_pop, int to_pop) const {
+        return mat[from_pop * npop + to_pop];
+    }
 
- ~PopulationTree() {
-     for (int i=0; i < ntime-1; i++)
-         delete mig_events[2*i+1];
-     delete mig_events;
-     if (pathPtr != NULL) {
-         for (int i=0; i < ntime; i++) {
-             for (int j=0; j < npop; j++) {
-                 for (int k=0; k < ntime; k++)
-                     delete pathPtr[i][j][k];
-                 delete pathPtr[i][j];
-             }
-             delete pathPtr[i];
-         }
-         delete pathPtr;
-     }
-  }
+    int npop;
+    double *mat;
 
- void addMigration(int t, int from_pop, int to_pop, double prob, bool optimize=false) {
-     if (t%2 != 1)
-         exitError("Error: addMigration expects only odd times\n");
-     if (t < 0 || t > 2*ntime-3)
-         exitError("Error: migratation index %i out of range\n", t);
-     if (from_pop >= npop || from_pop < 0)
-         exitError("Error: from_pop (%i) out of range\n", from_pop);
-     if (to_pop >= npop || to_pop < 0)
-         exitError("Error: to_pop (%i) out of range\n", to_pop);
-     MigrationEvent mig(from_pop, to_pop, prob, optimize);
-     for (unsigned int i=0; i < mig_events[t][from_pop].size(); i++)
-         if (mig_events[t][from_pop][i].to_pop == to_pop)
-             exitError("Error: trying to add same migration event twice (t=%i, from_pop=%i, to_pop=%i\n", t, from_pop, to_pop);
-     mig_events[t][from_pop].push_back(mig);
- }
- int setUpPopulationPaths();
+ protected:
+    void init() {
+        if (npop > 0) {
+            mat = new double[npop*npop]();
+            for (int i=0; i < npop; i++)
+                set(i, i, 1.0);
+        }
+    }    
+};
 
- int npop;
- int ntime;
- // mig_events[i][j] is list of all migration events at time i from pop j (i in half-time intervals)
- vector<MigrationEvent> **mig_events;
- // pop_paths is list of all possible paths through populations over time
- vector<PopulationPath> pop_paths;
- // pathPtr[i][j][k][l] is list of pointers to all pop_paths that start at time i, pop j and go
- // to time k, pop l
- vector<PopulationPath*> ****pathPtr;
+
+
+/* PopulationTree
+   is implemented as a vector of migration matrices. One element for each
+   half time interval. 
+ */
+class PopulationTree {
+
+ public:
+  PopulationTree(int npop, const ArgModel *model);
+  PopulationTree(const PopulationTree &other);
+  ~PopulationTree();
+  void update_npop(int new_npop);
+  void add_migration(int t, int from_pop, int to_pop, double prob);
+  int set_up_population_paths();
+
+  //  npop is the total number of non-ancestral populations
+  int npop;
+  const ArgModel *model;
+
+  vector<MigMatrix> mig_matrix;
+
+
+ // want a set of population paths for each starting and ending time (whole times only)
+ // to/from every pair of populations
+ // and a probability associated with each
+ set<PopulationPath> ****paths;
 
  private:
- void getAllPopulationPathsRec(int idx, int start_pop, int time=0, double tol=1.0e-6);
- int get_closest_half_time(double treal, const double *time_steps, int ntime);
-};
+    void getAllPopulationPathsRec(PopulationPath &curpath,
+                                  int start_time, int cur_time, int end_time, 
+                                  int start_pop, int cur_pop);
 
+};  /* class PopulationTree */    
 
-/*
-class PopulationTree {
- public:
-    //
- PopulationTree(int npop_leaf, int ntime, double *coal_time_steps) :
-    npop_leaf(npop_leaf), ntime(ntime) {
-    npop = 2*npop_present - 1;
-    mig_matrix = new MigrationMatrix(npop, ntime);
-    half_times = new double[ntime-1];
-    int j=0;
-    for (int i=0; i < ntime - 1; i++) {
-	half_times[j++] = coal_time_steps[2*i+1];
-    }
-    active_times = new set<int>[ntime-1];
-    for (int i=0; i < ntime - 1; i++) {
-	for (int j=0; j < npop_leaf; j++)
-	    active_times[i].insert(j);
-    }
- }
+bool read_population_tree(FILE *infile, PopulationTree *pop_tree);
 
- ~PopulationTree() {
-     delete mig_matrix;
-     delete half_times;
-     delete active_times;
-     delete active_pops;
- }
-
- void set_pop_divergence(int pop1, int pop2, int new_pop, double tdiv_exact) {
-     int tdiv = get_closest_time(tdiv_exact, half_times, ntime-1);
-     if (fabs(half_times[tdiv] - tdiv_exact) > 1) {
-	 printLog(LOG_LOW, "Warning: setting tdiv of pops %i and %i to %.0f (closest interval to desired time %.0f)\n",
-		  pop1, pop2, half_times[tdiv], tdiv_exact);
-     }
-     for (int i=0; i < npop; i++) {
-	 mig_matrix.matrix[tdiv][pop1][i] = (i == new_pop ? 1.0 : 0.0);
-	 mig_matrix.matrix[tdiv][pop2][i] = (i == new_pop ? 1.0 : 0.0);
-	 if (i != pop1 && i != pop2 && i != new_pop) {
-	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop1];
-	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop2];
-	     mig_matrix.matrix[tdiv][i][pop1] = 0.0;
-	     mig_matrix.matrix[tdiv][i][pop2] = 0.0;
-	 }
-     }
-     for (int i=tdiv+1; i < ntime - 1; i++) {
-	 active_times[i].erase(pop1);
-	 active_times[i].erase(pop2);
-	 active_times[i].insert(new_pop);
-     }
- }
-
-
- int npop;
- int ntime;
- set<int> *active_times;
- set<int> *active_pops;
- double *half_times;
- MigrationMatrix mig_matrix;
-
- };*/
+int get_closest_half_time(double treal, const double *time_steps, int ntime);
+    
 
 } // namespace argweaver
 

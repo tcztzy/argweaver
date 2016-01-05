@@ -11,6 +11,7 @@
 #include <map>
 #include <list>
 #include <algorithm>
+#include <stdio.h>
 
 // arghmm includes
 #include "track.h"
@@ -39,100 +40,20 @@ void get_coal_time_steps(const double *times, int ntimes,
 			 double *coal_time_steps, bool linear,
 			 double delta);
 
-
-class MigrationMatrix
+class PopTime
 {
  public:
- MigrationMatrix() :
-    npop(0), ntime(0), matrix(NULL);
+    PopTime(int pop, int time) : pop(pop), time(time){}
 
- MigrationMatrix(int npop, int ntime) :
-    npop(npop), ntime(ntime)
+    // need comparison operator for use with set<PopTime>
+    bool operator <( const PopTime &other ) const
     {
-	matrix = new double**[ntime];
-	for (int i=0; i < ntime; i++) {
-	    matrix[i] = new double*[npop];
-	    for (int j=0; j < ntime; j++) {
-		matrix[i][j] = new double[npop]();
-	    }
-	}
+        if (pop != other.pop) return pop - other.pop;
+        return time - other.time;
     }
 
- ~MigrationMatrix() {
-     if (matrix != NULL) {
-	 for (int i=0; i < ntime; i++) {
-	     for (int j=0; j < npop; j++)
-		 delete matrix[i][j];
-	     delete matrix[i];
-	 }
-	 delete matrix;
-     }
- }
-     
- int npop;
- int ntime;
- double ***matrix;
-};
-
-
-class PopulationTree {
- public:
-    // 
- PopulationTree(int npop_leaf, int ntime, double *coal_time_steps) :
-    npop_leaf(npop_leaf), ntime(ntime) {
-    npop = 2*npop_present - 1;
-    mig_matrix = new MigrationMatrix(npop, ntime);
-    half_times = new double[ntime-1];
-    int j=0;
-    for (int i=0; i < ntime - 1; i++) {
-	half_times[j++] = coal_time_steps[2*i+1];
-    }
-    active_times = new set<int>[ntime-1];
-    for (int i=0; i < ntime - 1; i++) {
-	for (int j=0; j < npop_leaf; j++)
-	    active_times[i].insert(j);
-    }
- }
-
- ~PopulationTree() {
-     delete mig_matrix;
-     delete half_times;
-     delete active_times;
- }
-
- void set_pop_divergence(int pop1, int pop2, int new_pop, double tdiv_exact) {
-     int tdiv = get_closest_time(tdiv_exact, half_times, ntime-1);
-     if (fabs(half_times[tdiv] - tdiv_exact) > 1) {
-	 printLog(LOG_LOW, "Warning: setting tdiv of pops %i and %i to %.0f (closest interval to desired time %.0f)\n",
-		  pop1, pop2, half_times[tdiv], tdiv_exact);
-     }
-     for (int i=0; i < npop; i++) {
-	 mig_matrix.matrix[tdiv][pop1][i] = (i == new_pop ? 1.0 : 0.0);
-	 mig_matrix.matrix[tdiv][pop2][i] = (i == new_pop ? 1.0 : 0.0);
-	 if (i != pop1 && i != pop2 && i != new_pop) {
-	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop1];
-	     mig_matrix.matrix[tdiv][i][new_pop] += mig_matrix.matrix[tdiv][i][pop2];
-	     mig_matrix.matrix[tdiv][i][pop1] = 0.0;
-	     mig_matrix.matrix[tdiv][i][pop2] = 0.0;
-	 }
-     }
-     for (int i=tdiv; i < ntime - 1; i++) {
-	 active_times[i].erase(pop1);
-	 active_times[i].erase(pop2);
-	 active_times[i].insert(new_pop);
-     }
- }
-
-
- int npop_leaf;
- int npop;
- int ntime;
- set<int> *active_times;
- double *half_times;
- MigrationMatrix mig_matrix;
-    
-
-
+    int pop;
+    int time;
 };
 
 
@@ -141,26 +62,27 @@ class PopulationTree {
 class PopsizeConfigParam
 {
  public:
- PopsizeConfigParam(string name, bool sample=true, int pop=-1) :
+ PopsizeConfigParam(string name, bool sample=true, int pop=-1, int time=-1) :
     name(name),
         sample(sample)
         {
-            if (pop >= 0) pops.insert(pop);
+            if (pop >= 0 && time >= 0)
+                intervals.insert(PopTime(pop, time));
         }
 
-    void add_pop(int pop) {
-        pops.insert(pop);
+    void add_interval(int pop, int time) {
+        intervals.insert(PopTime(pop, time));
     }
 
     string name;
-    set<int> pops;
+    set<PopTime> intervals;
     bool sample;  //if false, hold constant to initial value
 };
 
 class PopsizeConfig
 {
  public:
- PopsizeConfig(int ntimes=0, bool sample=false, bool onepop=true) :
+ PopsizeConfig(int ntimes=0, int npop=1, bool sample=false, bool onepop=true) :
     sample(sample),
     popsize_prior_alpha(1.0),
     popsize_prior_beta(1.0e-4),
@@ -171,24 +93,30 @@ class PopsizeConfig
   {
       if (sample) {
           if (onepop) {
-              for (int i=0; i < 2*ntimes-1; i++) {
-                  addPop("N0", i, true);
+              for (int pop=0; pop < npop; pop++) {
+                  for (int i=0; i < 2*ntimes-1; i++) {
+                      addInterval("N0", pop, i, true);
+                  }
               }
           } else  {
-              for (int i=0; i < 2*ntimes-1; i++) {
-                  char tmp[100];
-                  sprintf(tmp, "N%i", i);
-                  addPop(tmp, i, true);
+              for (int pop=0; pop < npop; pop++) {
+                  for (int i=0; i < 2*ntimes-1; i++) {
+                      char tmp[100];
+                      sprintf(tmp, "N%d.%d", pop, i);
+                      addInterval(tmp, pop, i, true);
+                  }
               }
           }
       }
   }
 
-    PopsizeConfig(string filename, int ntimes, double *popsizes);
+
+    PopsizeConfig(string filename, int ntimes, int npop, double **popsizes);
+    void addInterval(const char *name, int pop, int time, int sample);
 
     unsigned int size() {return params.size();}
     void addPop(const char *name, int pop, int sample=true);
-    void split_config();
+    //    void split_config();
     bool sample;
     double popsize_prior_alpha;
     double popsize_prior_beta;
@@ -218,6 +146,7 @@ class ArgModel
     unphased(0),
     sample_phase(0),
     unphased_file(""),
+    npop(1),
     poptree(NULL) {}
 
     // Model with constant population sizes and log-spaced time points
@@ -234,10 +163,11 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
+    npop(1),
     poptree(NULL)
         {
             set_log_times(maxtime, ntimes);
-            set_popsizes(popsize, ntimes);
+            set_popsizes(popsize);
         }
 
     // Model with variable population sizes and log-space time points
@@ -254,11 +184,12 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
+    npop(1),
     poptree(NULL)
         {
             set_log_times(maxtime, ntimes);
             if (_popsizes)
-                set_popsizes(_popsizes, ntimes);
+                set_popsizes(_popsizes);
         }
 
 
@@ -276,11 +207,12 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
+    npop(1),
     poptree(NULL)
         {
             set_times(_times, ntimes);
             if (_popsizes)
-                set_popsizes(_popsizes, ntimes);
+                set_popsizes(_popsizes);
         }
 
 
@@ -300,6 +232,7 @@ class ArgModel
     unphased_file(other.unphased_file),
     popsize_config(other.popsize_config),
     mc3(other.mc3),
+    npop(other.npop),
     poptree(other.poptree) {}
 
 
@@ -330,17 +263,7 @@ class ArgModel
 
 
     // deallocate all data
-    void clear() {
-        if (owned) {
-            delete [] times;
-            delete [] time_steps;
-            delete [] coal_time_steps;
-            if (popsizes)
-                delete [] popsizes;
-            if (poptree)
-                delete poptree;
-        }
-    }
+    void clear();
 
  protected:
     void clear_array(double **array) {
@@ -349,38 +272,23 @@ class ArgModel
         *array = NULL;
     }
 
+    void alloc_popsizes() {
+        popsizes = new double*[npop];
+        for (int i=0; i < npop; i++)
+            popsizes[i] = new double[2*ntimes-1];
+    }
+
+    void free_popsizes() {
+        for (int i = 0; i < npop; i++)
+            delete popsizes[i];
+        delete popsizes;
+        popsizes = NULL;
+    }
+
 
  public:
     // Copy parameters from another model
-    void copy(const ArgModel &other)
-    {
-        owned = true;
-        rho = other.rho;
-        mu = other.mu;
-        infsites_penalty = other.infsites_penalty;
-        unphased = other.unphased;
-        sample_phase = other.sample_phase;
-        unphased_file = other.unphased_file;
-        popsize_config = other.popsize_config;
-        mc3 = other.mc3;
-
-        // copy popsizes and times
-        set_times(other.times, other.coal_time_steps, ntimes);
-        if (other.popsizes)
-            set_popsizes(other.popsizes, ntimes);
-
-        // copy maps
-        if (other.mutmap.size() > 0)
-            mutmap.insert(mutmap.begin(),
-                          other.mutmap.begin(), other.mutmap.end());
-        if (other.recombmap.size() > 0)
-            recombmap.insert(recombmap.begin(),
-                             other.recombmap.begin(), other.recombmap.end());
-
-        if (other.poptree)
-            poptree = new PopulationTree(other.poptree);
-        else poptree = NULL;
-    }
+    void copy(const ArgModel &other);
 
     // Returns dummy time used for root of tree with internal branch removed
     int get_removed_root_time() const {
@@ -452,41 +360,62 @@ class ArgModel
         setup_time_steps();
     }
 
-    // Sets the model population sizes from an array
-    void set_popsizes(double *_popsizes, int _ntimes) {
-        ntimes = _ntimes;
-        clear_array(&popsizes);
-        popsizes = new double [2*ntimes-1];
-        std::copy(_popsizes, _popsizes + 2*ntimes-1, popsizes);
+
+    
+    void set_popsizes(double **_popsizes) {
+        if (!popsizes)
+            alloc_popsizes();
+        for (int i=0; i < npop; i++)
+            std::copy(_popsizes[i], _popsizes[i] + 2*ntimes-1, popsizes[i]);
     }
 
-    void set_popsizes(string popsize_str, int _ntimes) {
-        ntimes = _ntimes;
-        clear_array(&popsizes);
-        popsizes = new double [2*ntimes-1];
+
+    // Sets the model population sizes from an array
+    void set_popsizes(double *_popsizes) {
+        if (!popsizes)
+            alloc_popsizes();
+        for (int i=0; i < npop; i++) {
+            std::copy(_popsizes, _popsizes + 2*ntimes-1, popsizes[i]);
+        }
+    }
+
+    void set_popsizes(string popsize_str) {
+        if (!popsizes)
+            alloc_popsizes();
         vector<string> tokens;
         split(popsize_str.c_str(), ",", tokens);
         if (tokens.size() == 1) {
-            fill(popsizes, popsizes + 2*ntimes-1, atof(tokens[0].c_str()));
+            for (int i=0; i < npop; i++)
+                fill(popsizes[i], popsizes[i] + 2*ntimes-1, atof(tokens[0].c_str()));
         } else {
             if ((int)tokens.size() != 2*ntimes-1) {
                 printError("Number of popsizes (%i) does not match ntimes"
                            " (%i)\n", tokens.size(), 2*ntimes-1);
                 exit(1);
             }
-            for (unsigned int i=0; i < tokens.size(); i++) {
-                popsizes[i] = atof(tokens[i].c_str());
+            for (int pop=0; pop < npop; pop++) {
+                for (unsigned int i=0; i < tokens.size(); i++) {
+                    popsizes[pop][i] = atof(tokens[i].c_str());
+                }
             }
         }
     }
 
     // Sets the model populations to be constant over all time points
-    void set_popsizes(double popsize, int _ntimes) {
-        ntimes = _ntimes;
-        clear_array(&popsizes);
-        popsizes = new double [2*ntimes-1];
-        fill(popsizes, popsizes + 2*ntimes-1, popsize);
+    void set_popsizes(double popsize) {
+        if (!popsizes)
+            alloc_popsizes();
+        for (int i=0; i < npop; i++)
+            fill(popsizes[i], popsizes[i] + 2*ntimes-1, popsize);
     }
+
+    void set_popsize_by_pop(double *popsize) {
+        if (!popsizes)
+            alloc_popsizes();
+        for (int i=0; i < npop; i++)
+            fill(popsizes[i], popsizes[i] + 2*ntimes-1, popsize[i]);
+    }
+
 
     void set_popsizes_random(double popsize_min=5000.0,
                              double popsize_max=50000.0);
@@ -554,17 +483,14 @@ class ArgModel
         model.popsizes = popsizes;
     }
 
-    void set_popsize_config(string filename);
+    //    void set_popsize_config(string filename);
+    void set_popsize_config_by_poptree();
 
     void setup_mc3(int group, double heat_interval) {
         mc3 = Mc3Config(group, heat_interval);
     }
 
-    int read_poptree(string filename) {
-        if (poptree != NULL) delete poptree;
-        poptree = new PopulationTree(filename, coal_time_steps, ntimes);
-        return poptree->npop;
-    }
+    void set_popsizeconfig_by_poptree();
 
 protected:
     // Setup time steps between time points
@@ -595,7 +521,7 @@ protected:
     double *coal_time_steps;
 
     // parameters
-    double *popsizes;        // population sizes
+    double **popsizes;        // population sizes [pop][2*ntimes-1]
     double rho;              // recombination rate (recombs/generation/site)
     double mu;               // mutation rate (mutations/generation/site)
     double infsites_penalty; // penalty for violating infinite sites
@@ -606,6 +532,7 @@ protected:
     Mc3Config mc3;
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
+    int npop;
     PopulationTree *poptree;
 };
 
