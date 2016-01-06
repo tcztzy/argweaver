@@ -339,35 +339,35 @@ void resample_popsizes(ArgModel *model, const LocalTrees *trees,
    optimizers.  Set deriv2 == NULL to skip second derivative.  Note:
    function value fx is only used in the numerical case (avoids a
    redundant function evaluation) */
-void opt_derivs_1d(double *deriv, double *deriv2, double x, double fx, 
+void opt_derivs_1d(double *deriv, double *deriv2, double x, double fx,
 		   double lb, double ub, double (*f)(double, void*), void *data,
-		   double (*compute_deriv)(double x, void *data, double lb, 
+		   double (*compute_deriv)(double x, void *data, double lb,
 					   double ub),
-		   double (*compute_deriv2)(double x, void *data, double lb, 
+		   double (*compute_deriv2)(double x, void *data, double lb,
 					    double ub),
 		   double deriv_epsilon) {
     double fxeps=-1.0, fx2eps=-1.0;
     int at_ub = (ub - x < BOUNDARY_EPS2); /* at upper bound */
-    
+
     if (compute_deriv == NULL) {
 	if (at_ub) {           /* use backward method if at upper bound */
 	    fxeps = f(x - deriv_epsilon, data);
 	    *deriv = (fx - fxeps) / deriv_epsilon;
 	}
-	else { 
+	else {
 	    fxeps = f(x + deriv_epsilon, data);
 	    *deriv = (fxeps - fx) / deriv_epsilon;
 	}
     }
-    else 
+    else
 	*deriv = compute_deriv(x, data, lb, ub);
-    
+
     if (deriv2 == NULL) return;
-    
+
     if (compute_deriv2 == NULL) {     /* numerical 2nd deriv */
 	if (at_ub) {                    /* at upper bound */
 	    if (compute_deriv != NULL)    /* exact 1d available */
-		*deriv2 = (*deriv - compute_deriv(x - deriv_epsilon, data, lb, ub)) / 
+		*deriv2 = (*deriv - compute_deriv(x - deriv_epsilon, data, lb, ub)) /
 		    deriv_epsilon;
 	    else {                    /* numerical 1st and second derivs */
 		fx2eps = f(x - 2*deriv_epsilon, data);
@@ -376,7 +376,7 @@ void opt_derivs_1d(double *deriv, double *deriv2, double x, double fx,
 	}
 	else {                       /* not at upper bound */
 	    if (compute_deriv != NULL) /* exact 1d available */
-		*deriv2 = (compute_deriv(x + deriv_epsilon, data, lb, ub) - *deriv) / 
+		*deriv2 = (compute_deriv(x + deriv_epsilon, data, lb, ub) - *deriv) /
 		    deriv_epsilon;
 	    else {                    /* numerical 1st and second derivs */
 		fx2eps = f(x + 2*deriv_epsilon, data);
@@ -387,15 +387,15 @@ void opt_derivs_1d(double *deriv, double *deriv2, double x, double fx,
     else                          /* exact 2nd deriv */
 	*deriv2 = compute_deriv2(x, data, lb, ub);
 }
-    
+
 
 /* line search for 1d case.  Sets *x, *fx, *final_lambda on exit */
-void opt_lnsrch_1d(double direction, double xold, double fxold, double *x, 
-		   double *fx, double deriv, double (*func)(double, void*), 
+void opt_lnsrch_1d(double direction, double xold, double fxold, double *x,
+		   double *fx, double deriv, double (*func)(double, void*),
 		   void *data, int *nevals, double *final_lambda, FILE *logf) {
-    
+
     double lambda, slope, test, lambda_min;
-    
+
     /* one-d line search */
     lambda = 1;
     slope = deriv * direction;
@@ -407,15 +407,15 @@ void opt_lnsrch_1d(double direction, double xold, double fxold, double *x,
        downward slope as a function of lambda at xold.  See Nocedal and
        Write, Numerical Optimization, chapter 3, for a reasonably clear
        discussion */
-    
+
     test = fabs(*x)/max(fabs(xold), 1.0);
     lambda_min = TOLX_HIGH/test;
-    
+
     for (;;) {
 	(*x) = xold + lambda * direction;
 	(*fx) = func(*x, data);
 	(*nevals)++;
-	
+
 	if (lambda < lambda_min) {
 	    (*x) = xold;
 	    *final_lambda = lambda;
@@ -431,12 +431,12 @@ void opt_lnsrch_1d(double direction, double xold, double fxold, double *x,
 	    *final_lambda = lambda;
 	    break;
 	}
-	
+
 	lambda *= RHO;              /* have to backtrack */
 	/* Simple geometric decrease in lambda still allows for guaranteed
 	   convergence.  See Nocedal and Write, pp 41-42 */
     }
-    
+
     *final_lambda = lambda;
 }
 
@@ -457,7 +457,7 @@ int opt_sigfig(double val1, double val2) {
 	/* avoid pathological roundoff cases */
 	val1 = (val1 - tv1) * 10;   /* avoid overflow */
 	val2 = (val2 - tv2) * 10;
-    }    
+    }
     return sf;
 }
 
@@ -472,81 +472,81 @@ int opt_sigfig(double val1, double val2) {
    for convergence.  This criterion applies both to x and to f(x).
    Function returns 0 on success, 1 if maximum number of iterations is
    reached */
-bool opt_newton_1d(double (*f)(double, void*), double (*x), void *data, 
-		   double *fx, int sigfigs, double lb, double ub, FILE *logf, 
-		   double (*compute_deriv)(double x, void *data, double lb, 
+bool opt_newton_1d(double (*f)(double, void*), double (*x), void *data,
+		   double *fx, int sigfigs, double lb, double ub, FILE *logf,
+		   double (*compute_deriv)(double x, void *data, double lb,
 					   double ub),
-		   double (*compute_deriv2)(double x, void *data, double lb, 
+		   double (*compute_deriv2)(double x, void *data, double lb,
 					    double ub)) {
-     
+
     double xold, fxold, d, d2, direction, lambda = -1;
     int its, nevals = 0;
     bool converged = false;
     struct timeval start_time, end_time;
-    
+
     if (!(*x > lb && *x < ub && ub > lb)) {
 	fprintf(stderr, "ERROR opt_newton_1d: x=%e, lb=%e, ub=%e\n", *x, lb, ub);
 	assert(0);
     }
-    
+
     if (logf != NULL) {
 	gettimeofday(&start_time, NULL);
-	fprintf(logf, "%15s %15s %15s %15s %15s\n", "f(x)", "x", "f'(x)", 
+	fprintf(logf, "%15s %15s %15s %15s %15s\n", "f(x)", "x", "f'(x)",
 		"f''(x)", "lambda");
     }
-    
+
     /* initial function evaluation */
     (*fx) = f(*x, data);
     nevals++;
-    
+
     xold = (*x);                  /* invariant condition at loop start */
     fxold = (*fx);
-    
-    for (its = 0; !converged && its < ITMAX; its++) { 
-	opt_derivs_1d(&d, &d2, *x, *fx, lb, ub, f, data, compute_deriv, 
+
+    for (its = 0; !converged && its < ITMAX; its++) {
+	opt_derivs_1d(&d, &d2, *x, *fx, lb, ub, f, data, compute_deriv,
 		      compute_deriv2, DERIV_EPSILON);
 	nevals += 2;                /* assume cost of each deriv approx
 				       equals that of a functional evaluation */
-	
-	if (logf != NULL)               
+
+	if (logf != NULL)
 	    fprintf(logf, "%15.6f %15.6f %15.6f %15.6f %15.6f\n", *fx, *x, d, d2, lambda);
-	
+
 	if (d2 < 1e-4)
 	    d2 = 1;                    /* if second deriv is negative or very
 					  close to zero, reduce to simple
 					  gradient descent */
-	
+
 	direction = -d / d2;
-	
+
 	/* truncate for bounds, if necessary */
-	if ((*x) + direction - lb < BOUNDARY_EPS2) 
-	    direction = lb + BOUNDARY_EPS2 - (*x); 
-	else if (ub - ((*x) + direction) < BOUNDARY_EPS2) 
+	if ((*x) + direction - lb < BOUNDARY_EPS2)
+	    direction = lb + BOUNDARY_EPS2 - (*x);
+	else if (ub - ((*x) + direction) < BOUNDARY_EPS2)
 	    direction = ub - BOUNDARY_EPS2 - (*x);
-	
+
 	/* line search; function eval occurs here */
-	opt_lnsrch_1d(direction, xold, fxold, x, fx, d, f, data, &nevals, 
+	opt_lnsrch_1d(direction, xold, fxold, x, fx, d, f, data, &nevals,
 		      &lambda, logf);
-	
+
 	/* test for convergence */
-	if (opt_sigfig(*x, xold) >= sigfigs && opt_sigfig(*fx, fxold) >= sigfigs) 
+	if (opt_sigfig(*x, xold) >= sigfigs && opt_sigfig(*fx, fxold) >= sigfigs)
 	    converged = true;
-	
+
 	fxold = (*fx);
 	xold = (*x);
-    }  
-    
+    }
+
     if (logf != NULL) {
 	fprintf(logf, "%15.6f %15.6f %15s %15s %15f\n", *fx, *x, "-", "-", lambda);
 	gettimeofday(&end_time, NULL);
-	fprintf(logf, "\nNumber of iterations: %d\nNumber of function evaluations: %d\nTotal time: %.4f sec.\n", 
-		its, nevals, end_time.tv_sec - start_time.tv_sec + 
+	fprintf(logf, "\nNumber of iterations: %d\nNumber of function evaluations: %d\nTotal time: %.4f sec.\n",
+		its, nevals, end_time.tv_sec - start_time.tv_sec +
 		(end_time.tv_usec - start_time.tv_usec)/1.0e6);
-	
+
 	if (!converged)
 	    fprintf(logf, "WARNING: exceeded maximum number of iterations.\n");
     }
-    
+
     return(!converged);
 }
 
@@ -559,7 +559,7 @@ void numeric_deriv_check(double log_popsize, struct popsize_data *data, double d
 }
 
 
-void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *data, 
+void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *data,
 				double *likelihood, double *dlikelihood, double *dlikelihood2) {
     if (data->popsize_idx != t) {
 	set_data_time(data, t);
@@ -590,7 +590,7 @@ void one_popsize_like_and_dlike(int t, double log_popsize, struct popsize_data *
 		// NOTE: we are optimizing log_popsize so need to take this into consideration for derivative computations
 		if (do_dlike) dlike -= coal_counts[i][j]/(erate1)*erate*rate;
 		if (do_dlike2) dlike2 -= coal_counts[i][j]*
-				   ((erate*rate/erate1)*(erate*rate/erate1) 
+				   ((erate*rate/erate1)*(erate*rate/erate1)
 				    + erate*rate*(rate - 1.0)/erate1);
 	    }
 	    if (nocoal_counts[i][j] > 0) {
@@ -680,7 +680,7 @@ double mle_one_popsize(int start_t, int end_t, double init_popsize, void *data0)
     int numleaf = trees->get_num_leaves();
     //coal_counts[i][j][k] gives number of SPRs which coalesce in time i, with j
     // lineages in the tree interval before time i, and k lineages in the
-    // interval after time i. If coalescence happens at the same time as 
+    // interval after time i. If coalescence happens at the same time as
     // the recombination (which is implied if coal_time==0), then j is always 0
     //nocoal_counts is the same, but for non-coalescing segments; so counted
     // for each segment from the recomb up until before the coal
@@ -734,7 +734,7 @@ double mle_one_popsize(int start_t, int end_t, double init_popsize, void *data0)
 
 	int blocklen = it->blocklen;
 	double treelen = get_treelen(tree, model->times, model->ntimes, false);
-	double recomb_rate = max(model->get_local_rho(trees->start_coord, &rho_idx)*treelen, 
+	double recomb_rate = max(model->get_local_rho(trees->start_coord, &rho_idx)*treelen,
 				 model->rho);
 
 	//for single site, probability of no recomb
@@ -806,7 +806,7 @@ void popsize_sufficient_stats(struct popsize_data *data, ArgModel *model, const 
     int numleaf = trees->get_num_leaves();
     //coal_counts[i][j][k] gives number of SPRs which coalesce in time i, with j
     // lineages in the tree interval before time i, and k lineages in the
-    // interval after time i. If coalescence happens at the same time as 
+    // interval after time i. If coalescence happens at the same time as
     // the recombination (which is implied if coal_time==0), then j is always 0
     //nocoal_counts is the same, but for non-coalescing segments; so counted
     // for each segment from the recomb up until before the coal
@@ -942,7 +942,7 @@ double kineticEnergy(double *x, int len) {
 }
 
     // perform L leapfrog steps
-void leapFrogL(double *theta, double *r, double epsilon, int L, 
+void leapFrogL(double *theta, double *r, double epsilon, int L,
 	       double *thetaPrime, double *rPrime, struct popsize_data *data) {
     assert(L >= 1);
     int len = data->model->ntimes - 1;
@@ -950,7 +950,7 @@ void leapFrogL(double *theta, double *r, double epsilon, int L,
 	rPrime[i] = r[i] + one_popsize_dlikelihood(i, theta[i], data)*epsilon/2.0;
 	thetaPrime[i] = theta[i] + epsilon*rPrime[i];
     }
-    
+
     for (int l=1; l < L; l++) {
 	for (int i=0; i < len; i++) {
 	    rPrime[i] += one_popsize_dlikelihood(i, thetaPrime[i], data)*epsilon;
@@ -967,9 +967,9 @@ void leapFrogL(double *theta, double *r, double epsilon, int L,
 // "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"
 // Matthew D Hoffman, Andrew Gelman, Journal of Machine Learning Resaerch 15 (2014) 1351-1381
 //return variables are thetaMinus, rMinus, thetaPlus, rPlus, thetaPrime, nprime, sprime
-/*void buildTree(double *theta, double *r, double u, double v, int j, double epsilon, 
+/*void buildTree(double *theta, double *r, double u, double v, int j, double epsilon,
 	       double *theta0, double *r0,
-	       double *thetaMinus, double *rMinus, double *thetaPlus, double *rPlus, 
+	       double *thetaMinus, double *rMinus, double *thetaPlus, double *rPlus,
 	       double *thetaPrime, int *nprime, int *sprime, double *alpha, int *nalpha,
 	       struct popsize_data *data) {
     static double deltaMax = 1000.0;
@@ -991,11 +991,11 @@ void leapFrogL(double *theta, double *r, double epsilon, int L,
 	val -= popsize_likelihood(theta0, data);
 	val += kineticEnergy(r0);
 	if (val > 0) {
-	    *nprime 
+	    *nprime
     }
-    
+
     }
-    
+
 
 //use Hamiltonian MC to update popsize
 //no u-turn sampler for adaptively choosing stepsize (and also dual averaging to choose epsilon)
@@ -1004,7 +1004,7 @@ void hmc_update_nuts(struct popsize_data *data, ArgModel *model) {
     static double epsilon=model->popsize_config.epsilon;
     double momentum[model->ntimes];
     static int numsteps=100;
-    
+
     // first re-sample the momentums
     double current_K=0.0;
     for (int i=0; i < model->ntimes - 1; i++) {
@@ -1025,7 +1025,7 @@ void hmc_update_nuts(struct popsize_data *data, ArgModel *model) {
 	momentum[i] += epsilon * dlike / 2.0;
     }
 
-    
+
     for (int step=1; step <= numsteps; step++) {
 	for (int i=0; i < model->ntimes-1; i++) {
 	    log_popsizes[i] += epsilon * momentum[i];
@@ -1043,7 +1043,7 @@ void hmc_update_nuts(struct popsize_data *data, ArgModel *model) {
 	momentum[i] += epsilon * dlike / 2.0;
 	proposed_K += momentum[i] * momentum[i] / 2.0;
     }
-    
+
     double lr = current_likelihood - proposed_likelihood + current_K - proposed_K;
     if (lr > 0 || frand() < exp(lr)) {
 	printLog(LOG_LOW, "accept HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
@@ -1071,7 +1071,7 @@ void hmc_update(struct popsize_data *data) {
     static double epsilon=model->popsize_config.epsilon;
     double momentum[model->ntimes];
     static int numsteps=1000;
-    
+
     // first re-sample the momentums
     double current_K=0.0;
     for (int i=0; i < model->ntimes - 1; i++) {
@@ -1093,7 +1093,7 @@ void hmc_update(struct popsize_data *data) {
 	current_likelihood -= like;
 	momentum[i] += epsilon * dlike / 2.0;
     }
-    
+
     for (int step=1; step <= numsteps; step++) {
 	for (int i=0; i < model->ntimes-1; i++) {
 	    log_popsizes[i] += epsilon * momentum[i];
@@ -1111,7 +1111,7 @@ void hmc_update(struct popsize_data *data) {
 	momentum[i] += epsilon * dlike / 2.0;
 	proposed_K += momentum[i] * momentum[i] / 2.0;
     }
-    
+
     double lr = current_likelihood - proposed_likelihood + current_K - proposed_K;
     if (lr > 0 || frand() < exp(lr)) {
 	printLog(LOG_LOW, "accept HMC update %f (%f %f %f %f)\n", lr, current_likelihood, proposed_likelihood, current_K, proposed_K);
@@ -1145,7 +1145,7 @@ void no_update_popsize(ArgModel *model, const LocalTrees *trees) {
 #endif
 	for (int i=0; i< model->ntimes-1; i++)
 	    printLog(LOG_LOW, "%i\t%f\t%.f\t%.1f\n", i, model->popsizes[2*i], data.coal_totals[i], data.nocoal_totals[i]);
-	
+
 #ifdef ARGWEAVER_MPI
     }
 #endif
@@ -1166,7 +1166,7 @@ void update_popsize_hmc(ArgModel *model, const LocalTrees *trees) {
     if (rank == 0) {
 #endif
 	hmc_update(&data);
-	
+
 #ifdef ARGWEAVER_MPI
     }
     comm->Bcast(model->popsizes, model->ntimes*2-1, MPI::DOUBLE, 0);
