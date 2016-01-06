@@ -143,12 +143,12 @@ void ArgModel::copy(const ArgModel &other) {
     popsize_config = other.popsize_config;
     mc3 = other.mc3;
     npop = other.npop;
-    
+
     // copy popsizes and times
     set_times(other.times, other.coal_time_steps, ntimes);
     if (other.popsizes)
         set_popsizes(other.popsizes);
-    
+
     // copy maps
     if (other.mutmap.size() > 0)
         mutmap.insert(mutmap.begin(),
@@ -156,11 +156,10 @@ void ArgModel::copy(const ArgModel &other) {
     if (other.recombmap.size() > 0)
         recombmap.insert(recombmap.begin(),
                          other.recombmap.begin(), other.recombmap.end());
-    
+
     if (other.poptree)
         poptree = new PopulationTree(*other.poptree);
     else poptree = NULL;
-    
 }
 
 void ArgModel::clear() {
@@ -336,7 +335,7 @@ void PopsizeConfig::addInterval(const char *name, int pop,
     params.push_back(p);
 }
 
-PopsizeConfig::PopsizeConfig(string filename, int ntimes, int npop, 
+PopsizeConfig::PopsizeConfig(string filename, int ntimes, int npop,
                              double **popsizes) :
     sample(true),
     popsize_prior_alpha(1.0),
@@ -384,7 +383,7 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, int npop,
                 sample = (atoi(tokens[3].c_str()) != 0);
             if (tokens.size() == 5)
                 popsizes[pop][time] = atof(tokens[4].c_str());
-            if (tokens.size() > 5) 
+            if (tokens.size() > 5)
                 exitError("Too many columns in popsize config file; maximum is 5 (param_name, time_idx, pop, sample, init_val\n");
 	    addInterval(tokens[0].c_str(), pop, time, sample);
 	    delete [] line;
