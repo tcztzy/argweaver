@@ -361,7 +361,6 @@ class ArgModel
     }
 
 
-    
     void set_popsizes(double **_popsizes) {
         if (!popsizes)
             alloc_popsizes();

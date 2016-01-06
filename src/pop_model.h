@@ -75,7 +75,7 @@ class MigMatrix {
    MigMatrix() {
        npop=0;
    }
-   MigMatrix(int npop) : 
+   MigMatrix(int npop) :
     npop(npop) {
         init();
    }
@@ -119,14 +119,14 @@ class MigMatrix {
             for (int i=0; i < npop; i++)
                 set(i, i, 1.0);
         }
-    }    
+    }
 };
 
 
 
 /* PopulationTree
    is implemented as a vector of migration matrices. One element for each
-   half time interval. 
+   half time interval.
  */
 class PopulationTree {
 
@@ -152,15 +152,15 @@ class PopulationTree {
 
  private:
     void getAllPopulationPathsRec(PopulationPath &curpath,
-                                  int start_time, int cur_time, int end_time, 
+                                  int start_time, int cur_time, int end_time,
                                   int start_pop, int cur_pop);
 
-};  /* class PopulationTree */    
+};  /* class PopulationTree */
 
 bool read_population_tree(FILE *infile, PopulationTree *pop_tree);
 
 int get_closest_half_time(double treal, const double *time_steps, int ntime);
-    
+
 
 } // namespace argweaver
 

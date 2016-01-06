@@ -68,7 +68,7 @@ void PopulationTree::getAllPopulationPathsRec(PopulationPath &curpath,
             if (called) {
                 PopulationPath newpath(curpath);
                 newpath.set(cur_time + 1, next_pop, prob);
-                getAllPopulationPathsRec(newpath, start_time, 
+                getAllPopulationPathsRec(newpath, start_time,
                                          cur_time + 1, end_time,
                                          start_pop, next_pop);
             } else {
@@ -159,7 +159,7 @@ div 100 1 0  # divergence at time 100
 ### end example
 
 In this example, there are two populations, so they are numbered 0 and 1. At 50 generations
-ago, there is a migration from population 0 to population 1 with probability 0.01. This is 
+ago, there is a migration from population 0 to population 1 with probability 0.01. This is
 looking backwards in time, so this actually represents a forward-time migration from population
 1 to 0.
 
