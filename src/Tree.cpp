@@ -1204,7 +1204,8 @@ double Tree::tmrca() {
     return root->age;
 }
 
-
+// Returns an estimate of population size based on coalescence times
+// in local tree
 double Tree::popsize() {
     int numleaf = (nnodes+1)/2;
     vector<double>ages;
