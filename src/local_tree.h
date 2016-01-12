@@ -13,12 +13,12 @@
 
 // arghmm includes
 #include "sequences.h"
-
+#include "pop_model.h"
 
 namespace argweaver {
 
 using namespace std;
-
+//class PopulationTree;
 
 
 // A block within a sequence alignment
@@ -45,7 +45,7 @@ public:
     Spr(int recomb_node, int recomb_time,
         int coal_node, int coal_time) :
         recomb_node(recomb_node), recomb_time(recomb_time),
-        coal_node(coal_node), coal_time(coal_time) {}
+            coal_node(coal_node), coal_time(coal_time), pop_path(0) {}
 
     // sets the SPR to a null value
     void set_null()
@@ -54,6 +54,7 @@ public:
         recomb_time = -1;
         coal_node = -1;
         coal_time = -1;
+        pop_path = 0;
     }
 
     bool is_null() const
@@ -65,6 +66,7 @@ public:
     int recomb_time;
     int coal_node;
     int coal_time;
+    int pop_path;
 };
 
 
@@ -85,15 +87,13 @@ public:
 class LocalNode
 {
 public:
-    LocalNode() {
-	pop = NULL;
-    }
-    LocalNode(int parent, int left_child, int right_child, int age=-1) :
-        parent(parent), age(age)
+    LocalNode() { }
+    LocalNode(int parent, int left_child, int right_child, int age=-1,
+              int pop_path=0) :
+        parent(parent), age(age), pop_path(pop_path)
     {
         child[0] = left_child;
         child[1] = right_child;
-	pop = NULL;
     }
     LocalNode(const LocalNode &other) :
         parent(other.parent),
@@ -101,18 +101,11 @@ public:
     {
         child[0] = other.child[0];
         child[1] = other.child[1];
-	if (other.pop != NULL) {
-	    ntime = other.ntime;
-	    pop = new int[ntime];
-	    for (int i=0; i < ntime; i++)
-		pop[i] = other.pop[i];
-	}
+        pop_path = other.pop_path;
     }
 
     ~LocalNode() {
-	if (pop != NULL)
-	    delete pop;
-    }	
+    }
 
     inline bool is_leaf() const
     {
@@ -139,40 +132,22 @@ public:
         age = other.age;
         child[0] = other.child[0];
         child[1] = other.child[1];
-	if (other.pop != NULL) {
-	    ntime = other.ntime;
-	    pop = new int[ntime];
-	    for (int i=0; i < ntime; i++)
-		pop[i] = other.pop[i];
-	}
+        pop_path = other.pop_path;
     }
 
-    void set_pop(int _pop, int _ntime) {
-	if (pop == NULL) {
-	    ntime = _ntime;
-	    pop = new int[ntime];
-	} else if (_ntime != ntime) {
-	    delete pop;
-	    ntime = _ntime;
-	    pop = new int[ntime];
-	}
-	for (int i=0; i < ntime; i++)
-	    pop[i] = _pop;
+    void set_pop_path(int path) {
+        pop_path = path;
     }
 
-    int get_pop(int time, int npop=-1) {
-	if (pop == NULL) return 0;
-	if (npop > 0)
-	    assert(pop[time] >= 0 && pop[time] < npop);
-	return pop[time];
+    inline int get_pop(int time, const PopulationTree *poptree) const {
+        if (poptree == NULL) return 0;
+        return poptree->get_pop(pop_path, time);
     }
-
 
     int parent;
     int child[2];
     int age;
-    int *pop;
-    int ntime;
+    int pop_path;
 };
 
 extern LocalNode null_node;
@@ -224,8 +199,6 @@ public:
 
     ~LocalTree() {
         if (nodes) {
-	    for (int i=0; i < nnodes; i++)
-		delete nodes[i];
             delete [] nodes;
             nodes = NULL;
         }
@@ -236,8 +209,6 @@ public:
     {
         // delete existing nodes if they exist
         if (nodes) {
-	    for (int i=0; i < nnodes; i++)
-		delete nodes[i];
 	    delete [] nodes;
 	}
 
@@ -299,12 +270,8 @@ public:
 
         LocalNode *tmp = new LocalNode[_capacity];
 	assert(tmp);
-	for (int i=0; i < min(capacity, _capacity); i++) {
-	    if (i < capacity) {
-		tmp[i] = new LocalNode(nodes[i]);
-		delete(nodes[i]);
-	    } else tmp[i] = new LocalNode();
-	}
+
+        std::copy(nodes, nodes + capacity, tmp);
         delete [] nodes;
 
         nodes = tmp;
@@ -727,10 +694,12 @@ public:
 
 
 // count the lineages in a tree
-void count_lineages(const LocalTree *tree, int npops, int ntimes,
-                    int *nbranches, int *nrecombs, int *ncoals);
-void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
-                    int *nbranches, int *nrecombs, int *ncoals);
+void count_lineages(const LocalTree *tree, int ntimes,
+                    int **nbranches, int **nrecombs, int **ncoals,
+                    const PopulationTree *poptree);
+void count_lineages_internal(const LocalTree *tree, int ntimes,
+                             int **nbranches, int **nrecombs, int **ncoals,
+                             const PopulationTree *poptree);
 
 
 // A structure that stores the number of lineages within each time segment
@@ -740,9 +709,9 @@ public:
    LineageCounts(int ntimes, int npops = 1) :
     ntimes(ntimes), npops(npops)
     {
-	nbranches = new int [npops];
-	nrecombs = new int [npops];
-	ncoals = new int [npops];
+	nbranches = new int* [npops];
+	nrecombs = new int* [npops];
+	ncoals = new int* [npops];
 	for (int i=0; i < npops; i++) {
 	    nbranches[i] = new int [ntimes];
 	    nrecombs[i] = new int [ntimes];
@@ -763,15 +732,16 @@ public:
     }
 
     // Counts the number of lineages for a tree
-    inline void count(const LocalTree *tree, bool internal=false) {
+    inline void count(const LocalTree *tree, const PopulationTree *poptree,
+                      bool internal=false) {
         if (internal)
-            count_lineages_internal(tree, npops, ntimes, nbranches, nrecombs, ncoals);
+            count_lineages_internal(tree, ntimes, nbranches, nrecombs, ncoals, poptree);
         else
-            count_lineages(tree, npops, ntimes, nbranches, nrecombs, ncoals);
+            count_lineages(tree, ntimes, nbranches, nrecombs, ncoals, poptree);
     }
 
-    int npops;        // number of populations
     int ntimes;       // number of time points
+    int npops;        // number of populations
     int **nbranches;  // number of branches per time slice
     int **nrecombs;   // number of recombination points per time slice
     int **ncoals;     // number of coalescing points per time slice

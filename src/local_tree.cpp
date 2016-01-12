@@ -9,6 +9,7 @@
 #include "local_tree.h"
 #include "logging.h"
 #include "parsing.h"
+#include "pop_model.h"
 
 
 namespace argweaver {
@@ -27,18 +28,19 @@ LocalNode null_node;
 // point (ntimes - 1).
 //
 // tree      -- local tree to count
-// npops     -- number of populations
 // ntimes    -- number of time segments
 // nbranches -- number of branches that exists between time i and i+1
 // nrecombs  -- number of possible recombination points at time i
 // ncoals    -- number of possible coalescing points at time i
-void count_lineages(const LocalTree *tree, int npops, int ntimes,
-                    int **nbranches, int **nrecombs, int **ncoals)
+void count_lineages(const LocalTree *tree, int ntimes,
+                    int **nbranches, int **nrecombs, int **ncoals,
+                    const PopulationTree *poptree)
 {
     const LocalNode *nodes = tree->nodes;
+    int npop = ( poptree == NULL ? 1 : poptree->npop );
 
     // initialize counts
-    for (int i=0; i < npops; i++) {
+    for (int i=0; i < npop; i++) {
 	for (int j=0; j<ntimes; j++) {
 	    nbranches[i][j] = 0;
 	    nrecombs[i][j] = 0;
@@ -55,13 +57,13 @@ void count_lineages(const LocalTree *tree, int npops, int ntimes,
 
         // add counts for every segment along branch
         for (int j=nodes[i].age; j<parent_age; j++) {
-	    int pop = nodes[i].get_pop(j, npops);
+            int pop = nodes[i].get_pop(j, poptree);
             nbranches[pop][j]++;
             nrecombs[pop][j]++;
             ncoals[pop][j]++;
         }
 
-	int pop = nodes[i].get_pop(j, npops);
+        int pop = nodes[i].get_pop(parent_age, poptree);
         // recomb and coal are also allowed at the top of a branch
         nrecombs[pop][parent_age]++;
         ncoals[pop][parent_age]++;
@@ -70,8 +72,9 @@ void count_lineages(const LocalTree *tree, int npops, int ntimes,
     }
 
     // ensure last time segment always has one branch
-    for (int i=0; i < npops; i++)
-	nbranches[i][ntimes - 1] = 1;
+    int final_pop = (poptree == NULL ? 0 : poptree->final_pop() );
+    for (int i=0; i < npop; i++)
+	nbranches[i][ntimes - 1] = (i == final_pop ? 1 : 0);
 }
 
 
@@ -81,20 +84,21 @@ void count_lineages(const LocalTree *tree, int npops, int ntimes,
 // point (ntimes - 1).
 //
 // tree      -- local tree to count
-// npops     -- number of populations
 // ntimes    -- number of time segments
 // nbranches -- number of branches that exists between time i and i+1
 // nrecombs  -- number of possible recombination points at time i
 // ncoals    -- number of possible coalescing points at time i
-void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
-                             int *nbranches, int *nrecombs, int *ncoals)
+void count_lineages_internal(const LocalTree *tree, int ntimes,
+                             int **nbranches, int **nrecombs, int **ncoals,
+                             const PopulationTree *poptree)
 {
     const LocalNode *nodes = tree->nodes;
     const int subtree_root = nodes[tree->root].child[0];
     const int minage = nodes[subtree_root].age;
+    int npop = ( poptree == NULL ? 1 : poptree->npop );
 
     // initialize counts
-    for (int i=0; i < npops; i++) {
+    for (int i=0; i < npop; i++) {
 	for (int j=0; j<ntimes; j++) {
 	    nbranches[i][j] = 0;
 	    nrecombs[i][j] = 0;
@@ -115,14 +119,14 @@ void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
 
         // add counts for every segment along branch
         for (int j=nodes[i].age; j<parent_age; j++) {
-	    int pop = nodes[i].get_pop(j, npops);
+            int pop = nodes[i].get_pop(j, poptree);
             nbranches[pop][j]++;
             nrecombs[pop][j]++;
             ncoals[pop][j]++;
         }
-	
+
         // recomb and coal are also allowed at the top of a branch
-	int pop = nodes[i].get_pop(parent_age, npops);
+        int pop = nodes[i].get_pop(parent_age, poptree);
         nrecombs[pop][parent_age]++;
         ncoals[pop][parent_age]++;
         if (parent == tree->root)
@@ -131,8 +135,9 @@ void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
 
     // discount one lineage from within subtree, since it will be added
     // back by other procedures
+    // CHECK: do we want to do this for all pops?
     for (int i=0; i<minage; i++) {
-	for (j=0; j < npops; j++) {
+	for (int j=0; j < npop; j++) {
 	    nbranches[j][i]--;
 	    ncoals[j][i]--;
 	    nrecombs[j][i]--;
@@ -140,8 +145,12 @@ void count_lineages_internal(const LocalTree *tree, int npops, int ntimes,
     }
 
     // ensure last time segment always has one branch
-    for (int i=0; i < npops; i++)
-	nbranches[i][ntimes - 1] = 1;
+    int final_pop = ( poptree == NULL ? 0 : poptree->final_pop() );
+    for (int i=0; i < npop; i++) {
+        if (i == final_pop) {
+            assert(nbranches[i][ntimes - 1] == 1);
+        } else assert(nbranches[i][ntimes - 1] == 0);
+    }
 }
 
 
