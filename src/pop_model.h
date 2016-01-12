@@ -172,6 +172,12 @@ class PopulationTree {
      return all_paths[0].get(model->ntimes - 1);
  }
 
+ // Returns a path consistent with path1 from t1_start to t1_end,
+ // and path2 from t2_start to t2_end.
+ // Assumes t1_start <= t1_end and t2_start <= t2_end
+ // Throws an error if no such path exists
+ // Note that there is not always a unique answer;
+ // the first one found is returned
  int consistent_path(int path1, int t1_start, int t1_end,
                      int path2, int t2_start, int t2_end) const;
 
