@@ -65,6 +65,7 @@ void get_coal_time_steps(const double *times, int ntimes,
 }
 
 
+
 // returns true if regions in track are flush with one another
 template <class T>
 bool check_map(const Track<T> &track, int start, int end)
@@ -129,6 +130,11 @@ bool complete_map(Track<T> &track, string chrom, int start, int end, const T &de
     }
 
     return true;
+}
+
+int ArgModel::get_pop(int path, int time) {
+    if (poptree == NULL) return 0;
+    return poptree->get_pop(path, time);
 }
 
 
@@ -285,35 +291,6 @@ void ArgModel::set_popsizes_random(double popsize_min,
     }
 #endif
 }
-
-    /*void PopsizeConfig::split_config() {
-    list<PopsizeConfigParam> oldparams = params;
-    params.clear();
-    int currpop=0;
-    int numparam=0;
-    char tmp[100];
-    for (list<PopsizeConfigParam>::iterator it=oldparams.begin();
-         it != oldparams.end(); ++it) {
-        int n = (*it).pops.size();
-        sprintf(tmp, "N%i", numparam++);
-        if (n == 2) {
-            addPop(tmp, currpop++, true);
-            addPop(tmp, currpop++, true);
-        } else {
-            int size = n/2;
-            int i;
-            for (i=0; i < size; i++)
-                addPop(tmp, currpop++, true);
-            if (currpop % 2 == 1) {
-                addPop(tmp, currpop++, true);
-                i++;
-            }
-            sprintf(tmp, "N%i", numparam++);
-            for ( ; i < n; i++)
-                addPop(tmp, currpop++, true);
-        }
-    }
-    }*/
 
 
 void PopsizeConfig::addInterval(const char *name, int pop,

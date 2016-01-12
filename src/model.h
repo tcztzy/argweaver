@@ -21,6 +21,9 @@
 
 namespace argweaver {
 
+class PopulationTree;
+
+
 // Returns a discretized time point
 inline double get_time_point(int i, int ntimes, double maxtime, double delta=10)
 {
@@ -82,7 +85,7 @@ class PopsizeConfigParam
 class PopsizeConfig
 {
  public:
- PopsizeConfig(int ntimes=0, int npop=1, bool sample=false, bool onepop=true) :
+ PopsizeConfig(int ntimes=0, int npop=1, bool sample=false, bool oneval=true) :
     sample(sample),
     popsize_prior_alpha(1.0),
     popsize_prior_beta(1.0e-4),
@@ -92,7 +95,7 @@ class PopsizeConfig
     pseudocount(0)
   {
       if (sample) {
-          if (onepop) {
+          if (oneval) {
               for (int pop=0; pop < npop; pop++) {
                   for (int i=0; i < 2*ntimes-1; i++) {
                       addInterval("N0", pop, i, true);
@@ -100,10 +103,14 @@ class PopsizeConfig
               }
           } else  {
               for (int pop=0; pop < npop; pop++) {
-                  for (int i=0; i < 2*ntimes-1; i++) {
+                  for (int i=0; i < ntimes; i++) {
                       char tmp[100];
-                      sprintf(tmp, "N%d.%d", pop, i);
-                      addInterval(tmp, pop, i, true);
+                      if (npop == 1)
+                          sprintf(tmp, "N%d", i);
+                      else sprintf(tmp, "N%d.%d", pop, i);
+                      if (i != 0)
+                          addInterval(tmp, pop, 2*i-1, true);
+                      addInterval(tmp, pop, 2*i, true);
                   }
               }
           }
@@ -490,6 +497,8 @@ class ArgModel
     }
 
     void set_popsizeconfig_by_poptree();
+
+    int get_pop(int path, int time);
 
 protected:
     // Setup time steps between time points
