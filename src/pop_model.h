@@ -25,44 +25,33 @@ class ArgModel;
 class PopulationPath {
  public:
     PopulationPath(int ntime) {
-        path = vector<int>(ntime, -1);
-        pathprob = 1.0;
+        pop = vector<int>(ntime, -1);
+        prob = 1.0;
     }
     PopulationPath(const PopulationPath &other) {
-        pathprob = other.pathprob;
-        path = vector<int>(other.path);
+        prob = other.prob;
+        pop = vector<int>(other.pop);
     }
     bool operator< (const PopulationPath &other) const {
-        if (path.size() != other.path.size())
-            return ( path.size() < other.path.size());
-        if (pathprob != other.pathprob)
-            return (pathprob < other.pathprob);
-        for (unsigned int i=0; i < path.size(); i++)
-            if (path[i] != other.path[i]) return (path[i] < other.path[i]);
+        if (pop.size() != other.pop.size())
+            return ( pop.size() < other.pop.size());
+        if (prob != other.prob)
+            return (prob < other.prob);
+        for (unsigned int i=0; i < pop.size(); i++)
+            if (pop[i] != other.pop[i]) return (pop[i] < other.pop[i]);
         return false;
     }
-    void set(int time, int pop, double prob=1.0) {
-        path[time] = pop;
-        pathprob *= prob;
+    void set(int time, int t_pop, double currprob=1.0) {
+        pop[time] = t_pop;
+        prob *= currprob;
     }
-    void print() {
-        int start_pop;
-        for (unsigned int start_pop=0; start_pop < path.size(); start_pop++)
-            if (path[start_pop] != -1) break;
-        printf("path: %i (t=%i)", path[start_pop], start_pop);
-        int prev = path[start_pop];
-        for (unsigned int i=start_pop + 1; i < path.size(); i++) {
-            if (path[i] == -1) break;
-            if (path[i] != prev) {
-                printf(", %i (t=%i)", path[i], i);
-                prev = path[i];
-            }
-        }
-        printf("\tprob=%f\n", pathprob);
+    int get(int time) const {
+        return pop[time];
     }
+    void print() const;
 
-    double pathprob;
-    vector<int> path;
+    double prob;
+    vector<int> pop;
 };  /* class PopulationPath */
 
 
@@ -123,6 +112,19 @@ class MigMatrix {
 };
 
 
+class PathProb {
+ public:
+   PathProb(int path_idx, double prob) : prob(prob) {
+        path.clear();
+        path.insert(path_idx);
+    };
+   void update_prob(const vector <PopulationPath> &all_paths);
+   void print() const;
+   set<int> path;
+   double prob;
+};
+
+
 
 /* PopulationTree
    is implemented as a vector of migration matrices. One element for each
@@ -136,7 +138,13 @@ class PopulationTree {
   ~PopulationTree();
   void update_npop(int new_npop);
   void add_migration(int t, int from_pop, int to_pop, double prob);
-  int set_up_population_paths();
+  void set_up_population_paths();
+  void update_population_probs();
+  bool paths_equal(int path1, int path2, int t1, int t2);
+  void print_all_paths() const;
+  void print_sub_path(vector<PathProb> &subpath) const;
+  void print_sub_paths() const;
+  void print() const;
 
   //  npop is the total number of non-ancestral populations
   int npop;
@@ -145,19 +153,30 @@ class PopulationTree {
   vector<MigMatrix> mig_matrix;
 
 
- // want a set of population paths for each starting and ending time (whole times only)
- // to/from every pair of populations
- // and a probability associated with each
- set<PopulationPath> ****paths;
+  // this is the set of distinct paths from t=0 to t=ntimes-1
+  vector<PopulationPath> all_paths;
+
+  //sub_paths[t1][t2][p1][p2] is a vector of all paths that lead from
+  // time t1, pop p1 to time t2, pop p2. If multiple paths are identical
+  // during that interval, then only the first is included in the vector,
+  // and the probabilities are the identical paths are summed
+  vector<PathProb> ****sub_paths;
+
+
+
+ int get_pop(int path, int time) const {
+     return all_paths[path].get(time);
+ }
 
  private:
     void getAllPopulationPathsRec(PopulationPath &curpath,
-                                  int start_time, int cur_time, int end_time,
-                                  int start_pop, int cur_pop);
+                                  int cur_time, int end_time, int cur_pop);
+    int find_sub_path(int path, const vector<PathProb> &path_vec,
+                      int t1, int t2);
 
 };  /* class PopulationTree */
 
-bool read_population_tree(FILE *infile, PopulationTree *pop_tree);
+void read_population_tree(FILE *infile, PopulationTree *pop_tree);
 
 int get_closest_half_time(double treal, const double *time_steps, int ntime);
 

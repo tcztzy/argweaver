@@ -11,6 +11,60 @@
 
 namespace argweaver {
 
+
+void PopulationPath::print() const {
+    printf("prob=%f, path=%i (t=0)", prob, pop[0]);
+    for (unsigned int t=1; t < pop.size(); t++) {
+        if (pop[t] != pop[t-1]) {
+            printf(", %i (t=%i)", pop[t], t);
+        }
+    }
+}
+
+void PopulationTree::print_all_paths() const {
+    for (unsigned int i=0; i < all_paths.size(); i++) {
+        printf("path %i:", i);
+        all_paths[i].print();
+        printf("\n");
+    }
+}
+
+void PathProb::print() const {
+    set<int>::iterator it = path.begin();
+    printf("prob=%f paths=(%i", prob, *it);
+    for (++it; it != path.end(); ++it)
+        printf(", %i", *it);
+    printf(")");
+}
+
+
+void PopulationTree::print_sub_path(vector<PathProb> &subpath) const {
+    for (unsigned int i=0; i < subpath.size(); i++)
+        subpath[i].print();
+}
+
+void PopulationTree::print_sub_paths() const {
+    for (int t1=0; t1 < model->ntimes; t1++) {
+        for (int t2=t1; t2 < model->ntimes; t2++) {
+            for (int p1=0; p1 < npop; p1++) {
+                for (int p2=0; p2 < npop; p2++) {
+                    printf("sub_path(%i, %i, %i, %i): ", t1, t2, p1, p2);
+                    print_sub_path(sub_paths[t1][t2][p1][p2]);
+                    printf("\n");
+                }
+            }
+        }
+    }
+}
+
+void PopulationTree::print() const {
+    printf("All complete paths:\n");
+    print_all_paths();
+    printf("\nAll sub-paths:\n");
+    print_sub_paths();
+}
+
+
 PopulationTree::PopulationTree(int npop, const ArgModel *model) :
     npop(npop), model(model) {
     int ntime2 = 2 * model->ntimes - 1;  // number of half-time intervals
@@ -53,11 +107,67 @@ void PopulationTree::add_migration(int t, int from_pop, int to_pop, double prob)
  }
 
 
+
+
+bool PopulationTree::paths_equal(int path1, int path2, int t1, int t2) {
+    for (int t=t1; t <= t2; t++)
+        if (all_paths[path1].get(t) != all_paths[path2].get(t))
+            return false;
+    return true;
+}
+
+
+void PathProb::update_prob(const vector<PopulationPath> &all_paths) {
+    prob = 0;
+    for (set<int>::iterator it = path.begin(); it != path.end(); ++it)
+        prob += all_paths[*it].prob;
+}
+
+void PopulationTree::update_population_probs() {
+    int ntime = model->ntimes;
+    for (unsigned int i=0; i < all_paths.size(); i++) {
+        all_paths[i].prob = 1.0;
+        for (int t=1; t < ntime; t++) {
+            all_paths[i].prob *= mig_matrix[2*t-1].get(all_paths[i].pop[t-1],
+                                                       all_paths[i].pop[t]);
+        }
+    }
+
+    // update sub_paths probs
+    for (int t1=0; t1 < ntime; t1++) {
+        for (int t2=t1; t2 < ntime; t2++) {
+            for (int p1=0; p1 < npop; p1++) {
+                for (int p2=0; p1 < npop; p1++) {
+                    vector<PathProb> path_set = sub_paths[t1][t2][p1][p2];
+                    for (unsigned int i=0; i < path_set.size(); i++) {
+                        sub_paths[t1][t2][p1][p2][i].update_prob(all_paths);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+int PopulationTree::find_sub_path(int path,
+                                  const vector<PathProb> &path_vec,
+                                  int t1, int t2) {
+    for (unsigned int i=0; i < path_vec.size(); i++) {
+        int cur_path = *(path_vec[i].path.begin());
+        // Can remove below if line above compiles
+        //        set<int> paths = path_vec[i].path;
+        //        int cur_path = *(paths.begin());
+        if (paths_equal(path, cur_path, t1, t2))
+            return i;
+    }
+    return -1;
+}
+
 void PopulationTree::getAllPopulationPathsRec(PopulationPath &curpath,
-                                              int start_time, int cur_time, int end_time,
-                                              int start_pop, int cur_pop) {
+                                              int cur_time, int end_time,
+                                              int cur_pop) {
     if (cur_time == end_time) {
-        paths[start_time][end_time][start_pop][cur_pop].insert(curpath);
+        all_paths.push_back(curpath);
         return;
     }
     int t = cur_time * 2 + 1;
@@ -68,68 +178,73 @@ void PopulationTree::getAllPopulationPathsRec(PopulationPath &curpath,
             if (called) {
                 PopulationPath newpath(curpath);
                 newpath.set(cur_time + 1, next_pop, prob);
-                getAllPopulationPathsRec(newpath, start_time,
-                                         cur_time + 1, end_time,
-                                         start_pop, next_pop);
+                getAllPopulationPathsRec(newpath, cur_time + 1, end_time,
+                                         next_pop);
             } else {
                 called = true;
                 curpath.set(cur_time + 1, next_pop, prob);
-                getAllPopulationPathsRec(curpath, start_time,
-                                         cur_time + 1, end_time,
-                                         start_pop, next_pop);
+                getAllPopulationPathsRec(curpath, cur_time + 1, end_time,
+                                         next_pop);
             }
         }
     }
 }
 
 
-int PopulationTree::set_up_population_paths() {
+
+void PopulationTree::set_up_population_paths() {
     int ntime = model->ntimes;
 
-    paths = new set<PopulationPath>***[ntime];
-    for (int t1=0; t1 < ntime; t1++) {
-        paths[t1] = new set<PopulationPath>**[npop];
-        for (int t2=t1; t2 < ntime; t2++) {
-            paths[t1][t2] = new set<PopulationPath>*[ntime];
-            for (int p1=0; p1 < npop; p1++) {
-                paths[t1][t2][p1] = new set<PopulationPath>[npop];
-                for (int p2=0; p2 < npop; p2++) {
-                    paths[t1][t2][p1][p2] = set<PopulationPath>();
-                }
-            }
-        }
-    }
-
-    for (int t1=0; t1 < ntime; t1++) {
-        for (int t2=t1; t2 < ntime; t2++) {
-            for (int p1=0; p1 < npop; p1++) {
-                PopulationPath path1(ntime);
-                path1.set(t1, p1, 1.0);
-                getAllPopulationPathsRec(path1, t1, t1, t2, p1, p1);
-            }
-        }
-    }
-
-    int max_num_paths = 0;
-    int t1 = 0;
-    int t2 = ntime - 1;
-    int last_pop = -1;
+    all_paths.clear();
     for (int p1 = 0; p1 < npop; p1++) {
-        for (int p2 = 0; p2 < npop; p2++) {
-            int num_path = paths[t1][t2][p1][p2].size();
-            if (num_path > 0) {
-                if (last_pop == -1) {
-                    last_pop = p2;
-                } else if (p2 != last_pop) {
-                    exitError("Error: populations do not converge by final time\n");
+        PopulationPath p(ntime);
+        p.set(0, p1);
+        getAllPopulationPathsRec(p, 0, ntime-1, p1);
+    }
+    printLog(LOG_LOW, "Total number of possible paths: %i\n", all_paths.size());
+
+    // check that all paths end in same population
+    int lastpop=all_paths[0].pop[ntime - 1];
+    for (unsigned int i=1; i < all_paths.size(); i++) {
+        if (all_paths[i].get(ntime - 1) != lastpop)
+            exitError("Error: populations do not converge by final time\n");
+    }
+
+    // now get all possible paths for each possible start/end time start/end pop
+    sub_paths = new vector<PathProb> ***[ntime];
+    for (int t1=0; t1 < ntime; t1++) {
+        sub_paths[t1] = new vector<PathProb> **[ntime];
+        for (int t2=t1; t2 < ntime; t2++) {
+            sub_paths[t1][t2] = new vector<PathProb> *[npop];
+            for (int p1=0; p1 < npop; p1++) {
+                sub_paths[t1][t2][p1] = new vector<PathProb>[npop];
+                for (int p2=0; p2 < npop; p2++) {
+                    sub_paths[t1][t2][p1][p2] = vector<PathProb>();
+
+                    // find all paths which have start t1,p1 and end t2,p2
+                    for (unsigned int i=0; i < all_paths.size(); i++) {
+                        if (all_paths[i].get(t1) == p1 &&
+                            all_paths[i].get(t2) == p2) {
+                            double prob = all_paths[i].prob;
+
+                            // path i has this start/end.
+                           // search previous paths for identical sub-path
+                            int other = find_sub_path(i,
+                                                      sub_paths[t1][t2][p1][p2],
+                                                      t1, t2);
+                            if (other >= 0) {
+                                sub_paths[t1][t2][p1][p2][other].path.insert(i);
+                                sub_paths[t1][t2][p1][p2][other].prob += prob;
+                            } else {
+                                PathProb p(i, prob);
+                                sub_paths[t1][t2][p1][p2].push_back(p);
+                            }
+                        }
+                    }
                 }
-                if (num_path > max_num_paths)
-                    max_num_paths = num_path;
             }
         }
     }
-    printf("maximum number of possible paths: %i\n", max_num_paths);
-    return max_num_paths;
 }
 
 
@@ -168,7 +283,7 @@ as a migration from 1 to 0 at time 100 with 100% probability. So after time 100 
 a single population, pop 0.
 
 **/
-bool read_population_tree(FILE *infile, PopulationTree *pop_tree) {
+void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     char str[10000], c;
     int ntimes = pop_tree->model->ntimes;
     double time_steps[2*ntimes-1];
@@ -214,7 +329,7 @@ bool read_population_tree(FILE *infile, PopulationTree *pop_tree) {
         }
         if (c==EOF) break;
     }
-    return ( pop_tree->set_up_population_paths() > 0);
+    pop_tree->set_up_population_paths();
 }
 
 }  //namespace argweaver
