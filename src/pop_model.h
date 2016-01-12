@@ -140,7 +140,7 @@ class PopulationTree {
   void add_migration(int t, int from_pop, int to_pop, double prob);
   void set_up_population_paths();
   void update_population_probs();
-  bool paths_equal(int path1, int path2, int t1, int t2);
+  bool paths_equal(int path1, int path2, int t1, int t2) const;
   void print_all_paths() const;
   void print_sub_path(vector<PathProb> &subpath) const;
   void print_sub_paths() const;
@@ -167,6 +167,13 @@ class PopulationTree {
  int get_pop(int path, int time) const {
      return all_paths[path].get(time);
  }
+
+ int final_pop() const {
+     return all_paths[0].get(model->ntimes - 1);
+ }
+
+ int consistent_path(int path1, int t1_start, int t1_end,
+                     int path2, int t2_start, int t2_end) const;
 
  private:
     void getAllPopulationPathsRec(PopulationPath &curpath,

@@ -109,7 +109,8 @@ void PopulationTree::add_migration(int t, int from_pop, int to_pop, double prob)
 
 
 
-bool PopulationTree::paths_equal(int path1, int path2, int t1, int t2) {
+bool PopulationTree::paths_equal(int path1, int path2, int t1, int t2) const {
+    if (path1 == path2) return true;
     for (int t=t1; t <= t2; t++)
         if (all_paths[path1].get(t) != all_paths[path2].get(t))
             return false;
@@ -247,6 +248,36 @@ void PopulationTree::set_up_population_paths() {
     }
 }
 
+int PopulationTree::consistent_path(int path1, int t1_start, int t1_end,
+                                    int path2, int t2_start, int t2_end) const {
+    if (path1 == path2) return path1;
+    assert(t1_start <= t1_end);
+    assert(t2_start <= t2_end);
+    int p1, p2, t1, t2;
+    if (t1_start < t2_start) {
+        t1 = t1_start;
+        p1 = all_paths[path1].get(t1);
+    } else {
+        t1 = t2_start;
+        p1 = all_paths[path2].get(t1);
+    }
+    if (t1_end > t2_end) {
+        t2 = t1_end;
+        p2 = all_paths[path1].get(t2);
+    } else {
+        t2 = t2_end;
+        p2 = all_paths[path2].get(t2);
+    }
+    vector<PathProb> possible_paths = sub_paths[t1][t2][p1][p2];
+    for (unsigned int i=0; i < possible_paths.size(); i++) {
+        int path = *(possible_paths[i].path.begin());
+        if (paths_equal(path, path1, t1_start, t1_end) &&
+            paths_equal(path, path2, t2_start, t2_end))
+            return path;
+    }
+    exitError("Error: did not find consistent path\n");
+    return -1;
+}
 
 
 // not implemented efficiently, as only called a few times
