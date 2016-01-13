@@ -243,7 +243,8 @@ double get_basal_branch(const LocalTree *tree, const double *times, int ntimes,
 
 
 // modify a local tree by Subtree Pruning and Regrafting
-void apply_spr(LocalTree *tree, const Spr &spr)
+void apply_spr(LocalTree *tree, const Spr &spr,
+               const PopulationTree *pop_tree)
 {
     // before SPR:
     //       bp          cp
@@ -267,11 +268,19 @@ void apply_spr(LocalTree *tree, const Spr &spr)
     // c = coal branch
     // cp = parent of coal branch
 
+    // updating population paths:
+    // bp, cp, c paths are unchanged
+    // r->pop_path becomes path consistent with r->path and spr->path
+    // rs->pop_path becomes path consistent with rc->path and original rs->path
+    // rc->pop_path becomes c->pop_path
+
     LocalNode *nodes = tree->nodes;
 
     // trival case
     if (spr.recomb_node == tree->root) {
+        assert(0); // Melissa added: how can this happen?
         assert(spr.coal_node == tree->root);
+        nodes[tree->root].pop_path = spr.pop_path; // not sure this is correct. check if assert above ever fails.
         return;
     }
 
@@ -287,6 +296,12 @@ void apply_spr(LocalTree *tree, const Spr &spr)
 
     // fix recomb sib pointer
     nodes[recomb_sib].parent = broke_parent;
+    if (pop_tree != NULL)
+        nodes[recomb_sib].pop_path =
+            pop_tree->consistent_path(nodes[recoal].pop_path,
+                                      nodes[recoal].age, nodes[broke_parent].age,
+                                      nodes[recomb_sib].pop_path,
+                                      nodes[recomb_sib].age, nodes[recoal].age);
 
     // fix parent of broken node
     int x = 0;
@@ -304,9 +319,12 @@ void apply_spr(LocalTree *tree, const Spr &spr)
         nodes[recomb_sib].parent = recoal;
         if (broke_parent != -1)
             nodes[broke_parent].child[x] = recoal;
+        if (pop_tree != NULL)
+            nodes[recoal].pop_path = nodes[recomb_sib].pop_path;
     } else {
         nodes[recoal].child[other] = spr.coal_node;
         nodes[recoal].parent = nodes[spr.coal_node].parent;
+        nodes[recoal].pop_path = nodes[spr.coal_node].pop_path;
         nodes[spr.coal_node].parent = recoal;
 
         // fix coal_node parent
@@ -318,6 +336,15 @@ void apply_spr(LocalTree *tree, const Spr &spr)
             else
                 c[1] = recoal;
         }
+    }
+    if (pop_tree != NULL) {
+        nodes[spr.recomb_node].pop_path =
+            pop_tree->consistent_path(nodes[spr.recomb_node].pop_path,
+                                      nodes[spr.recomb_node].age,
+                                      spr.recomb_time,
+                                      spr.pop_path,
+                                      spr.recomb_time,
+                                      spr.coal_time);
     }
     nodes[recoal].age = spr.coal_time;
 

@@ -751,7 +751,8 @@ public:
 //=============================================================================
 // tree functions
 
-void apply_spr(LocalTree *tree, const Spr &spr);
+void apply_spr(LocalTree *tree, const Spr &spr,
+               const PopulationTree *pop_tree=NULL);
 double get_treelen(const LocalTree *tree, const double *times, int ntimes,
                     bool use_basal=true);
 double get_treelen_internal(const LocalTree *tree, const double *times,
