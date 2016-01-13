@@ -17,31 +17,35 @@ namespace argweaver {
 class State
 {
 public:
-    State(int node=0, int time=0) :
-        node(node), time(time) {}
+    State(int node=0, int time=0, int pop_path=0) :
+      node(node), time(time), pop_path(0) {}
 
     inline bool operator==(const State &other) const {
-        return (node == other.node) && (time == other.time);
+        return (node == other.node) && (time == other.time) &&
+        (pop_path == other.pop_path);
     }
 
-    void set(const int &_node, const int &_time) {
+    void set(const int &_node, const int &_time, const int &_pop_path) {
         node = _node;
         time = _time;
+        pop_path = _pop_path;
     }
 
     void set_null()
     {
         node = -1;
         time = -1;
+        pop_path = -1;
     }
 
     bool is_null() const
     {
-        return node == -1 && time -1;
+        return node == -1 && time == -1 && pop_path == -1;
     }
 
     int node;
     int time;
+    int pop_path;
 };
 
 // A state space for a local block
