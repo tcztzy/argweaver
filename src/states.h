@@ -37,7 +37,7 @@ public:
 
     bool is_null() const
     {
-        return node == -1 && time -1;
+        return node == -1 && time == -1;
     }
 
     int node;
