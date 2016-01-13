@@ -248,6 +248,10 @@ void PopulationTree::set_up_population_paths() {
     }
 }
 
+ int PopulationTree::final_pop() const {
+     return all_paths[0].get(model->ntimes - 1);
+ }
+
 int PopulationTree::consistent_path(int path1, int t1_start, int t1_end,
                                     int path2, int t2_start, int t2_end) const {
     if (path1 == path2) return path1;

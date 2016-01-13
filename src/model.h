@@ -154,7 +154,7 @@ class ArgModel
     sample_phase(0),
     unphased_file(""),
     npop(1),
-    poptree(NULL) {}
+    pop_tree(NULL) {}
 
     // Model with constant population sizes and log-spaced time points
  ArgModel(int ntimes, double maxtime, double popsize,
@@ -171,7 +171,7 @@ class ArgModel
     unphased(0),
     sample_phase(0),
     npop(1),
-    poptree(NULL)
+    pop_tree(NULL)
         {
             set_log_times(maxtime, ntimes);
             set_popsizes(popsize);
@@ -192,7 +192,7 @@ class ArgModel
     unphased(0),
     sample_phase(0),
     npop(1),
-    poptree(NULL)
+    pop_tree(NULL)
         {
             set_log_times(maxtime, ntimes);
             if (_popsizes)
@@ -215,7 +215,7 @@ class ArgModel
     unphased(0),
     sample_phase(0),
     npop(1),
-    poptree(NULL)
+    pop_tree(NULL)
         {
             set_times(_times, ntimes);
             if (_popsizes)
@@ -240,7 +240,7 @@ class ArgModel
     popsize_config(other.popsize_config),
     mc3(other.mc3),
     npop(other.npop),
-    poptree(other.poptree) {}
+    pop_tree(other.pop_tree) {}
 
 
     // Copy constructor
@@ -490,13 +490,13 @@ class ArgModel
     }
 
     //    void set_popsize_config(string filename);
-    void set_popsize_config_by_poptree();
+    void set_popsize_config_by_pop_tree();
 
     void setup_mc3(int group, double heat_interval) {
         mc3 = Mc3Config(group, heat_interval);
     }
 
-    void set_popsizeconfig_by_poptree();
+    void set_popsizeconfig_by_pop_tree();
 
     int get_pop(int path, int time);
 
@@ -541,7 +541,7 @@ protected:
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
     int npop;
-    PopulationTree *poptree;
+    PopulationTree *pop_tree;
 };
 
 

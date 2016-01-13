@@ -168,9 +168,7 @@ class PopulationTree {
      return all_paths[path].get(time);
  }
 
- int final_pop() const {
-     return all_paths[0].get(model->ntimes - 1);
- }
+ int final_pop() const;
 
  // Returns a path consistent with path1 from t1_start to t1_end,
  // and path2 from t2_start to t2_end.

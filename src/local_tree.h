@@ -139,9 +139,9 @@ public:
         pop_path = path;
     }
 
-    inline int get_pop(int time, const PopulationTree *poptree) const {
-        if (poptree == NULL) return 0;
-        return poptree->get_pop(pop_path, time);
+    inline int get_pop(int time, const PopulationTree *pop_tree) const {
+        if (pop_tree == NULL) return 0;
+        return pop_tree->get_pop(pop_path, time);
     }
 
     int parent;
@@ -696,10 +696,10 @@ public:
 // count the lineages in a tree
 void count_lineages(const LocalTree *tree, int ntimes,
                     int **nbranches, int **nrecombs, int **ncoals,
-                    const PopulationTree *poptree);
+                    const PopulationTree *pop_tree);
 void count_lineages_internal(const LocalTree *tree, int ntimes,
                              int **nbranches, int **nrecombs, int **ncoals,
-                             const PopulationTree *poptree);
+                             const PopulationTree *pop_tree);
 
 
 // A structure that stores the number of lineages within each time segment
@@ -732,12 +732,12 @@ public:
     }
 
     // Counts the number of lineages for a tree
-    inline void count(const LocalTree *tree, const PopulationTree *poptree,
+    inline void count(const LocalTree *tree, const PopulationTree *pop_tree,
                       bool internal=false) {
         if (internal)
-            count_lineages_internal(tree, ntimes, nbranches, nrecombs, ncoals, poptree);
+            count_lineages_internal(tree, ntimes, nbranches, nrecombs, ncoals, pop_tree);
         else
-            count_lineages(tree, ntimes, nbranches, nrecombs, ncoals, poptree);
+            count_lineages(tree, ntimes, nbranches, nrecombs, ncoals, pop_tree);
     }
 
     int ntimes;       // number of time points
