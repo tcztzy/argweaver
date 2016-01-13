@@ -1200,7 +1200,7 @@ void calc_emissions_internal_slow(
         assert(subtree_root != tree2.root);
 
         Spr add_spr(subtree_root, subtree_root_age, state.node, state.time);
-        apply_spr(&tree2, add_spr);
+        apply_spr(&tree2, add_spr, model->pop_tree);
 
         likelihood_sites(&tree2, model, seqs, seqlen, j, invariant, emit,
                          table.data, -1, -1);
