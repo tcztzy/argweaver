@@ -1,13 +1,14 @@
 
 
 #include "states.h"
-
+#include "pop_model.h"
 
 namespace argweaver {
 
 
 
 // Converts integer-based states to State class
+// Not updated for multiple populations but only used for python
 void make_states(intstate *istates, int nstates, States &states) {
     states.clear();
     for (int i=0; i<nstates; i++)
@@ -28,12 +29,12 @@ void make_intstates(States states, intstate *istates)
 
 
 void get_coal_states(const LocalTree *tree, int ntimes, States &states,
-                     bool internal)
+                     bool internal, PopulationTree *pop_tree, int start_pop)
 {
     if (internal)
-        get_coal_states_internal(tree, ntimes, states);
+        get_coal_states_internal(tree, ntimes, states, 0, pop_tree, start_pop);
     else
-        get_coal_states_external(tree, ntimes, states);
+        get_coal_states_external(tree, ntimes, states, 0, pop_tree, start_pop);
 }
 
 int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal)
@@ -51,7 +52,8 @@ int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal)
 // states for the same branch are clustered together and ages are given
 // in increasing order
 void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
-			      int minage)
+			      int minage, PopulationTree *pop_tree,
+                              int start_pop)
 {
     states.clear();
     const LocalNode *nodes = tree->nodes;
@@ -61,20 +63,37 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
         int time = max(minage, nodes[i].age);
         const int parent = nodes[i].parent;
 
-        if (parent == -1) {
-            // no parent, allow coalescing up basal branch until ntimes-2
-            for (; time<ntimes-1; time++)
+        int max_time;
+        if (parent == -1)
+            max_time = ntimes - 2;
+        else max_time = nodes[parent].age;
+        if (pop_tree == NULL) {
+            for ( ; time <= max_time; time++)
                 states.push_back(State(i, time));
         } else {
-            // allow coalescing up branch until parent
-            const int parent_age = nodes[parent].age;
-            for (; time<=parent_age; time++)
-                states.push_back(State(i, time));
+            int target_path = nodes[parent].pop_path;
+            for ( ; time <= max_time; time++) {
+                int end_pop = pop_tree->path_pop(target_path, time);
+                // loop over all unique paths
+                for (unsigned int p=0;
+                     p < pop_tree->num_paths(minage, start_pop, time, end_pop);
+                     p++) {
+                    double path_prob =
+                        pop_tree->path_prob(minage, start_pop, time, end_pop, p);
+                    if (path_prob > 0) {
+                        int path_num = pop_tree->unique_path(minage,
+                                                             start_pop, time, end_pop, p);
+                        states.push_back(State(i, time, path_num, path_prob));
+                    }
+                }
+            }
         }
     }
 }
 
 // Returns the number of possible coalescing states for a tree
+// NOTE: is not accurate for multiple populations; but currently only used
+// for logging purposes
 int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage)
 {
     int nstates = 0;
@@ -108,7 +127,8 @@ int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage)
 // states for the same branch are clustered together and ages are given
 // in increasing order
 void get_coal_states_internal(const LocalTree *tree, int ntimes,
-                              States &states, int minage)
+                              States &states, int minage,
+                              PopulationTree *pop_tree, int start_pop)
 {
     states.clear();
     const int nnodes = tree->nnodes;
@@ -153,21 +173,47 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
         if (ignore[i])
             continue;
 
+        int max_time = nodes[parent].age;
         if (parent == tree->root) {
             // no parent, allow coalescing up basal branch until ntimes-2
-            for (; time<ntimes-1; time++)
+            max_time = ntimes - 2;
+        }
+
+        if (pop_tree == NULL) {
+            for (; time<=max_time; time++) {
                 states.push_back(State(i, time));
+            }
         } else {
-            // allow coalescing up branch until parent
-            const int parent_age = nodes[parent].age;
-            for (; time<=parent_age; time++)
-                states.push_back(State(i, time));
+            int target_path = nodes[i].pop_path;
+            assert(time <= nodes[tree->root].age);
+            for (; time<=max_time; time++) {
+                if (time == nodes[tree->root].age && parent == tree->root) {
+                    // if we are on supertree root switch to root path
+                    target_path = nodes[tree->root].pop_path;
+                }
+                int end_pop = pop_tree->path_pop(target_path, time);
+                // loop over all unique paths
+                for (unsigned int p=0;
+                     p < pop_tree->num_paths(minage, start_pop, time, end_pop);
+                     p++) {
+                    double path_prob =
+                        pop_tree->path_prob(minage, start_pop, time, end_pop, p);
+                    if (path_prob > 0) {
+                        int path_num = pop_tree->unique_path(minage,
+                                                             start_pop, time, end_pop, p);
+                        states.push_back(State(i, time, path_num, path_prob));
+                    }
+                }
+            }
         }
     }
 }
 
 
 // Returns the number of possible coalescing states for a tree
+// NOTE: is not accurate, does not exclude states below the subtree and
+// has not been updated for multiple populations.
+// Currently it is only used for logging purposes
 int get_num_coal_states_internal(const LocalTree *tree, int ntimes, int minage)
 {
     int nstates = 0;
