@@ -125,10 +125,11 @@ public:
                    ("-A", "--allele-age", &allele_age,
                     "(requires --snp). Compute allele age for SNPs"));
         config.add(new ConfigParam<string>
-                   ("-D", "--node-dist", "<leaf1,leaf2;leaf1,leaf3;...>",
+                   ("-D", "--node-dist", "<leaf0;leaf1,leaf2;...>",
                     &node_dist,
-                    "distance between pairs of leafs. In this example return"
-                    " distance between leaf1->leaf2, and leaf1->leaf3"));
+                    "leaf branch length *or* distance between pairs of"
+		    "leafs. In this example return length of leaf leaf0,"
+		    " then distance between leaf1 and leaf2"));
         config.add(new ConfigSwitch
                    ("-Z", "--zero-len", &zero,
                     "number of branches of length zero"));
@@ -337,9 +338,13 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
         else if (statname[i]=="inf_sites")
             line->stats[i] = (double)infsites;
         else if (statname[i].substr(0, 9)=="node_dist") {
-            line->stats[i] =
-                tree->distBetweenLeaves(node_dist_leaf1[node_dist_idx],
-                                        node_dist_leaf2[node_dist_idx]);
+	    if (node_dist_leaf2[node_dist_idx].empty()) {
+		line->stats[i] = tree->leafLen(node_dist_leaf1[node_dist_idx]);
+	    } else {
+		line->stats[i] =
+		    tree->distBetweenLeaves(node_dist_leaf1[node_dist_idx],
+					    node_dist_leaf2[node_dist_idx]);
+	    }
             node_dist_idx++;
         }
         else if (statname[i].substr(0, 10)=="coalcount.") {
@@ -1029,15 +1034,21 @@ int main(int argc, char *argv[]) {
         split(c.node_dist.c_str(), ';', tokens1);
         for (unsigned int i=0; i < tokens1.size(); i++) {
             split(tokens1[i].c_str(), ',', tokens2);
-            if (tokens2.size() != 2) {
-                fprintf(stderr, "Bad format to --node-dist argument; expect"
-                        " two leaf names separated by comma");
-                return 1;
-            }
-            statname.push_back(string("node_dist-") + tokens2[0]
-                               + string(",") + tokens2[1]);
-            node_dist_leaf1.push_back(tokens2[0]);
-            node_dist_leaf2.push_back(tokens2[1]);
+	    if (tokens2.size() == 1) {
+		statname.push_back(string("node_dist-") + tokens2[0]);
+		node_dist_leaf1.push_back(tokens2[0]);
+		node_dist_leaf2.push_back("");
+	    } else {
+		if (tokens2.size() != 2) {
+		    fprintf(stderr, "Bad format to --node-dist argument; expect"
+			    " two leaf names separated by comma");
+		    return 1;
+		}
+		statname.push_back(string("node_dist-") + tokens2[0]
+				   + string(",") + tokens2[1]);
+		node_dist_leaf1.push_back(tokens2[0]);
+		node_dist_leaf2.push_back(tokens2[1]);
+	    }
         }
     }
     if (c.rawtrees)
