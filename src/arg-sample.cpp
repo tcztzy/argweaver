@@ -1063,7 +1063,7 @@ int main(int argc, char **argv)
             printError("cannot popsizes file '%s'", c.popsize_file.c_str());
             return EXIT_ERROR;
         }
-        if (popsizes.size() != c.model.ntimes) {
+        if (popsizes.size() != (unsigned int)c.model.ntimes) {
             printError("%d population sizes a given, but that does not match "
                        "the %d time points.", popsizes.size(), c.model.ntimes);
             return EXIT_ERROR;
