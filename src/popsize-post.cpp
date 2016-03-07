@@ -5,19 +5,19 @@
 #include <unistd.h>
 
 // arghmm includes
-#include "compress.h"
-#include "ConfigParam.h"
-#include "emit.h"
-#include "fs.h"
-#include "logging.h"
-#include "mem.h"
-#include "parsing.h"
-#include "sample_arg.h"
-#include "sequences.h"
-#include "total_prob.h"
-#include "track.h"
-#include "est_popsize.h"
-#include "mcmcmc.h"
+#include "argweaver/compress.h"
+#include "argweaver/ConfigParam.h"
+#include "argweaver/emit.h"
+#include "argweaver/fs.h"
+#include "argweaver/logging.h"
+#include "argweaver/mem.h"
+#include "argweaver/parsing.h"
+#include "argweaver/sample_arg.h"
+#include "argweaver/sequences.h"
+#include "argweaver/total_prob.h"
+#include "argweaver/track.h"
+#include "argweaver/est_popsize.h"
+#include "argweaver/mcmcmc.h"
 
 
 using namespace argweaver;
@@ -259,10 +259,10 @@ public:
 // logging
 
 void set_up_logging(const Config &c, int level, const char *log_mode) {
-    Logger *logger;
+    //    Logger *logger;
     setLogLevel(level);
     // log only to stdout
-    logger = &g_logger;
+    //    logger = &g_logger;
 }
 
 // log the program version and start time

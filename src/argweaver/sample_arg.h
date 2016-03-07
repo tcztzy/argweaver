@@ -20,6 +20,7 @@ using namespace std;
 
 void sample_arg_seq(const ArgModel *model, Sequences *sequences,
                     LocalTrees *trees, bool random=false, int num_buildup=1);
+
 void resample_arg(const ArgModel *model, Sequences *sequences,
                   LocalTrees *trees, int nremove=1);
 

@@ -109,53 +109,56 @@ class PopsizeConfig
 class ArgModel
 {
  public:
- ArgModel(int ntimes=0, double rho=0, double mu=0) :
-    owned(true),
-    ntimes(ntimes),
-    times(NULL),
-    time_steps(NULL),
-    coal_time_steps(NULL),
-    popsizes(NULL),
-    rho(rho),
-    mu(mu),
-    infsites_penalty(1.0),
-    unphased(0),
-    sample_phase(0),
-    unphased_file("")        {}
+    ArgModel(int ntimes=0, double rho=0, double mu=0) :
+        owned(true),
+        ntimes(ntimes),
+        times(NULL),
+        time_steps(NULL),
+        coal_time_steps(NULL),
+        popsizes(NULL),
+        rho(rho),
+        mu(mu),
+        infsites_penalty(1.0),
+        unphased(0),
+        sample_phase(0),
+        unphased_file("")
+    {}
 
     // Model with constant population sizes and log-spaced time points
- ArgModel(int ntimes, double maxtime, double popsize,
-          double rho, double mu) :
-    owned(true),
-    ntimes(ntimes),
-    times(NULL),
-    time_steps(NULL),
-    coal_time_steps(NULL),
-    popsizes(NULL),
-    rho(rho),
-    mu(mu),
-    infsites_penalty(1.0),
-    unphased(0),
-    sample_phase(0)
+    ArgModel(int ntimes, double maxtime, double popsize,
+             double rho, double mu) :
+        owned(true),
+        ntimes(ntimes),
+        times(NULL),
+        time_steps(NULL),
+        coal_time_steps(NULL),
+        popsizes(NULL),
+        rho(rho),
+        mu(mu),
+        infsites_penalty(1.0),
+        unphased(0),
+        sample_phase(0)
         {
             set_log_times(maxtime, ntimes);
             set_popsizes(popsize, ntimes);
         }
 
+
+
     // Model with variable population sizes and log-space time points
- ArgModel(int ntimes, double maxtime, double *_popsizes,
-          double rho, double mu) :
-    owned(true),
-    ntimes(ntimes),
-    times(NULL),
-    time_steps(NULL),
-    coal_time_steps(NULL),
-    popsizes(NULL),
-    rho(rho),
-    mu(mu),
-    infsites_penalty(1.0),
-    unphased(0),
-    sample_phase(0)
+    ArgModel(int ntimes, double maxtime, double *_popsizes,
+	     double rho, double mu) :
+        owned(true),
+        ntimes(ntimes),
+        times(NULL),
+        time_steps(NULL),
+        coal_time_steps(NULL),
+        popsizes(NULL),
+        rho(rho),
+        mu(mu),
+        infsites_penalty(1.0),
+        unphased(0),
+        sample_phase(0)
         {
             set_log_times(maxtime, ntimes);
             if (_popsizes)
@@ -164,19 +167,19 @@ class ArgModel
 
 
     // Model with custom time points and variable population sizes
- ArgModel(int ntimes, double *_times, double *_popsizes,
-          double rho, double mu) :
-    owned(true),
-    ntimes(ntimes),
-    times(NULL),
-    time_steps(NULL),
-    coal_time_steps(NULL),
-    popsizes(NULL),
-    rho(rho),
-    mu(mu),
-    infsites_penalty(1.0),
-    unphased(0),
-    sample_phase(0)
+    ArgModel(int ntimes, double *_times, double *_popsizes,
+             double rho, double mu) :
+        owned(true),
+        ntimes(ntimes),
+        times(NULL),
+	time_steps(NULL),
+        coal_time_steps(NULL),
+        popsizes(NULL),
+        rho(rho),
+        mu(mu),
+        infsites_penalty(1.0),
+        unphased(0),
+        sample_phase(0)
         {
             set_times(_times, ntimes);
             if (_popsizes)
@@ -185,42 +188,41 @@ class ArgModel
 
 
     // share data reference
- ArgModel(const ArgModel &other, double rho, double mu) :
-    owned(false),
-    ntimes(other.ntimes),
-    times(other.times),
-    time_steps(other.time_steps),
-    coal_time_steps(other.coal_time_steps),
-    popsizes(other.popsizes),
-    rho(rho),
-    mu(mu),
-    infsites_penalty(other.infsites_penalty),
-    unphased(other.unphased),
-    sample_phase(other.sample_phase),
-    unphased_file(other.unphased_file),
-    popsize_config(other.popsize_config),
-    mc3(other.mc3)
-        {}
-
+    ArgModel(const ArgModel &other, double rho, double mu) :
+        owned(false),
+        ntimes(other.ntimes),
+        times(other.times),
+        time_steps(other.time_steps),
+        coal_time_steps(other.coal_time_steps),
+        popsizes(other.popsizes),
+        rho(rho),
+        mu(mu),
+        infsites_penalty(other.infsites_penalty),
+        unphased(other.unphased),
+        sample_phase(other.sample_phase),
+        unphased_file(other.unphased_file),
+        popsize_config(other.popsize_config),
+        mc3(other.mc3)
+    {}
 
     // Copy constructor
- ArgModel(const ArgModel &other) :
-    ntimes(other.ntimes),
-    times(NULL),
-    time_steps(NULL),
-    coal_time_steps(NULL),
-    popsizes(NULL),
-    rho(other.rho),
-    mu(other.mu),
-    infsites_penalty(other.infsites_penalty),
-    unphased(other.unphased),
-    sample_phase(other.sample_phase),
-    unphased_file(other.unphased_file),
-    popsize_config(other.popsize_config),
-    mc3(other.mc3)
-        {
+    ArgModel(const ArgModel &other) :
+        ntimes(other.ntimes),
+	times(NULL),
+        time_steps(NULL),
+        coal_time_steps(NULL),
+        popsizes(NULL),
+        rho(other.rho),
+        mu(other.mu),
+        infsites_penalty(other.infsites_penalty),
+        unphased(other.unphased),
+        sample_phase(other.sample_phase),
+        unphased_file(other.unphased_file),
+        popsize_config(other.popsize_config),
+        mc3(other.mc3)
+    {
         copy(other);
-        }
+    }
 
 
     ~ArgModel()

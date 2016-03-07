@@ -8,25 +8,25 @@
 #include <unistd.h>
 
 // arghmm includes
-#include "compress.h"
-#include "ConfigParam.h"
-#include "emit.h"
-#include "fs.h"
-#include "logging.h"
-#include "mem.h"
-#include "parsing.h"
-#include "sample_arg.h"
-#include "sequences.h"
-#include "total_prob.h"
-#include "track.h"
-#include "est_popsize.h"
-#include "mcmcmc.h"
+#include "argweaver/compress.h"
+#include "argweaver/ConfigParam.h"
+#include "argweaver/emit.h"
+#include "argweaver/fs.h"
+#include "argweaver/logging.h"
+#include "argweaver/mem.h"
+#include "argweaver/parsing.h"
+#include "argweaver/sample_arg.h"
+#include "argweaver/sequences.h"
+#include "argweaver/total_prob.h"
+#include "argweaver/track.h"
+#include "argweaver/est_popsize.h"
+#include "argweaver/mcmcmc.h"
 
 
 using namespace argweaver;
 
 // version info
-#define VERSION_TEXT "0.8"
+#define VERSION_TEXT "0.8.1"
 #define VERSION_INFO  "\
 ARGweaver " VERSION_TEXT " \n\
 Matt Rasmussen\n\
@@ -202,6 +202,9 @@ public:
                     "delta value for choosing log times (bigger value-> more"
                     " dense time points at leaves", DEBUG_OPT));
         config.add(new ConfigParam<string>
+                   ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
+                    "file containing population sizes for each time span (optional)"));
+        config.add(new ConfigParam<string>
                    ("", "--times-file", "<times filename>", &times_file, "",
                     "file containing time points (optional)"));
         config.add(new ConfigParam<string>
@@ -371,6 +374,7 @@ public:
     double maxtime;
     double time_step;
     double delta;
+    string popsize_file;
     string times_file;
     string mutmap;
     string recombmap;
@@ -768,8 +772,6 @@ string get_out_sites_file(const Config &config, int iter)
     snprintf(iterstr, 10, ".%d", iter);
     return config.out_prefix + config.mcmcmc_prefix + iterstr + SITES_SUFFIX;
 }
-
-
 
 bool log_sequences(string chrom, const Sequences *sequences,
                    const Config *config,
@@ -1501,10 +1503,30 @@ int main(int argc, char **argv)
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     c.model.rho = c.rho;
     c.model.mu = c.mu;
+    if (c.popsize_file != "") {
+        // use population sizes from a file
+        vector<double> popsizes;
+        if (!read_doubles(c.popsize_file.c_str(), popsizes)) {
+            printError("cannot popsizes file '%s'", c.popsize_file.c_str());
+            return EXIT_ERROR;
+        }
+        if (popsizes.size() != (unsigned int)c.model.ntimes) {
+            printError("%d population sizes a given, but that does not match "
+                       "the %d time points.", popsizes.size(), c.model.ntimes);
+            return EXIT_ERROR;
+        }
+
+        c.model.set_popsizes(&popsizes[0], popsizes.size());
+    } else {
+        // use single constant population size
+        c.model.set_popsizes(c.popsize, c.model.ntimes);
+    }
     const double infsites_penalty = 1e-100; // TODO: make configurable
     if (c.infsites)
         c.model.infsites_penalty = infsites_penalty;
     c.model.set_popsizes(c.popsize_str, c.model.ntimes);
+
+    // setup phasing options
     if (c.unphased_file != "")
         c.model.unphased_file = c.unphased_file;
     sequences.set_pairs(&c.model);

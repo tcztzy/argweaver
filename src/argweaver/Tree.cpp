@@ -1399,7 +1399,7 @@ vector<double> Tree::coalGroup(string hap1, string hap2,
         sib = parent->children[1];
     else assert(parent->children[1] == nodes[node1]);
 
-    Node *node;
+    Node *node=NULL;
     if (node2 != -1 && sib == nodes[node2]) {
         node = parent;
         parent = node->parent;
