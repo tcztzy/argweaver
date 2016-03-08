@@ -230,10 +230,10 @@ void checkResults(IntervalIterator<vector<double> > *results) {
     Interval<vector<double> > summary=results->next();
     vector<vector <double> > scores;
     while (summary.start != summary.end) {
-        cout << summary.chrom << "\t" << summary.start << "\t"
-             << summary.end;
         scores = summary.get_scores();
         if (scores.size() > 0) {
+        cout << summary.chrom << "\t" << summary.start << "\t"
+             << summary.end;
             vector<double> tmpScore(scores.size());
             int numscore = scores[0].size();
             assert(numscore > 0);
