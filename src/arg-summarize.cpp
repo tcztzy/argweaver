@@ -365,7 +365,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
 	    Node *parent = tree->are_sisters(h1, h2);
 	    if (parent != NULL) {
 		line->stats[i] = line->stats[i+1] = tree->branch_len(h1) + parent->dist;
-		line->stats[i+1] = 1;
+		line->stats[i+2] = 1;
 	    } else {
 		double d1 = tree->branch_len(h1);
 		double d2 = tree->branch_len(h2);
