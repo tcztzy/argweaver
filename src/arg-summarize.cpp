@@ -1096,7 +1096,7 @@ int main(int argc, char *argv[]) {
 	    statname.push_back(string("ind_dist-") + tokens2[0]
 			       + string(",") + tokens2[1] +
 			       string("-max"));
-	    statname.push_back(string("ind-dist-") + tokens2[0]
+	    statname.push_back(string("ind_dist-") + tokens2[0]
 			       + string(",") + tokens2[1] +
 			       string("-homo"));
 	    ind_dist_leaf1.push_back(tokens2[0]);
