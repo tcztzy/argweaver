@@ -25,16 +25,16 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
                                 const LineageCounts &lineages,
                                 const State &last_state,
                                 const State &state,
-                                const NodePoint &recomb, bool internal);
+                                const NodePointPath &recomb, bool internal);
 
-void get_possible_recomb(const LocalTree *tree,
+void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
                          const State last_state, const State state,
-                         bool internal, vector<NodePoint> &candidates);
+                         bool internal, vector<NodePointPath> &candidates);
 
 void sample_recombinations(
     const LocalTrees *trees, const ArgModel *model,
     ArgHmmMatrixIter *matrix_list,
-    int *thread_path, vector<int> &recomb_pos, vector<NodePoint> &recombs,
+    int *thread_path, vector<int> &recomb_pos, vector<NodePointPath> &recombs,
     bool internal=false);
 
 

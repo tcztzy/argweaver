@@ -1,13 +1,52 @@
 
 
 #include "states.h"
-
+#include "pop_model.h"
 
 namespace argweaver {
 
+NodeStateLookup::NodeStateLookup(const States &states, int minage,
+                                 const PopulationTree *pop_tree=NULL) :
+    states(states) {
+    npath = ( pop_tree == NULL ? 1 : pop_tree->num_pop_paths() );
+    nnode=0;
+    mintime=-1;
+    maxtime=-1;
+
+    for (unsigned int i=0; i < states.size(); i++) {
+        if (states[i].node >= nnode)
+            nnode = states[i].node+1;
+        if (i==0 || states[i].time < mintime) mintime = states[i].time;
+        if (i==0 || states[i].time > maxtime) maxtime = states[i].time;
+    }
+    ntime = maxtime - mintime + 1;
+    int table_size = npath * nnode * ntime;
+    lookup_table = new int[table_size];
+    for (int i=0; i < table_size; i++) lookup_table[i] = -1;
+
+    for (unsigned int i=0; i < states.size(); i++) {
+        int t = states[i].time;
+        int node = states[i].node;
+        if (pop_tree == NULL) {
+            lookup_table[node*ntime + t - mintime] = i;
+        } else {
+            const set<int> *paths =
+                pop_tree->get_equivalent_paths(states[i].pop_path, minage, t);
+            for (set<int>::iterator it=paths->begin(); it != paths->end();
+                 it++) {
+                lookup_table[(*it)*nnode*ntime + node*ntime + t - mintime] = i;
+            }
+        }
+    }
+}
+
+NodeStateLookup::~NodeStateLookup() {
+    delete [] lookup_table;
+}
 
 
 // Converts integer-based states to State class
+// Not updated for multiple populations but only used for python
 void make_states(intstate *istates, int nstates, States &states) {
     states.clear();
     for (int i=0; i<nstates; i++)
@@ -16,6 +55,7 @@ void make_states(intstate *istates, int nstates, States &states) {
 
 
 // Converts state class represent to integer-based
+// Not updated for multiple populations but only used for python
 void make_intstates(States states, intstate *istates)
 {
     const int nstates = states.size();
@@ -28,14 +68,16 @@ void make_intstates(States states, intstate *istates)
 
 
 void get_coal_states(const LocalTree *tree, int ntimes, States &states,
-                     bool internal)
+                     bool internal, PopulationTree *pop_tree, int start_pop)
 {
     if (internal)
-        get_coal_states_internal(tree, ntimes, states);
+        get_coal_states_internal(tree, ntimes, states, 0, pop_tree);
     else
-        get_coal_states_external(tree, ntimes, states);
+        get_coal_states_external(tree, ntimes, states, 0, pop_tree, start_pop);
 }
 
+
+// Only used for logging purposes; not necessarily accurate
 int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal)
 {
     if (internal)
@@ -51,7 +93,8 @@ int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal)
 // states for the same branch are clustered together and ages are given
 // in increasing order
 void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
-			      int minage)
+			      int minage, PopulationTree *pop_tree,
+                              int start_pop)
 {
     states.clear();
     const LocalNode *nodes = tree->nodes;
@@ -61,28 +104,51 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
         int time = max(minage, nodes[i].age);
         const int parent = nodes[i].parent;
 
-        if (parent == -1) {
-            // no parent, allow coalescing up basal branch until ntimes-2
-            for (; time<ntimes-1; time++)
+        int max_time;
+        if (parent == -1)
+            max_time = ntimes - 2;
+        else max_time = nodes[parent].age;
+        if (pop_tree == NULL) {
+            for ( ; time <= max_time; time++)
                 states.push_back(State(i, time));
         } else {
-            // allow coalescing up branch until parent
-            const int parent_age = nodes[parent].age;
-            for (; time<=parent_age; time++)
-                states.push_back(State(i, time));
+            int target_path = nodes[parent].pop_path;
+            for ( ; time <= max_time; time++) {
+                int end_pop = pop_tree->path_pop(target_path, time);
+                // loop over all unique paths
+                for (unsigned int p=0;
+                     p < pop_tree->num_paths(minage, start_pop, time, end_pop);
+                     p++) {
+                    double path_prob =
+                        pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
+                    if (path_prob > 0.0) {
+                        int path1 =
+                            pop_tree->unique_path(minage, start_pop, time,
+                                                  end_pop, p);
+                        // use a path that is consistent with the branch
+                        // we are coalescing to
+                        int path =
+                            pop_tree->consistent_path(path1, nodes[i].pop_path,
+                                                      minage, time, max_time);
+                        states.push_back(State(i, time, path));
+                    }
+                }
+            }
         }
     }
 }
 
 // Returns the number of possible coalescing states for a tree
-int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage)
+// NOTE: is not accurate for multiple populations; but currently only used
+// for logging purposes
+int get_num_coal_states_external(const LocalTree *tree, int ntimes)
 {
     int nstates = 0;
     const LocalNode *nodes = tree->nodes;
 
     // iterate over the branches of the tree
     for (int i=0; i<tree->nnodes; i++) {
-        int time = max(minage, nodes[i].age);
+        int time = nodes[i].age;
         const int parent = nodes[i].parent;
 
         if (parent == -1) {
@@ -108,7 +174,8 @@ int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage)
 // states for the same branch are clustered together and ages are given
 // in increasing order
 void get_coal_states_internal(const LocalTree *tree, int ntimes,
-                              States &states, int minage)
+                              States &states, int minage,
+                              PopulationTree *pop_tree)
 {
     states.clear();
     const int nnodes = tree->nnodes;
@@ -142,7 +209,8 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
             stack[stacki++] = nodes[node].child[1];
         }
     }
-
+    int start_pop = (pop_tree == NULL ? 0 :
+                     pop_tree->get_pop(nodes[subtree_root].pop_path, minage) );
 
     // iterate over the branches of the tree
     for (int i=0; i<nnodes; i++) {
@@ -153,21 +221,55 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
         if (ignore[i])
             continue;
 
+        int max_time = nodes[parent].age;
         if (parent == tree->root) {
             // no parent, allow coalescing up basal branch until ntimes-2
-            for (; time<ntimes-1; time++)
+            max_time = ntimes - 2;
+        }
+
+        if (pop_tree == NULL) {
+            for (; time<=max_time; time++) {
                 states.push_back(State(i, time));
+            }
         } else {
-            // allow coalescing up branch until parent
-            const int parent_age = nodes[parent].age;
-            for (; time<=parent_age; time++)
-                states.push_back(State(i, time));
+            int target_path = nodes[i].pop_path;
+
+            assert(time <= nodes[tree->root].age);
+            for (; time<=max_time; time++) {
+                if (time == nodes[tree->root].age && parent == tree->root) {
+                    // if we are on supertree root switch to root path
+                    target_path = nodes[tree->root].pop_path;
+                }
+                int end_pop = pop_tree->path_pop(target_path, time);
+                // loop over all unique paths
+                for (unsigned int p=0;
+                     p < pop_tree->num_paths(minage, start_pop, time, end_pop);
+                     p++) {
+                    double path_prob =
+                        pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
+                    if (path_prob > 0.0) {
+                        int path1 =
+                            pop_tree->unique_path(minage, start_pop, time,
+                                                  end_pop, p);
+                        // use a path that is consistent with the branch
+                        // we are coalescing to
+                        int path =
+                            pop_tree->consistent_path(path1, nodes[i].pop_path,
+                                                      minage, time, max_time);
+                        states.push_back(State(i, time, path));
+                    }
+                }
+            }
         }
     }
 }
 
 
 // Returns the number of possible coalescing states for a tree
+// NOTE: is not accurate, does not exclude states below the subtree and
+// has not been updated for multiple populations.
+// Currently it is only used for logging purposes
+// TODO: update this?
 int get_num_coal_states_internal(const LocalTree *tree, int ntimes, int minage)
 {
     int nstates = 0;

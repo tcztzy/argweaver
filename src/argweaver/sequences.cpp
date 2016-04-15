@@ -538,6 +538,39 @@ void Sequences::set_pairs_from_file(string fn) {
 }
 
 
+void Sequences::set_pops_from_file(string fn) {
+    FILE *infile = fopen(fn.c_str(), "r");
+    char seqname[1000];
+    int pop;
+    if (infile == NULL) {
+        fprintf(stderr, "Error opening %s\n", fn.c_str());
+        exit(-1);
+    }
+    pops = vector<int>(names.size());
+    for (unsigned int i=0; i < names.size(); i++) pops[i]=-1;
+    while (2 == fscanf(infile, "%s %i", seqname, &pop)) {
+        unsigned int i=0;
+        for (i=0; i < names.size(); i++) {
+            if (names[i] == seqname) {
+                pops[i] = pop;
+                break;
+            }
+        }
+        if (i == names.size()) {
+            printError("set_pops_from_file: do not see sequence %s\n", seqname);
+        }
+    }
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (pops[i] == -1) {
+            printError("set_pops_from_file: sequence %s does not have assignment\n",
+                       seqname);
+            assert(0);
+        }
+    }
+}
+
+
+
 void Sequences::set_pairs(const ArgModel *mod) {
   if (mod->unphased_file != "")
     set_pairs_from_file(mod->unphased_file);

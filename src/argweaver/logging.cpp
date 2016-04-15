@@ -124,6 +124,29 @@ void printError(const char *fmt, ...)
 }
 
 
+void exitError(const char *fmt, va_list ap)
+{
+    printError(fmt, ap);
+    exit(1);
+}
+
+
+void exitError(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "error: ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
+
+    va_start(ap, fmt);
+    g_logger.printLog(LOG_HIGH, fmt, ap);
+    va_end(ap);
+    exit(1);
+}
+
+
 //=============================================================================
 // C interface
 

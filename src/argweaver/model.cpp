@@ -4,7 +4,7 @@
 #endif
 
 #include "model.h"
-
+#include "pop_model.h"
 
 
 namespace argweaver {
@@ -63,6 +63,7 @@ void get_coal_time_steps(const double *times, int ntimes,
     }
     coal_time_steps[2*ntimes-2] = INFINITY;
 }
+
 
 
 // returns true if regions in track are flush with one another
@@ -131,6 +132,65 @@ bool complete_map(Track<T> &track, string chrom, int start, int end, const T &de
     return true;
 }
 
+int ArgModel::get_pop(int path, int time) const {
+    if (pop_tree == NULL) return 0;
+    return pop_tree->get_pop(path, time);
+}
+
+
+int ArgModel::consistent_path(int path1, int path2,
+                              int t1, int t2, int t3,
+                              bool require_exists) const {
+    if (pop_tree == NULL) return 0;
+    return pop_tree->consistent_path(path1, path2, t1, t2, t3,
+                                     require_exists);
+}
+
+
+void ArgModel::copy(const ArgModel &other) {
+    owned = true;
+    rho = other.rho;
+    mu = other.mu;
+    infsites_penalty = other.infsites_penalty;
+    unphased = other.unphased;
+    sample_phase = other.sample_phase;
+    unphased_file = other.unphased_file;
+    popsize_config = other.popsize_config;
+    mc3 = other.mc3;
+
+    if (other.pop_tree)
+        pop_tree = new PopulationTree(*other.pop_tree);
+    else pop_tree = NULL;
+
+    // copy popsizes and times
+    set_times(other.times, other.coal_time_steps, ntimes);
+    if (other.popsizes)
+        set_popsizes(other.popsizes);
+
+    // copy maps
+    if (other.mutmap.size() > 0)
+        mutmap.insert(mutmap.begin(),
+                      other.mutmap.begin(), other.mutmap.end());
+    if (other.recombmap.size() > 0)
+        recombmap.insert(recombmap.begin(),
+                         other.recombmap.begin(), other.recombmap.end());
+}
+
+void ArgModel::clear() {
+    if (owned) {
+        delete [] times;
+        delete [] time_steps;
+        delete [] coal_time_steps;
+        if (popsizes) {
+            int npop = this->num_pops();
+            for (int i=0; i < npop; i++)
+                delete [] popsizes[i];
+            delete [] popsizes;
+        }
+        if (pop_tree)
+            delete pop_tree;
+    }
+}
 
 
 // Initializes mutation and recombination maps for use
@@ -211,13 +271,18 @@ bool ArgModel::setup_maps(string chrom, int start, int end) {
 
 
 void ArgModel::set_popsizes_random(double popsize_min,
-                                       double popsize_max) {
+                                   double popsize_max) {
+    if (!popsizes)
+        alloc_popsizes();
+    int npop = this->num_pops();
 #ifdef ARGWEAVER_MPI
     if (mc3.group_comm->Get_rank() == 0) {
 #endif
         if (popsize_config.size() == 0) {
-            for (int i=0; i < 2*ntimes-1; i++) {
-                popsizes[i] = frand(popsize_min, popsize_max);
+            for (int pop=0; pop < npop; pop++) {
+                for (int i=0; i < 2*ntimes-1; i++) {
+                    popsizes[pop][i] = frand(popsize_min, popsize_max);
+                }
             }
             return;
         }
@@ -225,51 +290,25 @@ void ArgModel::set_popsizes_random(double popsize_min,
         for (list<PopsizeConfigParam>::iterator it=l.begin();
              it != l.end(); ++it) {
             double popsize=frand(popsize_min, popsize_max);
-            for (set<int>::iterator it2 = it->pops.begin();
-                 it2 != it->pops.end(); ++it2)
-                popsizes[*it2] = popsize;
+            for (set<PopTime>::iterator it2 = it->intervals.begin();
+                 it2 != it->intervals.end(); ++it2)
+                popsizes[it2->pop][it2->time] = popsize;
         }
 #ifdef ARGWEAVER_MPI
     }
-    mc3.group_comm->Bcast(popsizes, 2*ntimes-1, MPI::DOUBLE, 0);
+    for (int pop=0; pop < npop; pop++) {
+        mc3.group_comm->Bcast(popsizes[pop], 2*ntimes-1, MPI::DOUBLE, 0);
+    }
 #endif
 }
 
-void PopsizeConfig::split_config() {
-    list<PopsizeConfigParam> oldparams = params;
-    params.clear();
-    int currpop=0;
-    int numparam=0;
-    char tmp[100];
-    for (list<PopsizeConfigParam>::iterator it=oldparams.begin();
-         it != oldparams.end(); ++it) {
-        int n = (*it).pops.size();
-        sprintf(tmp, "N%i", numparam++);
-        if (n == 2) {
-            addPop(tmp, currpop++, true);
-            addPop(tmp, currpop++, true);
-        } else {
-            int size = n/2;
-            int i;
-            for (i=0; i < size; i++)
-                addPop(tmp, currpop++, true);
-            if (currpop % 2 == 1) {
-                addPop(tmp, currpop++, true);
-                i++;
-            }
-            sprintf(tmp, "N%i", numparam++);
-            for ( ; i < n; i++)
-                addPop(tmp, currpop++, true);
-        }
-    }
-}
 
-
-void PopsizeConfig::addPop(const char *name, int pop, int sample) {
+void PopsizeConfig::addInterval(const char *name, int pop,
+                                int time, int sample) {
     for (list<PopsizeConfigParam>::iterator it=params.begin();
 	 it != params.end(); ++it) {
 	if (strcmp(it->name.c_str(), name)==0) {
-	    it->add_pop(pop);
+	    it->add_interval(pop, time);
 	    if (it->sample != sample) {
 		printError("Error in PopsizeConfig.add: got conflicting info"
                            " on whether to sample pop %s\n", name);
@@ -279,11 +318,12 @@ void PopsizeConfig::addPop(const char *name, int pop, int sample) {
 	}
     }
     // need to add new param
-    PopsizeConfigParam p(string(name), sample, pop);
+    PopsizeConfigParam p(string(name), sample, pop, time);
     params.push_back(p);
 }
 
-PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
+PopsizeConfig::PopsizeConfig(string filename, int ntimes, int npop,
+                             double **popsizes) :
     sample(true),
     popsize_prior_alpha(1.0),
     popsize_prior_beta(1.0e-4),
@@ -292,10 +332,14 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
     pseudocount(0)
   {
     if (filename=="") {
-	for (int i=0; i < 2*ntimes-1; i++) {
-            char str[10];
-            sprintf(str,"N%d", i);
-	    addPop(str, i, true);
+        for (int pop=0; pop < npop; pop++) {
+            for (int i=0; i < ntimes; i++) {
+                char str[1000];
+                sprintf(str, "N%d.%d", pop, i);
+                if (i > 0)
+                    addInterval(str, pop, 2*i-1, true);
+                addInterval(str, pop, 2*i, true);
+            }
 	}
     } else {
 	FILE *infile = fopen(filename.c_str(), "r");
@@ -305,26 +349,30 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
 	    exit(0);
 	}
 	char *line;
-	for (int i=0; i < 2*ntimes-1; i++) {
-	    line = fgetline(infile);
-	    if (line == NULL) {
-		printError("Error: Unexpected EOF reading popsize config file"
-                           " %s; expected ntimes=%i entries.\n",
-                           filename.c_str(), 2*ntimes-1);
-		exit(0);
-	    }
+        while (NULL != (line = fgetline(infile))) {
 	    chomp(line);
 	    vector<string>tokens;
 	    split(line, '\t', tokens);
-	    string popname = tokens[0];
-	    bool sample=true;
-	    if (tokens.size() > 1) {
-		popsizes[i] = atof(tokens[1].c_str());
-		if (tokens.size() > 2) {
-		    sample = (atoi(tokens[2].c_str()) != 0);
-		}
-	    }
-	    addPop(popname.c_str(), i, sample);
+	    string intervalname = tokens[0];
+            int pop=0;
+            bool sample=true;
+            if (tokens.size() < 2)
+                exitError("Expect at least two cols on each line in popsize config file: param_name, time_idx [, pop, sample, init_val]");
+            int time = atoi(tokens[1].c_str());
+            if (time < 0 || time > 2*ntimes-1)
+                exitError("time index out of range [0, 2*ntime-1] in popsize config file\n");
+            if (tokens.size() >= 3) {
+                pop = atoi(tokens[2].c_str());
+                if (pop < 0 || pop >= npop)
+                    exitError("pop out of range [0, npop-1] in popsize config file\n");
+            }
+            if (tokens.size() >= 4)
+                sample = (atoi(tokens[3].c_str()) != 0);
+            if (tokens.size() == 5)
+                popsizes[pop][time] = atof(tokens[4].c_str());
+            if (tokens.size() > 5)
+                exitError("Too many columns in popsize config file; maximum is 5 (param_name, time_idx, pop, sample, init_val\n");
+	    addInterval(tokens[0].c_str(), pop, time, sample);
 	    delete [] line;
 	}
 	while (NULL != (line = fgetline(infile))) {
@@ -339,5 +387,74 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, double *popsizes) :
     }
     printf("done set_popsize_config num_n_params=%i\n", (int)params.size());
 }
+
+
+void ArgModel::set_popsize_config_by_pop_tree() {
+    if (pop_tree == NULL)
+        exitError("Error: no population tree defined in set_popsize_config_by_pop_tree\n");
+    int npop = this->num_pops();
+    int nextpop = npop;
+    char tmp[1000];
+    popsize_config = PopsizeConfig();
+    popsize_config.sample = true;
+    for (int pop=0; pop < npop; pop++) {
+        sprintf(tmp, "N%i", pop);
+
+        for (int t=0; t < ntimes-1; t++) {
+
+            popsize_config.addInterval(tmp, pop, 2*t, true);
+
+            MigMatrix *migmat = &(pop_tree->mig_matrix[t]);
+            if (migmat->get(pop, pop) == 0) break;  // pop becomes extinct
+
+            for (int pop2=0; pop2 < npop; pop2++) {
+                if (pop != pop2 && migmat->get(pop2, pop) == 1) {
+                    sprintf(tmp, "N%i", nextpop++);
+                    break;
+                }
+            }
+            popsize_config.addInterval(tmp, pop, 2*t+1, true);
+        }
+    }
+    printf("Done set_popsize_config_by_pop_tree numParam = %i\n", nextpop);
+}
+
+void ArgModel::read_population_tree(string pop_file) {
+    if (pop_tree != NULL)
+        delete pop_tree;
+    pop_tree = new PopulationTree(1, this);
+    FILE *infile = fopen(pop_file.c_str(), "r");
+    if (infile == NULL)
+        exitError("error opening population file %s\n", pop_file.c_str());
+    argweaver::read_population_tree(infile, pop_tree);
+    fclose(infile);
+}
+
+
+int ArgModel::num_pops() const {
+    if (pop_tree == NULL) return 1;
+    return pop_tree->npop;
+}
+
+int ArgModel::num_pop_paths() const {
+    if (pop_tree == NULL) return 1;
+    return pop_tree->num_pop_paths();
+}
+
+double ArgModel::path_prob(int path, int t1, int t2) const {
+    if (pop_tree == NULL) return 1.0;
+    return pop_tree->path_prob(path, t1, t2);
+}
+
+bool ArgModel::paths_equal(int path1, int path2, int t1, int t2) const {
+    if (pop_tree == NULL) return true;
+    return pop_tree->paths_equal(path1, path2, t1, t2);
+}
+
+int ArgModel::max_matching_path(int path1, int path2, int t) const {
+    if (pop_tree == NULL) return ntimes-1;
+    return pop_tree->max_matching_path[path1][path2][t];
+}
+
 
 } // namespace argweaver

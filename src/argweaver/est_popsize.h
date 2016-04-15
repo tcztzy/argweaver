@@ -6,8 +6,6 @@
 
 namespace argweaver {
 
-void resample_popsizes(ArgModel *model, const LocalTrees *trees,
-                       bool sample_popsize_recomb, double heat=1.0);
 
  struct popsize_data {
      double *arr_alloc;
@@ -48,9 +46,12 @@ void no_update_popsize(ArgModel *model, const LocalTrees *trees);
 // functions for adaptive HMC; may want to move to separate file
 double dotProduct(double *x, int len);
 double kineticEnergy(double *x, int len);
-void leapFrogL(double *theta, double *r, double epsilon, int L,
-	       double *thetaPrime, double *rPrime, struct popsize_data *data);
+//void leapFrogL(double *theta, double *r, double epsilon, int L,
 
-} // namespace argweaver
+// Metropolis-Hastings resampling; no longer used in favor of HMC
+void resample_popsizes(ArgModel *model, const LocalTrees *trees,
+                       bool sample_popsize_recomb, double heat=1.0);
+
+}; // namespace argweaver
 
 #endif // ARGWEAVER_EST_POPSIZE_H

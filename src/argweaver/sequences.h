@@ -61,6 +61,11 @@ public:
 	  for (int i = 0; i < nseqs; i++)
 	    pairs[i] = sequences->pairs[i];
 	}
+        if (sequences->pops.size() > 0) {
+            pops = vector<int>(nseqs);
+            for (int i=0; i < nseqs; i++)
+                pops[i] = sequences->pops[i];
+        }
     }
 
     ~Sequences()
@@ -104,6 +109,7 @@ public:
         for (int i=0; i<nseqs; i++) {
             seqs.push_back(_seqs[i]);
             names.push_back("");
+            pops.push_back(0);
         }
     }
 
@@ -112,10 +118,11 @@ public:
         for (int i=0; i<nseqs; i++) {
             seqs.push_back(_seqs[i]);
             names.push_back(_names[i]);
+            pops.push_back(0);
         }
     }
 
-    bool append(string name, char *seq, int new_seqlen=-1)
+    bool append(string name, char *seq, int new_seqlen=-1, int pop=0)
     {
         // check sequence length
         if (new_seqlen > 0) {
@@ -128,6 +135,7 @@ public:
 
         seqs.push_back(seq);
         names.push_back(name);
+        pops.push_back(pop);
 	if (pairs.size() > 0) pairs.push_back(-1);
         return true;
     }
@@ -141,6 +149,7 @@ public:
         }
         seqs.clear();
         names.clear();
+        pops.clear();
         pairs.clear();
         non_singleton_snp.clear();
     }
@@ -150,6 +159,45 @@ public:
     void set_pairs_by_name();
     void set_pairs_from_file(string fn);
     void set_pairs(const ArgModel *mod);
+    void set_pops(vector<char*> seqname, vector<int> pop) {
+        for (unsigned int i=0; i < seqname.size(); i++) {
+            bool found=false;
+            for (unsigned int j=0; j < names.size(); j++) {
+                if (names[j].compare(seqname[i]) == 0) {
+                    pops[j] = pop[i];
+                    found=true;
+                    break;
+                }
+            }
+            if (!found) {
+                printError("assign_pops: Did not find sequence %s in"
+                           " sequences; skipping\n", seqname[i]);
+            }
+        }
+    }
+
+    void set_pops_from_file(string fn);
+    int get_pop(int seq) const {
+        if (pops.size() == 0) return 0;
+        if ((int)pops.size() <= seq || seq < 0) {
+            printError("get_pop: bad sequence argument\n");
+            assert(0);
+        }
+        return pops[seq];
+    }
+
+    int get_pop(char *seqname) const {
+        if (pops.size() == 0) return 0;
+        for (unsigned int i=0; i < names.size(); i++) {
+            if (names[i].compare(seqname) == 0) {
+                return pops[i];
+            }
+        }
+        printError("get_pop: Did not find sequence %s\n", seqname);
+        assert(0);
+        return -1;
+    }
+
 
     int get_pair(int i) {
 	if ((int)pairs.size() < i) return -1;
@@ -169,6 +217,7 @@ public:
 
     vector <char*> seqs;
     vector <string> names;
+    vector <int> pops;
     vector <int> pairs; // index of diploid pair partner
     vector <bool> non_singleton_snp;  //true if snp w frequency > 1
 

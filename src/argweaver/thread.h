@@ -11,8 +11,8 @@ namespace argweaver {
 bool assert_trees_thread(LocalTrees *trees, int *thread_path, int ntimes);
 
 // adding/removing branches from a local tree
-void add_tree_branch(LocalTree *tree, int node, int time);
-void remove_tree_branch(LocalTree *tree, int remove_leaf,
+void add_tree_branch(LocalTree *tree, int node, int time, int pop_path=0);
+void remove_tree_branch(LocalTree *tree, int remove_leaf, const ArgModel *model,
                         int *displace=NULL);
 
 // update an SPR and mapping after adding a new branch
@@ -29,19 +29,23 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
 // add a thread to an ARG
 void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
                     int ntimes, int *thread_path, int seqid,
-                    vector<int> &recomb_pos, vector<NodePoint> &recombs);
+                    vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+                    const PopulationTree *pop_tree=NULL);
 
 // remove a thread from an ARG
-void remove_arg_thread(LocalTrees *trees, int remove_seqid);
+ void remove_arg_thread(LocalTrees *trees, int remove_seqid,
+                        const ArgModel *model);
 
 
 // Add a branch to a partial ARG
 void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
                          int ntimes, const int *thread_path,
-                         vector<int> &recomb_pos, vector<NodePoint> &recombs);
+                         vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+                         const PopulationTree *pop_tree=NULL);
 // Removes a thread path from an ARG and returns a partial ARG
 void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
-                            int maxtime, int *original_thread=NULL);
+                            int maxtime, const PopulationTree *pop_tree=NULL,
+                            int *original_thread=NULL);
 
 
 //=============================================================================

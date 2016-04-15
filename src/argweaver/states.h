@@ -10,6 +10,7 @@
 
 namespace argweaver {
 
+class PopulationTree;
 
 // A state in the ArgHmm
 //
@@ -17,22 +18,25 @@ namespace argweaver {
 class State
 {
 public:
-    State(int node=0, int time=0) :
-        node(node), time(time) {}
+    State(int node=0, int time=0, int pop_path=0) :
+      node(node), time(time), pop_path(pop_path) {}
 
     inline bool operator==(const State &other) const {
-        return (node == other.node) && (time == other.time);
+        return (node == other.node) && (time == other.time) &&
+        (pop_path == other.pop_path);
     }
 
-    void set(const int &_node, const int &_time) {
+    void set(const int &_node, const int &_time, const int &_pop_path) {
         node = _node;
         time = _time;
+        pop_path = _pop_path;
     }
 
     void set_null()
     {
         node = -1;
         time = -1;
+        pop_path = -1;
     }
 
     bool is_null() const
@@ -42,96 +46,43 @@ public:
 
     int node;
     int time;
+    int pop_path;
 };
 
 // A state space for a local block
 typedef vector<State> States;
 
 
-// This data structure provides a mapping from (node, time) tuples to
+// This data structure provides a mapping from (node, time, path) tuples to
 // the corresponding state index.
 class NodeStateLookup
 {
 public:
-    NodeStateLookup(const States &states, int nnodes) :
-        states(states),
-        nstates(states.size()),
-        nnodes(nnodes)
-    {
-        const int nstates = states.size();
-        const int MAXTIME = 1000000;
-
-        // allocate lookup arrays
-        node_offset = new int[nnodes];
-        state_lookup = new int[nstates];
-        nstates_per_node = new int[nnodes];
-
-        // count number of states per node and mintime per node
-        int node_mintimes[nnodes];
-
-        // initialize arrays
-        for (int i=0; i<nnodes; i++) {
-            nstates_per_node[i] = 0;
-            node_mintimes[i] = MAXTIME;
-        }
-
-        for (int i=0; i<nstates; i++) {
-            state_lookup[i] = -1;
-            nstates_per_node[states[i].node]++;
-            node_mintimes[states[i].node] = min(node_mintimes[states[i].node],
-                                                states[i].time);
-        }
-
-        // setup node_offsets
-        int offset = 0;
-        for (int i=0; i<nnodes; i++) {
-            node_offset[i] = offset - node_mintimes[i];
-            offset += nstates_per_node[i];
-        }
-
-        // set states
-        for (int i=0; i<nstates; i++) {
-            int j = node_offset[states[i].node] + states[i].time;
-            assert(j >=0 && j<nstates);
-            state_lookup[j] = i;
-        }
-    }
-
-    ~NodeStateLookup()
-    {
-        // clean up lookup arrays
-        delete [] node_offset;
-        delete [] state_lookup;
-        delete [] nstates_per_node;
-    }
+  NodeStateLookup(const States &states, int minage,
+                  const PopulationTree *pop_tree);
+  ~NodeStateLookup();
 
     // Returns the state index for state (node, time)
-    inline int lookup(int node, int time) const {
-        if (nstates_per_node[node] == 0)
-            return -1;
-        const int i = node_offset[node] + time;
-        if (i < 0 || i >= nstates)
-            return -1;
-        const int statei = state_lookup[i];
-        if (statei == -1)
-            return -1;
-        if (states[statei].node != node ||
-            states[statei].time != time)
-            return -1;
-        return statei;
-    }
+  inline int lookup(int node, int time, int path=0) {
+      if (node < 0 || node >= nnode ||
+          time < mintime || time > maxtime ||
+          path < 0 || path >= npath) return -1;
+      return lookup_table[path*nnode*ntime + node*ntime + time - mintime];
+  }
 
 protected:
-    const States &states;
-    int nstates;
-    int nnodes;
-    int *node_offset;
-    int *state_lookup;
-    int *nstates_per_node;
+  const States &states;
+  int nnode;
+  int mintime;
+  int maxtime;
+  int ntime;
+  int npath;
+  int *lookup_table;
 };
 
 
 // A simple representation of a state, useful for passing from python
+// Not updated for multiple populations
 typedef int intstate[2];
 
 
@@ -142,42 +93,67 @@ void make_states(intstate *istates, int nstates, States &states);
 void make_intstates(States states, intstate *istates);
 
 void get_coal_states(const LocalTree *tree, int ntimes, States &states,
-                     bool internal=false);
-int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal=false);
-
-void get_coal_states_external(const LocalTree *tree, int ntimes, States &states, int minage=0);
-int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage=0);
-
+                     bool internal=false, PopulationTree *pop_tree=NULL,
+                     int start_pop=0);
+void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
+                              int minage=0, PopulationTree *pop_tree=NULL,
+                              int start_pop=0);
 void get_coal_states_internal(const LocalTree *tree, int ntimes,
-                              States &states, int minage=0);
-int get_num_coal_states_internal(const LocalTree *tree, int ntimes, int minage=0);
+                              States &states, int minage=0,
+                              PopulationTree *pop_tree=NULL);
+
+
+// NOTE: the three get_num_coal_states functions below are not quite accurate
+// and may count some states which are not possible and not included in the
+// actual states used. However these functions are currently only used for
+// logging purposes.
+int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal=false);
+int get_num_coal_states_external(const LocalTree *tree, int ntimes);
+int get_num_coal_states_internal(const LocalTree *tree, int ntimes,
+                                 int minage=0);
 
 
 class StatesModel
 {
 public:
-     StatesModel(int ntimes=0, bool internal=false, int minage=0) :
+    StatesModel(int ntimes=0, bool internal=false, int minage=0,
+                PopulationTree *pop_tree = NULL, int start_pop=0) :
         ntimes(ntimes),
         internal(internal),
-        minage(minage)
+        minage(minage),
+        start_pop(start_pop),
+        pop_tree(pop_tree)
+
     {}
 
-    void set(int _ntimes, bool _internal, int _minage) {
+        void set(int _ntimes, bool _internal, int _minage,
+                 PopulationTree *_pop_tree = NULL, int _start_pop = 0) {
         ntimes = _ntimes;
         internal = _internal;
         minage = _minage;
+        pop_tree = _pop_tree;
+        start_pop = _start_pop;
     }
+
+   void set_start_pop(int _start_pop) {
+       start_pop = _start_pop;
+    }
+
 
     void get_coal_states(const LocalTree *tree, States &states) const {
         if (!internal)
-            get_coal_states_external(tree, ntimes, states);
+            get_coal_states_external(tree, ntimes, states, minage, pop_tree,
+                                     start_pop);
         else
-            get_coal_states_internal(tree, ntimes, states, minage);
+            get_coal_states_internal(tree, ntimes, states, minage, pop_tree);
+
     }
 
     int ntimes;
     bool internal;
     int minage;
+    int start_pop;
+    PopulationTree *pop_tree;
 };
 
 

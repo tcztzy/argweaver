@@ -18,10 +18,10 @@ void calc_arghmm_matrices_internal(
     matrices->blocklen = blocklen;
     const LocalTree *tree = tree_spr->tree;
 
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());  // only allocates
     States last_states;
     States states;
-    matrices->states_model.set(model->ntimes, internal, minage);
+    matrices->states_model.set(model->ntimes, internal, minage, model->pop_tree);
     matrices->states_model.get_coal_states(tree, states);
     const int nstates = states.size();
 
@@ -53,11 +53,12 @@ void calc_arghmm_matrices_internal(
         matrices->states_model.get_coal_states(last_tree, last_states);
         matrices->nstates1 = last_states.size();
         matrices->nstates2 = nstates;
-        lineages.count(last_tree, internal);
+        lineages.count(last_tree, model->pop_tree, internal);
 
         // calculate transmat_switch
         matrices->transmat_switch = new TransMatrixSwitch(
-            matrices->nstates1, matrices->nstates2);
+                      matrices->nstates1, matrices->nstates2,
+                      model->num_pop_paths());
         calc_transition_probs_switch_internal(tree, last_tree,
             tree_spr->spr, tree_spr->mapping,
             last_states, states, model, &lineages,
@@ -65,10 +66,10 @@ void calc_arghmm_matrices_internal(
     }
 
     // update lineages to current tree
-    lineages.count(tree, internal);
+    lineages.count(tree, model->pop_tree, internal);
 
     // calculate transmat and use it for rest of block
-    matrices->transmat = new TransMatrix(model->ntimes, nstates);
+    matrices->transmat = new TransMatrix(model, nstates);
     calc_transition_probs(tree, model, states, &lineages, matrices->transmat,
                           internal, matrices->states_model.minage);
 }
@@ -80,7 +81,7 @@ void calc_arghmm_matrices_external(
     const ArgModel *model, const Sequences *seqs, const LocalTrees *trees,
     const LocalTreeSpr *last_tree_spr, const LocalTreeSpr *tree_spr,
     const int start, const int end, const int new_chrom,
-    ArgHmmMatrices *matrices, PhaseProbs *phase_pr)
+    ArgHmmMatrices *matrices, PhaseProbs *phase_pr, int start_pop)
 {
     // get block information
     const int blocklen = end - start;
@@ -90,7 +91,8 @@ void calc_arghmm_matrices_external(
     LineageCounts lineages(model->ntimes);
     States last_states;
     States states;
-    matrices->states_model.set(model->ntimes, false, 0);
+    matrices->states_model.set(model->ntimes, false, 0, model->pop_tree,
+                               start_pop);
     matrices->states_model.get_coal_states(tree, states);
     const int nstates = states.size();
 
@@ -122,11 +124,12 @@ void calc_arghmm_matrices_external(
         matrices->states_model.get_coal_states(last_tree, last_states);
         matrices->nstates1 = last_states.size();
         matrices->nstates2 = nstates;
-        lineages.count(last_tree);
+        lineages.count(last_tree, model->pop_tree);
 
         // calculate transmat_switch
         matrices->transmat_switch = new TransMatrixSwitch(
-            matrices->nstates1, matrices->nstates2);
+            matrices->nstates1, matrices->nstates2,
+            model->num_pop_paths());
         calc_transition_probs_switch(tree, last_tree,
                                      tree_spr->spr, tree_spr->mapping,
                                      last_states, states, model,
@@ -134,10 +137,10 @@ void calc_arghmm_matrices_external(
     }
 
     // update lineages to current tree
-    lineages.count(tree);
+    lineages.count(tree, model->pop_tree);
 
     // calculate transmat and use it for rest of block
-    matrices->transmat = new TransMatrix(model->ntimes, nstates);
+    matrices->transmat = new TransMatrix(model, nstates);
     calc_transition_probs(tree, model, states, &lineages,
                           matrices->transmat, false, matrices->states_model.minage);
 }
@@ -148,7 +151,7 @@ void calc_arghmm_matrices(
     const LocalTreeSpr *last_tree_spr, const LocalTreeSpr *tree_spr,
     const int start, const int end, const int new_chrom,
     const StatesModel &states_model, ArgHmmMatrices *matrices,
-    PhaseProbs *phase_pr)
+    PhaseProbs *phase_pr, int start_pop)
 {
     if (states_model.internal)
         calc_arghmm_matrices_internal(
@@ -158,7 +161,7 @@ void calc_arghmm_matrices(
     else
         calc_arghmm_matrices_external(
             model, seqs, trees, last_tree_spr,  tree_spr,
-            start, end, new_chrom, matrices, phase_pr);
+            start, end, new_chrom, matrices, phase_pr, start_pop);
 }
 
 

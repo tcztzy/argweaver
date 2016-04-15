@@ -1161,7 +1161,7 @@ void calc_emissions_external_slow(
         likelihood_sites(&tree2, model, seqs, seqlen, j, invariant, emit,
                          table.data, -1, -1);
 
-        remove_tree_branch(&tree2, newleaf, NULL);
+        remove_tree_branch(&tree2, newleaf, model, NULL);
     }
 
     delete [] invariant;
@@ -1200,6 +1200,7 @@ void calc_emissions_internal_slow(
         assert(subtree_root != tree2.root);
 
         Spr add_spr(subtree_root, subtree_root_age, state.node, state.time);
+        //note: pop_tree unnecessary for computing emissions
         apply_spr(&tree2, add_spr);
 
         likelihood_sites(&tree2, model, seqs, seqlen, j, invariant, emit,
