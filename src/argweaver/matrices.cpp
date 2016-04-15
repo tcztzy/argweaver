@@ -29,6 +29,7 @@ void calc_arghmm_matrices_internal(
     if (seqs) {
         const int nleaves = trees->get_num_leaves();
         char *subseqs[nleaves];
+	//	int phase_nodes[2]={-1,-1};
         for (int i=0; i<nleaves; i++)
             subseqs[i] = &seqs->seqs[trees->seqids[i]][start];
         matrices->emit = new_matrix<double>(blocklen, max(nstates, 1));
@@ -152,7 +153,8 @@ void calc_arghmm_matrices(
     if (states_model.internal)
         calc_arghmm_matrices_internal(
             model, seqs, trees, last_tree_spr, tree_spr,
-            start, end, states_model.minage, matrices, phase_pr);
+            start, end, states_model.minage, matrices,
+            phase_pr);
     else
         calc_arghmm_matrices_external(
             model, seqs, trees, last_tree_spr,  tree_spr,

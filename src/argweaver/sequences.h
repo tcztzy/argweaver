@@ -20,6 +20,7 @@
 // arghmm includes
 #include "track.h"
 #include "common.h"
+//#include "local_tree.h"
 
 namespace argweaver {
 

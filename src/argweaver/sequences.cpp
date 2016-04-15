@@ -190,6 +190,17 @@ bool read_sites(FILE *infile, Sites *sites,
             split(&line[6], delim, sites->names);
             nseqs = sites->names.size();
 
+            // assert every name is non-zero in length
+            for (int i=0; i<nseqs; i++) {
+                if (sites->names[i].length() == 0) {
+                    printError(
+                        "name for sequence %d is zero length (line %d)",
+                        i + 1, lineno);
+                    delete [] line;
+                    return false;
+                }
+            }
+
         } else if (strncmp(line, "REGION\t", 7) == 0) {
             // parse RANGE line
             char chrom[51];
@@ -244,7 +255,10 @@ bool read_sites(FILE *infile, Sites *sites,
             // parse bases
             unsigned int len = strlen(col);
             if (len != (unsigned int) nseqs) {
-                printError("not enough bases given (line %d)", lineno);
+                printError(
+                    "the number bases given, %d, does not match the "
+                    "number of sequences %d (line %d)",
+                    len, nseqs, lineno);
                 delete [] line;
                 return false;
             }
@@ -255,6 +269,20 @@ bool read_sites(FILE *infile, Sites *sites,
                 return false;
             }
 
+            // convert to 0-index
+            position--;
+
+            // validate site locations are unique and sorted.
+            int npos = sites->get_num_sites();
+            if (npos > 0 && sites->positions[npos-1] >= position) {
+                printError("invalid site location %d >= %d (line %d)",
+                           sites->positions[npos-1], position, lineno);
+                printError("sites must be sorted and unique.");
+                delete [] line;
+                return false;
+            }
+
+            // record site.
             sites->append(position, col, true);
         }
 
@@ -418,6 +446,8 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
 }
 
 
+
+
 bool Sequences::get_non_singleton_snp(vector<bool> &nonsing) {
     if (seqs.size() == 0) return false;
     for (int i=0; i < seqlen; i++) {
@@ -472,7 +502,6 @@ void Sequences::set_pairs_by_name() {
     // (ie, if we haven't added all sequences yet)
   }
 }
-
 
 void Sequences::set_pairs_from_file(string fn) {
   FILE *infile = fopen(fn.c_str(), "r");
@@ -548,6 +577,7 @@ void PhaseProbs::sample_phase(int *thread_path) {
              (double)sing_switch/sing_tot,
              (double)non_sing_switch/non_sing_tot);
 }
+
 
 void Sequences::randomize_phase(double frac) {
     printLog(LOG_LOW, "randomizing phase (frac=%f)\n", frac);
@@ -853,6 +883,7 @@ void PhaseProbs::updateTreeMap2(const LocalTrees *tree) {
     treemap2 = -1;
     return;
 }
+
 
 //=============================================================================
 // C interface

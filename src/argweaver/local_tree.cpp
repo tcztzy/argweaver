@@ -845,10 +845,25 @@ void compress_local_trees(LocalTrees *trees, const SitesMapping *sites_mapping,
     for (unsigned int i=0; i<blocklens2.size(); i++) {
         if (fuzzy && blocklens2[i] <= 0) {
             // shift block end to the right and compensate in next block
-            assert(i < blocklens2.size() - 1);
-            int diff = 1 - blocklens2[i];
-            blocklens2[i] += diff;
-            blocklens2[i+1] -= diff;
+	    int diff = 1 - blocklens2[i];
+	    blocklens2[i] = 1;
+	    if (i < blocklens2.size() - 1) {
+		blocklens2[i+1] -= diff;
+	    } else {
+		int j=i-1;
+		for (; j >= 0; j--) {
+		    if (blocklens2[j] > 1) {
+			int remove = min(diff, blocklens2[j]-1);
+			blocklens2[j] -= remove;
+			diff -= remove;
+			if (diff == 0) break;
+		    }
+		}
+		if (j < 0)  {
+		    fprintf(stderr, "Unable to compress local trees\n");
+		    exit(1);
+		}
+	    }
         } else
             assert(blocklens2[i] > 0);
     }
