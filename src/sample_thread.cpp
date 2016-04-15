@@ -183,7 +183,8 @@ void arghmm_forward_block_new(const LocalTree *tree, const int ntimes,
 
 // compute one block of forward algorithm with compressed transition matrices
 // NOTE: first column of forward table should be pre-populated
-void arghmm_forward_block(const LocalTree *tree, const int ntimes,
+void arghmm_forward_block(const ArgModel *model,
+                          const LocalTree *tree,
                           const int blocklen, const States &states,
                           const LineageCounts &lineages,
                           const TransMatrix *matrix,
@@ -191,6 +192,7 @@ void arghmm_forward_block(const LocalTree *tree, const int ntimes,
 {
     const int nstates = states.size();
     const LocalNode *nodes = tree->nodes;
+    const int ntimes = model->ntimes;
 
     //  handle internal branch resampling special cases
     int minage = matrix->minage;
@@ -206,39 +208,57 @@ void arghmm_forward_block(const LocalTree *tree, const int ntimes,
         }
     }
 
-    // compute ntimes*ntimes and ntime*nstates temp matrices
-    double tmatrix[ntimes][ntimes];
-    double tmatrix2[ntimes][nstates];
-    for (int a=0; a<ntimes-1; a++) {
-        for (int b=0; b<ntimes-1; b++) {
-            tmatrix[a][b] = matrix->get_time(a, b, 0, minage, false);
-            assert(!isnan(tmatrix[a][b]));
-        }
-
-        for (int k=0; k<nstates; k++) {
-            const int b = states[k].time;
-            const int node2 = states[k].node;
-            const int c = nodes[node2].age;
-            assert(b >= minage);
-            tmatrix2[a][k] = matrix->get_time(a, b, c, minage, true) -
-                             matrix->get_time(a, b, 0, minage, false);
-        }
-    }
-
     // get max time
     int maxtime = 0;
     for (int k=0; k<nstates; k++)
         if (maxtime < states[k].time)
             maxtime = states[k].time;
 
+    int numpath = model->num_pop_paths();
+    int numpath_per_time[ntimes];
+    int paths_per_time[ntimes][numpath];
+    int path_map[states.size()];
+    int max_numpath = 1;
+    if (numpath > 1) {
+        for (int i=0; i < ntimes; i++) {
+            numpath_per_time[ntimes]=0;
+            for (int j=0; j < numpath; j++)
+                paths_per_time[i][j]=0;
+        }
+        for (unsigned int i=0; i < states.size(); i++) {
+            int t = states[i].time;
+            int p = states[i].pop_path;
+            int j=0;
+            for ( ; j < numpath_per_time[t]; j++) {
+                if (model->paths_equal(p, paths_per_time[t][j],
+                                       minage, t))
+                    break;
+            }
+            path_map[i] = j;
+            if (j == numpath_per_time[t])
+                paths_per_time[t][numpath_per_time[t]++] = p;
+        }
+        for (int i=0; i < ntimes; i++)
+            if (numpath_per_time[i] > max_numpath)
+                max_numpath = numpath_per_time[i];
+    } else {
+        for (int i=0; i < ntimes; i++) {
+            numpath_per_time[i] = 1;
+            paths_per_time[i][0] = 0;
+        }
+        for (unsigned int i=0; i < states.size(); i++)
+            path_map[i] = 0;
+        max_numpath = 1;
+    }
+
     // get branch ages
-    NodeStateLookup state_lookup(states, tree->nnodes);
+    // set ages1[i] to age of each branch
+    // set ages2[i] to age of each branch's parent
+    // set indexes[i] to index for state (node[i], ages1[i])
     int ages1[tree->nnodes];
     int ages2[tree->nnodes];
-    int indexes[tree->nnodes];
     for (int i=0; i<tree->nnodes; i++) {
         ages1[i] = max(nodes[i].age, minage);
-        indexes[i] = state_lookup.lookup(i, ages1[i]);
         if (matrix->internal)
             ages2[i] = (i == maintree_root || i == tree->root) ?
                 maxtime : nodes[nodes[i].parent].age;
@@ -246,27 +266,67 @@ void arghmm_forward_block(const LocalTree *tree, const int ntimes,
             ages2[i] = (i == tree->root) ? maxtime : nodes[nodes[i].parent].age;
     }
 
+    // compute ntimes*ntimes and ntime*nstates temp matrices
+    double tmatrix[ntimes-1][ntimes-1][max_numpath][max_numpath];
+    for (int a=0; a<ntimes-1; a++) {
+        for (int b=0; b<ntimes-1; b++) {
+            for (int pa=0; pa < numpath_per_time[a]; pa++) {
+                for (int pb=0; pb < numpath_per_time[b]; pb++) {
+                    tmatrix[a][b][pa][pb] =
+                        matrix->get_time(a, b, 0,
+                                         paths_per_time[a][pa],
+                                         paths_per_time[b][pb],
+                                         -1, minage, false);
+                    assert(!isnan(tmatrix[a][b][pa][pb]));
+                }
+            }
+        }
+    }
 
-    double tmatrix_fgroups[ntimes];
-    double fgroups[ntimes];
+    // take advantage of fact that same branch case is only special
+    // if path a and path b are same; otherwise there must be recomb
+    // on branch being threaded and same branch case is not special
+    double tmatrix2[ntimes][nstates];
+    for (int k=0; k<nstates; k++) {
+        const int b = states[k].time;
+        const int node2 = states[k].node;
+        const int c = nodes[node2].age;
+        const int p = states[k].pop_path;
+        const int pc = nodes[node2].pop_path;
+        for (int a=ages1[node2]; a <= ages2[node2]; a++)
+            tmatrix2[a][k] =
+                matrix->get_time(a, b, c, p, p, pc, minage, true) -
+                matrix->get_time(a, b, 0, p, p, -1, minage, false);
+    }
+
+    NodeStateLookup state_lookup(states, minage, model->pop_tree);
+
+    double tmatrix_fgroups[numpath][ntimes];
+    double fgroups[numpath][ntimes];
     for (int i=1; i<blocklen; i++) {
         const double *col1 = fw[i-1];
         double *col2 = fw[i];
         const double *emit2 = emit[i];
 
         // precompute the fgroup sums
-        fill(fgroups, fgroups+ntimes, 0.0);
+        for (int p=0; p < numpath; p++)
+            fill(fgroups[p], fgroups[p]+ntimes, 0.0);
         for (int j=0; j<nstates; j++) {
             const int a = states[j].time;
-            fgroups[a] += col1[j];
+            fgroups[path_map[j]][a] += col1[j];
         }
 
         // multiply tmatrix and fgroups together
         for (int b=0; b<ntimes-1; b++) {
-            double sum = 0.0;
-            for (int a=0; a<ntimes-1; a++)
-                sum += tmatrix[a][b] * fgroups[a];
-            tmatrix_fgroups[b] = sum;
+            for (int pb=0; pb < numpath_per_time[b]; pb++) {
+                double sum = 0.0;
+                for (int a=0; a<ntimes-1; a++) {
+                    for (int pa=0; pa < numpath_per_time[a]; pa++) {
+                        sum += tmatrix[a][b][pa][pb] * fgroups[pa][a];
+                    }
+                }
+                tmatrix_fgroups[pb][b] = sum;
+            }
         }
 
         // fill in one column of forward table
@@ -276,13 +336,17 @@ void arghmm_forward_block(const LocalTree *tree, const int ntimes,
             const int node2 = states[k].node;
             const int age1 = ages1[node2];
             const int age2 = ages2[node2];
+            const int path = states[k].pop_path;
 
             assert(!isnan(col1[k]));
 
+            double sum = tmatrix_fgroups[path_map[k]][b];
+
             // same branch case
-            double sum = tmatrix_fgroups[b];
-            const int j1 = indexes[node2];
-            for (int j=j1, a=age1; a<=age2; j++, a++)
+            // note taking advantage of convention in nodestatelookup that
+            // consecutive times are in a row
+            int j=state_lookup.lookup(node2, age1, path);
+            for (int a=age1; a <= age2; a++, j++)
                 sum += tmatrix2[a][k] * col1[j];
 
             col2[k] = sum * emit2[k];
@@ -357,17 +421,20 @@ void arghmm_forward_switch(const double *col1, double* col2,
     // add deterministic transitions
     for (int j=0; j<nstates1; j++) {
         int k = matrix->determ[j];
-        if (j != matrix->recombsrc && j != matrix->recoalsrc && k != -1)
+        if (k != -1 && matrix->recombsrc[j] < 0 && matrix->recoalsrc[j] < 0)
             col2[k] += col1[j] * matrix->determprob[j];
     }
 
     // add recombination and recoalescing transitions
     double norm = 0.0;
+    for (int j=0; j < nstates1; j++) {
+        if (matrix->recombsrc[j] >= 0 || matrix->recoalsrc[j] >= 0) {
+            for (int k=0; k<nstates2; k++) {
+                col2[k] += col1[j] * matrix->get(j,k);
+            }
+        }
+    }
     for (int k=0; k<nstates2; k++) {
-        if (matrix->recombsrc != -1 && matrix->recombrow[k] > 0.0)
-            col2[k] += col1[matrix->recombsrc] * matrix->recombrow[k];
-        if (matrix->recoalsrc != -1 && matrix->recoalrow[k] > 0.0)
-            col2[k] += col1[matrix->recoalsrc] * matrix->recoalrow[k];
         col2[k] *= emit[k];
         norm += col2[k];
     }
@@ -419,7 +486,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
         double **fw_block = &fw[pos];
 
         matrices.states_model.get_coal_states(tree, states);
-        lineages.count(tree, internal);
+        lineages.count(tree, model->pop_tree, internal);
 
         // use switch matrix for first column of forward table
         // if we have a previous state space (i.e. not first block)
@@ -450,7 +517,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
                                       states, lineages, matrices.transmat,
                                       emit, fw_block);
         else
-            arghmm_forward_block(tree, model->ntimes, blocklen,
+            arghmm_forward_block(model, tree, blocklen,
                                  states, lineages, matrices.transmat,
                                  emit, fw_block);
 
@@ -472,7 +539,7 @@ double sample_hmm_posterior(
     int blocklen, const LocalTree *tree, const States &states,
     const TransMatrix *matrix, const double *const *fw, int *path)
 {
-    // NOTE: path[n-1] must already be sampled
+    // NOTE: path[blocklen-1] must already be sampled
 
     const int nstates = max(states.size(), (size_t)1);
     double A[nstates];
@@ -583,6 +650,7 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
     ArgHmmForwardTable forward(trees->start_coord, trees->length());
     int *thread_path_alloc = new int [trees->length()];
     int *thread_path = &thread_path_alloc[-trees->start_coord];
+    int start_pop = sequences->get_pop(new_chrom);
 
     // gives probability of current phasing for each heterozygous site;
     // will only be filled in if model->unphased==true
@@ -593,6 +661,7 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
 
     // build matrices
     ArgHmmMatrixIter matrix_iter(model, sequences, trees, new_chrom);
+    matrix_iter.set_start_pop(start_pop);
 
     // compute forward table
     Timer time;
@@ -607,6 +676,7 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
     time.start();
     double **fw = forward.get_table();
     ArgHmmMatrixIter matrix_iter2(model, NULL, trees, new_chrom);
+    matrix_iter2.set_start_pop(start_pop);
     stochastic_traceback(trees, model, &matrix_iter2, fw, thread_path);
     printTimerLog(time, LOG_LOW,
                   "trace:                              ");
@@ -618,14 +688,15 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
 
     // sample recombination points
     vector<int> recomb_pos;
-    vector<NodePoint> recombs;
+    vector<NodePointPath> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
                           thread_path, recomb_pos, recombs);
 
     // add thread to ARG
+    matrix_iter.states_model.set_start_pop(start_pop);
     add_arg_thread(trees, matrix_iter.states_model,
                    model->ntimes, thread_path, new_chrom,
-                   recomb_pos, recombs);
+                   recomb_pos, recombs, model->pop_tree);
     printTimerLog(time, LOG_LOW,
                   "add thread:                         ");
 
@@ -659,7 +730,7 @@ void sample_arg_thread_internal(
     arghmm_forward_alg(trees, model, sequences, &matrix_iter, &forward,
                        phase_pr, false, internal);
     int nstates = get_num_coal_states_internal(
-        trees->front().tree, model->ntimes);
+           trees->front().tree, model->ntimes, minage);
     printTimerLog(time, LOG_LOW,
                   "forward (%3d states, %6d blocks):",
                   nstates, trees->get_num_trees());
@@ -680,14 +751,14 @@ void sample_arg_thread_internal(
     // sample recombination points
     time.start();
     vector<int> recomb_pos;
-    vector<NodePoint> recombs;
+    vector<NodePointPath> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
                           thread_path, recomb_pos, recombs, internal);
 
     // add thread to ARG
     add_arg_thread_path(trees, matrix_iter.states_model,
                         model->ntimes, thread_path,
-                        recomb_pos, recombs);
+                        recomb_pos, recombs, model->pop_tree);
     printTimerLog(time, LOG_LOW,
                   "add thread:                         ");
 
@@ -699,7 +770,7 @@ void sample_arg_thread_internal(
 
 // sample the thread of the last chromosome, conditioned on a given
 // start and end state
-void cond_sample_arg_thread(const ArgModel *model, const Sequences *sequences,
+/*void cond_sample_arg_thread(const ArgModel *model, const Sequences *sequences,
                             LocalTrees *trees, int new_chrom,
                             State start_state, State end_state)
 {
@@ -751,20 +822,20 @@ void cond_sample_arg_thread(const ArgModel *model, const Sequences *sequences,
     // sample recombination points
     time.start();
     vector<int> recomb_pos;
-    vector<NodePoint> recombs;
+    vector<NodePointPath> recombs;
     sample_recombinations(trees, model, &matrix_list,
                           thread_path, recomb_pos, recombs);
 
     // add thread to ARG
     add_arg_thread(trees, matrix_list.states_model,
                    model->ntimes, thread_path, new_chrom,
-                   recomb_pos, recombs);
+                   recomb_pos, recombs, model->pop_tree);
 
     printf("add thread:  %e s\n", time.time());
 
     // clean up
     delete [] thread_path_alloc;
-}
+    } */
 
 
 
@@ -815,8 +886,10 @@ void cond_sample_arg_thread_internal(
     Timer time;
     arghmm_forward_alg(trees, model, sequences, &matrix_iter, &forward, NULL,
                        prior_given, internal);
+
+    // TODO: Check that we don't need more arguments here!
     int nstates = get_num_coal_states_internal(
-        trees->front().tree, model->ntimes);
+         trees->front().tree, model->ntimes);
     printTimerLog(time, LOG_LOW,
                   "forward (%3d states, %6d blocks):",
                   nstates, trees->get_num_trees());
@@ -851,16 +924,15 @@ void cond_sample_arg_thread_internal(
     // sample recombination points
     time.start();
     vector<int> recomb_pos;
-    vector<NodePoint> recombs;
-    int **thread_pop = NULL;
+    vector<NodePointPath> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
-                          thread_path, recomb_pos, recombs, internal, &thread_pop);
+                          thread_path, recomb_pos, recombs, internal);
 
 
     // add thread to ARG
     add_arg_thread_path(trees, matrix_iter.states_model,
                         model->ntimes, thread_path,
-                        recomb_pos, recombs, thread_pop);
+                        recomb_pos, recombs, model->pop_tree);
     printTimerLog(time, LOG_LOW,
                   "add thread:                         ");
 
@@ -875,7 +947,7 @@ void resample_arg_thread(const ArgModel *model, Sequences *sequences,
                          LocalTrees *trees, int chrom)
 {
     // remove chromosome from ARG and resample its thread
-    remove_arg_thread(trees, chrom);
+    remove_arg_thread(trees, chrom, model);
     sample_arg_thread(model, sequences, trees, chrom);
 }
 
@@ -884,7 +956,7 @@ void resample_arg_thread(const ArgModel *model, Sequences *sequences,
 //=============================================================================
 // C interface
 
-extern "C" {
+/*extern "C" {
 
 
 // perform forward algorithm
@@ -1048,5 +1120,5 @@ void delete_forward_matrix(double **mat, int nrows)
 
 
 } // extern "C"
-
+*/
 } // namespace argweaver

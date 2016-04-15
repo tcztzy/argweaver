@@ -116,52 +116,31 @@ public:
 		    "Minimum number of events per time interval; time intervals with"
 		    " fewer events will be combined with previous time interval for"
 		    " EM computations"));
+        config.add(new ConfigParam<int>
+                   ("", "--sample-popsize", "<num>", &sample_popsize_num, 0,
+                    "sample population size using Hamiltonian Monte Carlo every"
+                    "<num> threading operations (default=0 means do not sample)"));
+        config.add(new ConfigParam<int>
+                   ("", "--popsize-config", "<num>", &popsize_config, 0,
+                    "Choose configuration for population sizes:\n"
+                    "  0: constant population size across time (default)\n"
+                    "  1: different population size in each population\n"
+                    "  2: most fine-grained; different population size in each time\n"
+                    " interval and population\n"));
         config.add(new ConfigSwitch
-                   ("", "--sample-popsize", &sample_popsize,
-                    "sample population size for each time interval using"
-                    " Metropolis-Hastings update"));
-        config.add(new ConfigSwitch
-                   ("", "--sample-popsize-recomb", &sample_popsize_recomb,
-                    "do not integrate over recombination events when sampling"
-                    "popsize", DEBUG_OPT));
+                   ("", "--sample-popsize-const", &sample_popsize_const,
+                    "update popsize but keep constant across times/populations"));
         config.add(new ConfigParam<string>
                    ("", "--sample-popsize-config", "<popsize config file>",
                     &popsize_config_file, "",
-                    "optional, for use with --sample-popsize: should have a"
-                    " line for each time interval, starting with the most"
-                    " recent. Each line can have up to three tab-separated"
-                    " columns, but only the first is required. The first column"
-                    " gives the name of the popsize parameter- any time"
-                    " intervals with the same entry here will be constrained"
-                    " to have the same popsize. The second line is the initial"
-                    " value for the parameter, and the third should be a 1 or"
-                    " 0 indicating whether to sample that parameter. The second"
-                    " and third columns are optional; by default all parameters"
-                    " will be sampled when --sample-popsize is used. For rows"
-                    " with the same value in the first column, the second and"
-                    " third columns should also be the same."));
-        config.add(new ConfigParam<int>
-                   ("", "--sample-popsize-num", "<num>", &sample_popsize_num, 1,
-                    "number of times to sample popsize per threading operation"
-                    " (default=1)",
-                    DEBUG_OPT));
-        config.add(new ConfigSwitch
-                   ("", "--popsize-prior-neighbor", &popsize_prior_neighbor,
-                    "(for use with --sample-popsize) use prior that encourages"
-                    " neighboring popsizes to be similar",
-                    DEBUG_OPT));
-        config.add(new ConfigSwitch
-                   ("", "--sample-popsize-const", &sample_popsize_const,
-                    "sample popsize, keep constant across times", DEBUG_OPT));
-        config.add(new ConfigParam<int>
-                   ("", "--sample-popsize-buildup", "<n>",
-                    &sample_popsize_buildup, 0,
-                    "for use with --sample-popsize, alternative to"
-                    " --sample-popsize-config. Start off estimating single"
-                    " popsize for all times, and every <n> iterations split"
-                    " interval in half, until each time interval estimated"
-                    " separately",
-                    DEBUG_OPT));
+                    "optional, for use with --sample-popsize.\n"
+                    " Overrides popsize-config option, which provides some common configs\n"
+                    " This file should contain up to 2-5 entries per line, in the format:"
+                    " <param_name> <time_idx> <pop_idx=0> <optimize=1> <init_val=N>\n"
+                    " The last three values are optional. All entries with the same\n"
+                    " param_name will be constrained to have the same population size\n"
+                    " Population sizes are initialized to the default value of N unless\n"
+                    " specified here."));
 	config.add(new ConfigParam<double>
 		   ("", "--epsilon", "<val>", &epsilon,
 		    0.01, "(for use with --sample-popsize) epsilon value for"
@@ -244,9 +223,9 @@ public:
         config.add(new ConfigParam<int>
                    ("", "--climb", "<# of climb iterations>", &nclimb, 0,
                     "(default=0)"));
-	config.add(new ConfigParam<int>
+        config.add(new ConfigParam<int>
 		   ("", "--num-buildup", "<# of buildup iterations>", &num_buildup,
-		    1, "(default=0)"));
+                    1, "(default=0)"));
         config.add(new ConfigParam<int>
                    ("", "--sample-step", "<sample step size>", &sample_step,
                     10, "number of iterations between steps (default=10)"));
@@ -368,7 +347,7 @@ public:
     // model parameters
     double popsize;
     string popsize_str;
-string pop_file;
+    string pop_file;
     double mu;
     double rho;
     int ntimes;
@@ -382,14 +361,12 @@ string pop_file;
     ArgModel model;
     int popsize_em;
     double popsize_em_min_event;
-    bool sample_popsize;
-    bool sample_popsize_const;
     bool popsize_prior_neighbor;
-    int sample_popsize_buildup;
-    bool sample_popsize_recomb;
     bool init_popsize_random;
+    int popsize_config;
     string popsize_config_file;
     int sample_popsize_num;
+    bool sample_popsize_const;
     double epsilon;
     double pseudocount;
 #ifdef ARGWEAVER_MPI
@@ -501,11 +478,17 @@ void log_model(const ArgModel &model)
     for (int i=0; i<model.ntimes-1; i++)
         printLog(LOG_LOW, "%f,", model.times[i]);
     printLog(LOG_LOW, "%f]\n", model.times[model.ntimes-1]);
+    printLog(LOG_LOW, "  npop = %d\n", model.num_pops());
     printLog(LOG_LOW, "  popsizes = [");
-    for (int i=0; i<2*model.ntimes-2; i++)
-        printLog(LOG_LOW, "%f,", model.popsizes[i]);
-    printLog(LOG_LOW, "%f]\n", model.popsizes[2*model.ntimes-2]);
-
+    for (int i=0; i < 2*model.ntimes-1; i++) {
+        if (i != 0) printLog(LOG_LOW, "              ");
+        for (int pop = 0; pop < model.num_pops(); pop++) {
+            if (pop != 0) printLog(LOG_LOW, ",\t");
+            printLog(LOG_LOW, "%.1f", model.popsizes[pop][i]);
+        }
+        printLog(LOG_LOW, "%c", i == 2*model.ntimes-2 ? ']' : ',');
+        printLog(LOG_LOW, "\n");
+    }
     if (isLogLevel(LOG_HIGH)) {
         printLog(LOG_HIGH, "mutmap = [\n");
         for (unsigned int i=0; i<model.mutmap.size(); i++) {
@@ -658,19 +641,22 @@ void compress_model(ArgModel *model, const SitesMapping *sites_mapping,
 void print_stats_header(Config *config) {
     fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\t"
             "recombs\tnoncompats\targlen");
-    if (config->model.popsize_config.config_buildup) {
-        for (int i=0; i < 2*config->model.ntimes-1; i++)
-            fprintf(config->stats_file, "\tN%i", i);
-    } else if (config->model.popsize_config.sample) {
+    if (config->model.popsize_config.sample) {
         list<PopsizeConfigParam> l = config->model.popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
              it != l.end(); ++it) {
             fprintf(config->stats_file, "\t%s", it->name.c_str());
         }
     } else if (config->popsize_em) {
-	for (int i=0; i < config->model.ntimes-1; i++) {
-	    fprintf(config->stats_file, "\tN%i", i);
-	}
+        for (int pop=0; pop < config->model.num_pops(); pop++) {
+            for (int i=0; i < config->model.ntimes-1; i++) {
+                char str[100];
+                if (config->model.num_pops() == 1)
+                    sprintf(str, "N%i", i);
+                else sprintf(str, "N%i.%i", pop, i);
+                fprintf(config->stats_file, "\t%s", str);
+            }
+        }
     }
     fprintf(config->stats_file, "\n");
 }
@@ -718,26 +704,25 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f",
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
-    if (model->popsize_config.config_buildup) {
-        for (int i=0; i < 2*model->ntimes-1; i++)
-            fprintf(stats_file, "\t%f", model->popsizes[i]);
-    } else if (model->popsize_config.sample) {
+    if (model->popsize_config.sample) {
         list<PopsizeConfigParam> l=model->popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
              it != l.end(); ++it) {
-            set<int>::iterator it2 = it->pops.begin();
-            int val = *it2;
-            fprintf(stats_file, "\t%f", model->popsizes[val]);
+            set<PopTime>::iterator it2 = it->intervals.begin();
+            fprintf(stats_file, "\t%f", model->popsizes[it2->pop][it2->time]);
             it2++;
-            //just checking here; can delete later
-            while (it2 != it->pops.end()) {
-                assert(model->popsizes[*it2] == model->popsizes[*it2]);
-                it2++;
+            // just checking here
+            set<PopTime>::iterator it3 = it2;
+            while (it3 != it->intervals.end()) {
+                assert(model->popsizes[it2->pop][it2->time] ==
+                       model->popsizes[it3->pop][it3->time]);
+                it3++;
             }
         }
     } else if (config->popsize_em) {
-	for (int i=0; i < model->ntimes-1; i++)
-	    fprintf(stats_file, "\t%f", model->popsizes[2*i]);
+        for (int pop=0; pop < model->num_pops(); pop++)
+            for (int i=0; i < model->ntimes-1; i++)
+                fprintf(stats_file, "\t%f", model->popsizes[pop][2*i]);
     }
     fprintf(stats_file, "\n");
     fflush(stats_file);
@@ -1043,16 +1028,18 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 				      window, niters, heat);
 	}
 
-	if (config->popsize_em > 0 && i % config->popsize_em == 0)
+
+            // TODO: implement popsize updates
+            /*	if (config->popsize_em > 0 && i % config->popsize_em == 0)
 	    mle_popsize(model, trees, config->popsize_em_min_event);
-        else if (model->popsize_config.sample) {
-            if (model->popsize_config.config_buildup > 0 &&
-                i > 0 && i % model->popsize_config.config_buildup == 0)
-                model->popsize_config.split_config();
-	    //            resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
-	    //	    mle_popsize(model, trees);
-	    update_popsize_hmc(model, trees);
-        } else no_update_popsize(model, trees);
+        else if (model->popsize_config.sample > 0 && i % model->popsize_config.sample == 0) {
+            printError("Have not implemented popsize update for multipop yet\n");
+	    ////      resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
+            //	    update_popsize_hmc(model, trees);
+        } else {
+            printError("Have not implemented popsize update for multipop yet\n");
+            //no_update_popsize(model, trees);
+            }*/
 
         printTimerLog(timer, LOG_LOW, "sample time:");
 
@@ -1154,28 +1141,30 @@ bool parse_status_line(const char* line, const Config &config,
         arg_file = out_arg_file;
     }
 
-    //TODO: need to make this work with popsize_config.config_buildup
+    int npop = config.model.num_pops();
     if (config.model.popsize_config.sample) {
         list<PopsizeConfigParam> l=config.model.popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
              ++it) {
             string popname=it->name;
-            set<int> popset = it->pops;
+            set<PopTime> popset = it->intervals;
             int found=false;
             for (unsigned int i=0; i < header.size(); i++) {
                 if (header[i] == popname) {
                     found=true;
                     double tempN;
                     sscanf(tokens[i].c_str(), "%lf", &tempN);
-                    for (set<int>::iterator it2=popset.begin();
+                    for (set<PopTime>::iterator it2=popset.begin();
                          it2 != popset.end(); ++it2) {
-                        int pop = *it2;
-                        if (pop < 0 || pop >= 2*config.model.ntimes-1) {
+                        int pop = it2->pop;
+                        int time = it2->time;
+                        if (pop < 0 || pop >= npop ||
+                            time < 0 || time >= 2*config.model.ntimes-1) {
                             printError("Error in resume: popsize config does"
                                        " not match previous run\n");
                             abort();
                         }
-                        config.model.popsizes[pop] = tempN;
+                        config.model.popsizes[pop][time] = tempN;
                     }
                     break;
                 }
@@ -1187,7 +1176,12 @@ bool parse_status_line(const char* line, const Config &config,
                 abort();
             }
         }
+    } else if (config.popsize_em) {
+        for (int pop=0; pop < npop; pop++)
+            for (int i=0; i < config.model.ntimes - 1; i++)
+                sscanf(tokens[i].c_str(), "%lf", &config.model.popsizes[pop][i]);
     }
+
     return true;
 }
 
@@ -1504,14 +1498,14 @@ int main(int argc, char **argv)
     else
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     if (c.pop_file != "")
-        c.model.read_poptree(c.pop_file);
+        c.model.read_population_tree(c.pop_file);
 
     c.model.rho = c.rho;
     c.model.mu = c.mu;
     const double infsites_penalty = 1e-100; // TODO: make configurable
     if (c.infsites)
         c.model.infsites_penalty = infsites_penalty;
-    c.model.set_popsizes(c.popsize_str, c.model.ntimes);
+    c.model.set_popsizes(c.popsize_str);
     if (c.unphased_file != "")
         c.model.unphased_file = c.unphased_file;
     sequences.set_pairs(&c.model);
@@ -1521,29 +1515,26 @@ int main(int argc, char **argv)
     if (c.unphased)
         c.model.unphased = true;
     c.model.sample_phase = c.sample_phase;
-    if (c.sample_popsize_const)
-        c.sample_popsize=true;
-    if (c.sample_popsize) {
+    if (c.sample_popsize_num > 0) {
 	if (c.popsize_em) {
 	    printError("Error: cannot use --popsize-em with --sample-popsize\n");
 	    return 1;
 	}
-        if (c.sample_popsize_buildup) {
-            if (c.popsize_config_file != "" || c.sample_popsize_const) {
-                printError("Error: cannot use --sample-popsize-buildup with"
-                           " --sample-popsize-const or"
-                           " --sample-popsize-config\n");
-                return 1;
-            }
-            c.model.popsize_config = PopsizeConfig(c.ntimes, true, true);
-            c.model.popsize_config.config_buildup = c.sample_popsize_buildup;
-        } else if (c.sample_popsize_const) {
-            c.model.popsize_config =
-                PopsizeConfig(c.ntimes, true, true);
-        } else {
+        if (c.popsize_config_file != "") {
             c.model.popsize_config =
                 PopsizeConfig(c.popsize_config_file, c.model.ntimes,
-                              c.model.popsizes);
+                              c.model.num_pops(), c.model.popsizes);
+        } else if (c.popsize_config == 0) {
+            c.model.popsize_config =
+                PopsizeConfig(c.ntimes, c.model.num_pops(), true, true);
+        } else if (c.popsize_config == 1) {
+            c.model.set_popsize_config_by_pop_tree();
+        } else if (c.popsize_config == 2) {
+            c.model.popsize_config =
+                PopsizeConfig(c.ntimes, c.model.num_pops(), true, false);
+        } else {
+            printError("Error: invalid value for --popsize-config\n");
+            return 1;
         }
         c.model.popsize_config.numsample = c.sample_popsize_num;
         c.model.popsize_config.neighbor_prior = c.popsize_prior_neighbor;
@@ -1557,7 +1548,7 @@ int main(int argc, char **argv)
            MPI::COMM_WORLD.Get_rank(),
            MPI::COMM_WORLD.Get_size());
     MPI::COMM_WORLD.Barrier();
-#endif
+    #endif
     if (c.init_popsize_random)
         c.model.set_popsizes_random();
 

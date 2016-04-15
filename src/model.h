@@ -65,7 +65,7 @@ class PopTime
 class PopsizeConfigParam
 {
  public:
- PopsizeConfigParam(string name, bool sample=true, int pop=-1, int time=-1) :
+ PopsizeConfigParam(string name, bool sample=true, int pop=0, int time=-1) :
     name(name),
         sample(sample)
         {
@@ -153,7 +153,6 @@ class ArgModel
     unphased(0),
     sample_phase(0),
     unphased_file(""),
-    npop(1),
     pop_tree(NULL) {}
 
     // Model with constant population sizes and log-spaced time points
@@ -170,7 +169,6 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    npop(1),
     pop_tree(NULL)
         {
             set_log_times(maxtime, ntimes);
@@ -178,7 +176,7 @@ class ArgModel
         }
 
     // Model with variable population sizes and log-space time points
- ArgModel(int ntimes, double maxtime, double *_popsizes,
+ ArgModel(int ntimes, double maxtime, double **_popsizes,
           double rho, double mu) :
     owned(true),
     ntimes(ntimes),
@@ -191,7 +189,6 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    npop(1),
     pop_tree(NULL)
         {
             set_log_times(maxtime, ntimes);
@@ -201,7 +198,7 @@ class ArgModel
 
 
     // Model with custom time points and variable population sizes
- ArgModel(int ntimes, double *_times, double *_popsizes,
+ ArgModel(int ntimes, double *_times, double **_popsizes,
           double rho, double mu) :
     owned(true),
     ntimes(ntimes),
@@ -214,7 +211,6 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    npop(1),
     pop_tree(NULL)
         {
             set_times(_times, ntimes);
@@ -239,7 +235,6 @@ class ArgModel
     unphased_file(other.unphased_file),
     popsize_config(other.popsize_config),
     mc3(other.mc3),
-    npop(other.npop),
     pop_tree(other.pop_tree) {}
 
 
@@ -280,12 +275,14 @@ class ArgModel
     }
 
     void alloc_popsizes() {
+        int npop = this->num_pops();
         popsizes = new double*[npop];
         for (int i=0; i < npop; i++)
             popsizes[i] = new double[2*ntimes-1];
     }
 
     void free_popsizes() {
+        int npop = this->num_pops();
         for (int i = 0; i < npop; i++)
             delete popsizes[i];
         delete popsizes;
@@ -371,18 +368,9 @@ class ArgModel
     void set_popsizes(double **_popsizes) {
         if (!popsizes)
             alloc_popsizes();
+        int npop = this->num_pops();
         for (int i=0; i < npop; i++)
             std::copy(_popsizes[i], _popsizes[i] + 2*ntimes-1, popsizes[i]);
-    }
-
-
-    // Sets the model population sizes from an array
-    void set_popsizes(double *_popsizes) {
-        if (!popsizes)
-            alloc_popsizes();
-        for (int i=0; i < npop; i++) {
-            std::copy(_popsizes, _popsizes + 2*ntimes-1, popsizes[i]);
-        }
     }
 
     void set_popsizes(string popsize_str) {
@@ -390,6 +378,7 @@ class ArgModel
             alloc_popsizes();
         vector<string> tokens;
         split(popsize_str.c_str(), ",", tokens);
+        int npop = this->num_pops();
         if (tokens.size() == 1) {
             for (int i=0; i < npop; i++)
                 fill(popsizes[i], popsizes[i] + 2*ntimes-1, atof(tokens[0].c_str()));
@@ -411,6 +400,7 @@ class ArgModel
     void set_popsizes(double popsize) {
         if (!popsizes)
             alloc_popsizes();
+        int npop = this->num_pops();
         for (int i=0; i < npop; i++)
             fill(popsizes[i], popsizes[i] + 2*ntimes-1, popsize);
     }
@@ -418,6 +408,7 @@ class ArgModel
     void set_popsize_by_pop(double *popsize) {
         if (!popsizes)
             alloc_popsizes();
+        int npop = this->num_pops();
         for (int i=0; i < npop; i++)
             fill(popsizes[i], popsizes[i] + 2*ntimes-1, popsize[i]);
     }
@@ -498,7 +489,18 @@ class ArgModel
 
     void set_popsizeconfig_by_pop_tree();
 
-    int get_pop(int path, int time);
+    void read_population_tree(string pop_file);
+
+    int get_pop(int path, int time) const;
+    int consistent_path(int path1, int path2, int t1, int t2, int t3,
+                        bool require_exists=true) const;
+
+    int num_pops() const;
+    int num_pop_paths() const;
+    double path_prob(int path, int t1, int t2) const;
+    bool paths_equal(int path1, int path2, int t1, int t2) const;
+    int max_matching_path(int path1, int path2, int t) const;
+
 
 protected:
     // Setup time steps between time points
@@ -540,7 +542,6 @@ protected:
     Mc3Config mc3;
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
-    int npop;
     PopulationTree *pop_tree;
 };
 

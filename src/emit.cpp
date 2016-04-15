@@ -1161,7 +1161,7 @@ void calc_emissions_external_slow(
         likelihood_sites(&tree2, model, seqs, seqlen, j, invariant, emit,
                          table.data, -1, -1);
 
-        remove_tree_branch(&tree2, newleaf, NULL);
+        remove_tree_branch(&tree2, newleaf, model, NULL);
     }
 
     delete [] invariant;

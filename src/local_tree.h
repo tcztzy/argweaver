@@ -43,9 +43,10 @@ class Spr
 public:
     Spr() {}
     Spr(int recomb_node, int recomb_time,
-        int coal_node, int coal_time) :
-        recomb_node(recomb_node), recomb_time(recomb_time),
-            coal_node(coal_node), coal_time(coal_time), pop_path(0) {}
+        int coal_node, int coal_time, int pop_path=-1) :
+            recomb_node(recomb_node), recomb_time(recomb_time),
+            coal_node(coal_node), coal_time(coal_time),
+            pop_path(pop_path) {}
 
     // sets the SPR to a null value
     void set_null()
@@ -54,7 +55,7 @@ public:
         recomb_time = -1;
         coal_node = -1;
         coal_time = -1;
-        pop_path = 0;
+        pop_path = -1;
     }
 
     bool is_null() const
@@ -72,14 +73,15 @@ public:
 
 
 // A node point can be either a recombination point or a coalescing point
-class NodePoint
+class NodePointPath
 {
 public:
-    NodePoint(int node, int time) :
-        node(node), time(time) {}
+    NodePointPath(int node, int time, int path=0) :
+        node(node), time(time), path(path) {}
 
     int node;
     int time;
+    int path;
 };
 
 
@@ -592,7 +594,8 @@ public:
     }
 
     // make trunk genealogy
-    void make_trunk(int start, int end, int capacity=-1)
+    void make_trunk(int start, int end, int pop_path,
+                    int capacity=-1)
     {
         clear();
 
@@ -603,8 +606,9 @@ public:
         int ptree[] = {-1};
         int ages[] = {0};
         LocalTree *tree = new LocalTree(ptree, 1, ages, capacity);
+        tree->nodes[0].pop_path = pop_path;
         trees.push_back(
-            LocalTreeSpr(tree, Spr(-1, -1, -1, -1), end - start, NULL));
+         LocalTreeSpr(tree, Spr(-1, -1, -1, -1, -1), end - start, NULL));
         set_default_seqids();
     }
 
@@ -695,10 +699,12 @@ public:
 
 // count the lineages in a tree
 void count_lineages(const LocalTree *tree, int ntimes,
-                    int **nbranches, int **nrecombs, int **ncoals,
+                    int *nbranches, int *nrecombs,
+                    int **nbranches_pop, int **ncoals_pop,
                     const PopulationTree *pop_tree);
 void count_lineages_internal(const LocalTree *tree, int ntimes,
-                             int **nbranches, int **nrecombs, int **ncoals,
+                             int *nbranches, int *nrecombs,
+                             int **nbranches_pop, int **ncoals_pop,
                              const PopulationTree *pop_tree);
 
 
@@ -709,42 +715,46 @@ public:
    LineageCounts(int ntimes, int npops = 1) :
     ntimes(ntimes), npops(npops)
     {
-	nbranches = new int* [npops];
-	nrecombs = new int* [npops];
-	ncoals = new int* [npops];
+        nbranches = new int [ntimes];
+        nrecombs = new int [ntimes];
+	nbranches_pop = new int* [npops];
+        ncoals_pop = new int* [npops];
 	for (int i=0; i < npops; i++) {
-	    nbranches[i] = new int [ntimes];
-	    nrecombs[i] = new int [ntimes];
-	    ncoals[i] = new int [ntimes];
+	    nbranches_pop[i] = new int [ntimes];
+	    ncoals_pop[i] = new int [ntimes];
 	}
     }
 
     ~LineageCounts()
     {
 	for (int i=0; i < npops; i++) {
-	    delete [] nbranches[i];
-	    delete [] nrecombs[i];
-	    delete [] ncoals[i];
+	    delete [] nbranches_pop[i];
+	    delete [] ncoals_pop[i];
 	}
         delete [] nbranches;
+        delete [] nbranches_pop;
         delete [] nrecombs;
-        delete [] ncoals;
+        delete [] ncoals_pop;
+
     }
 
     // Counts the number of lineages for a tree
     inline void count(const LocalTree *tree, const PopulationTree *pop_tree,
                       bool internal=false) {
         if (internal)
-            count_lineages_internal(tree, ntimes, nbranches, nrecombs, ncoals, pop_tree);
+            count_lineages_internal(tree, ntimes, nbranches, nrecombs,
+                                    nbranches_pop, ncoals_pop, pop_tree);
         else
-            count_lineages(tree, ntimes, nbranches, nrecombs, ncoals, pop_tree);
+            count_lineages(tree, ntimes, nbranches, nrecombs,
+                           nbranches_pop, ncoals_pop, pop_tree);
     }
 
     int ntimes;       // number of time points
     int npops;        // number of populations
-    int **nbranches;  // number of branches per time slice
-    int **nrecombs;   // number of recombination points per time slice
-    int **ncoals;     // number of coalescing points per time slice
+    int *nbranches;  // number of branches per time slice
+    int *nrecombs;   // number of recombination points per time slice
+    int **ncoals_pop;     // number of coalescing points per time slice
+    int **nbranches_pop;
 };
 
 

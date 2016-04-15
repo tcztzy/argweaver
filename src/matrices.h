@@ -101,7 +101,7 @@ void calc_arghmm_matrices(
     const LocalTreeSpr *last_tree_spr, const LocalTreeSpr *tree_spr,
     const int start, const int end, const int new_chrom,
     const StatesModel &states_model, ArgHmmMatrices *matrices,
-    PhaseProbs *phase_pr);
+    PhaseProbs *phase_pr, int start_pop);
 
 
 
@@ -224,6 +224,7 @@ public:
     {
         if (new_chrom == -1)
             new_chrom = trees->get_num_leaves();
+        start_pop = -1;
     }
 
     virtual ~ArgHmmMatrixIter()
@@ -242,6 +243,11 @@ public:
     void set_internal(bool internal, int minage=0)
     {
         states_model.set(model->ntimes, internal, minage);
+    }
+
+    void set_start_pop(int _start_pop) {
+        start_pop = _start_pop;
+        states_model.set_start_pop(start_pop);
     }
 
     //==================================================
@@ -351,7 +357,7 @@ protected:
         argweaver::calc_arghmm_matrices(
             &local_model, seqs, trees, last_tree_spr, block.tree_spr,
             block.start, block.end, new_chrom, states_model, matrices,
-	    phase_pr);
+	    phase_pr, start_pop);
     }
 
 
@@ -360,6 +366,7 @@ protected:
     const Sequences *seqs;
     const LocalTrees *trees;
     int new_chrom;
+    int start_pop;
 
     ArgHmmMatrices mat;
 

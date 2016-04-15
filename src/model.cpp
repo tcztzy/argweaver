@@ -4,7 +4,7 @@
 #endif
 
 #include "model.h"
-
+#include "pop_model.h"
 
 
 namespace argweaver {
@@ -132,9 +132,18 @@ bool complete_map(Track<T> &track, string chrom, int start, int end, const T &de
     return true;
 }
 
-int ArgModel::get_pop(int path, int time) {
-    if (poptree == NULL) return 0;
-    return poptree->get_pop(path, time);
+int ArgModel::get_pop(int path, int time) const {
+    if (pop_tree == NULL) return 0;
+    return pop_tree->get_pop(path, time);
+}
+
+
+int ArgModel::consistent_path(int path1, int path2,
+                              int t1, int t2, int t3,
+                              bool require_exists) const {
+    if (pop_tree == NULL) return 0;
+    return pop_tree->consistent_path(path1, path2, t1, t2, t3,
+                                     require_exists);
 }
 
 
@@ -148,7 +157,10 @@ void ArgModel::copy(const ArgModel &other) {
     unphased_file = other.unphased_file;
     popsize_config = other.popsize_config;
     mc3 = other.mc3;
-    npop = other.npop;
+
+    if (other.pop_tree)
+        pop_tree = new PopulationTree(*other.pop_tree);
+    else pop_tree = NULL;
 
     // copy popsizes and times
     set_times(other.times, other.coal_time_steps, ntimes);
@@ -162,10 +174,6 @@ void ArgModel::copy(const ArgModel &other) {
     if (other.recombmap.size() > 0)
         recombmap.insert(recombmap.begin(),
                          other.recombmap.begin(), other.recombmap.end());
-
-    if (other.poptree)
-        poptree = new PopulationTree(*other.poptree);
-    else poptree = NULL;
 }
 
 void ArgModel::clear() {
@@ -174,12 +182,13 @@ void ArgModel::clear() {
         delete [] time_steps;
         delete [] coal_time_steps;
         if (popsizes) {
+            int npop = this->num_pops();
             for (int i=0; i < npop; i++)
                 delete [] popsizes[i];
             delete [] popsizes;
         }
-        if (poptree)
-            delete poptree;
+        if (pop_tree)
+            delete pop_tree;
     }
 }
 
@@ -265,6 +274,7 @@ void ArgModel::set_popsizes_random(double popsize_min,
                                    double popsize_max) {
     if (!popsizes)
         alloc_popsizes();
+    int npop = this->num_pops();
 #ifdef ARGWEAVER_MPI
     if (mc3.group_comm->Get_rank() == 0) {
 #endif
@@ -379,10 +389,10 @@ PopsizeConfig::PopsizeConfig(string filename, int ntimes, int npop,
 }
 
 
-void ArgModel::set_popsize_config_by_poptree() {
-    if (poptree == NULL)
-        exitError("Error: no population tree defined in set_popsize_config_by_poptree\n");
-    int npop = poptree->npop;
+void ArgModel::set_popsize_config_by_pop_tree() {
+    if (pop_tree == NULL)
+        exitError("Error: no population tree defined in set_popsize_config_by_pop_tree\n");
+    int npop = this->num_pops();
     int nextpop = npop;
     char tmp[1000];
     popsize_config = PopsizeConfig();
@@ -394,7 +404,7 @@ void ArgModel::set_popsize_config_by_poptree() {
 
             popsize_config.addInterval(tmp, pop, 2*t, true);
 
-            MigMatrix *migmat = &(poptree->mig_matrix[t]);
+            MigMatrix *migmat = &(pop_tree->mig_matrix[t]);
             if (migmat->get(pop, pop) == 0) break;  // pop becomes extinct
 
             for (int pop2=0; pop2 < npop; pop2++) {
@@ -406,7 +416,44 @@ void ArgModel::set_popsize_config_by_poptree() {
             popsize_config.addInterval(tmp, pop, 2*t+1, true);
         }
     }
-    printf("Done set_popsize_config_by_poptree numParam = %i\n", nextpop);
+    printf("Done set_popsize_config_by_pop_tree numParam = %i\n", nextpop);
+}
+
+void ArgModel::read_population_tree(string pop_file) {
+    if (pop_tree != NULL)
+        delete pop_tree;
+    pop_tree = new PopulationTree(1, this);
+    FILE *infile = fopen(pop_file.c_str(), "r");
+    if (infile == NULL)
+        exitError("error opening population file %s\n", pop_file.c_str());
+    argweaver::read_population_tree(infile, pop_tree);
+    fclose(infile);
+}
+
+
+int ArgModel::num_pops() const {
+    if (pop_tree == NULL) return 1;
+    return pop_tree->npop;
+}
+
+int ArgModel::num_pop_paths() const {
+    if (pop_tree == NULL) return 1;
+    return pop_tree->num_pop_paths();
+}
+
+double ArgModel::path_prob(int path, int t1, int t2) const {
+    if (pop_tree == NULL) return 1.0;
+    return pop_tree->path_prob(path, t1, t2);
+}
+
+bool ArgModel::paths_equal(int path1, int path2, int t1, int t2) const {
+    if (pop_tree == NULL) return true;
+    return pop_tree->paths_equal(path1, path2, t1, t2);
+}
+
+int ArgModel::max_matching_path(int path1, int path2, int t) const {
+    if (pop_tree == NULL) return ntimes-1;
+    return pop_tree->max_matching_path[path1][path2][t];
 }
 
 

@@ -33,18 +33,22 @@ LocalNode null_node;
 // nrecombs  -- number of possible recombination points at time i
 // ncoals    -- number of possible coalescing points at time i
 void count_lineages(const LocalTree *tree, int ntimes,
-                    int **nbranches, int **nrecombs, int **ncoals,
+                    int *nbranches, int *nrecombs,
+                    int **nbranches_pop, int **ncoals_pop,
                     const PopulationTree *pop_tree)
 {
     const LocalNode *nodes = tree->nodes;
     int npop = ( pop_tree == NULL ? 1 : pop_tree->npop );
 
     // initialize counts
+    for (int i=0; i < ntimes; i++) {
+        nbranches[i] = 0;
+        nrecombs[i] = 0;
+    }
     for (int i=0; i < npop; i++) {
 	for (int j=0; j<ntimes; j++) {
-	    nbranches[i][j] = 0;
-	    nrecombs[i][j] = 0;
-	    ncoals[i][j] = 0;
+	    nbranches_pop[i][j] = 0;
+	    ncoals_pop[i][j] = 0;
 	}
     }
 
@@ -58,23 +62,27 @@ void count_lineages(const LocalTree *tree, int ntimes,
         // add counts for every segment along branch
         for (int j=nodes[i].age; j<parent_age; j++) {
             int pop = nodes[i].get_pop(j, pop_tree);
-            nbranches[pop][j]++;
-            nrecombs[pop][j]++;
-            ncoals[pop][j]++;
+            nbranches[j]++;
+            nrecombs[j]++;
+            nbranches_pop[pop][j]++;
+            ncoals_pop[pop][j]++;
         }
 
         int pop = nodes[i].get_pop(parent_age, pop_tree);
         // recomb and coal are also allowed at the top of a branch
-        nrecombs[pop][parent_age]++;
-        ncoals[pop][parent_age]++;
-        if (parent == -1)
-            nbranches[pop][parent_age]++;
+        nrecombs[parent_age]++;
+        ncoals_pop[pop][parent_age]++;
+        if (parent == -1) {
+            nbranches[parent_age]++;
+            nbranches_pop[pop][parent_age]++;
+        }
     }
 
     // ensure last time segment always has one branch
+    nbranches[ntimes - 1] = 1;
     int final_pop = (pop_tree == NULL ? 0 : pop_tree->final_pop() );
     for (int i=0; i < npop; i++)
-	nbranches[i][ntimes - 1] = (i == final_pop ? 1 : 0);
+	nbranches_pop[i][ntimes - 1] = (i == final_pop ? 1 : 0);
 }
 
 
@@ -89,7 +97,8 @@ void count_lineages(const LocalTree *tree, int ntimes,
 // nrecombs  -- number of possible recombination points at time i
 // ncoals    -- number of possible coalescing points at time i
 void count_lineages_internal(const LocalTree *tree, int ntimes,
-                             int **nbranches, int **nrecombs, int **ncoals,
+                             int *nbranches, int *nrecombs,
+                             int **nbranches_pop, int **ncoals_pop,
                              const PopulationTree *pop_tree)
 {
     const LocalNode *nodes = tree->nodes;
@@ -98,11 +107,14 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
     int npop = ( pop_tree == NULL ? 1 : pop_tree->npop );
 
     // initialize counts
+    for (int i=0; i<ntimes; i++) {
+        nbranches[i]=0;
+        nrecombs[i]=0;
+    }
     for (int i=0; i < npop; i++) {
 	for (int j=0; j<ntimes; j++) {
-	    nbranches[i][j] = 0;
-	    nrecombs[i][j] = 0;
-	    ncoals[i][j] = 0;
+	    nbranches_pop[i][j] = 0;
+	    ncoals_pop[i][j] = 0;
 	}
     }
 
@@ -114,42 +126,47 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
 
         assert(nodes[i].age < ntimes - 1);
         const int parent = nodes[i].parent;
-        const int parent_age = ((parent == tree->root) ? ntimes - 2 :
+        const int parent_age = ((parent == tree->root) ? ntimes - 1 :
                                 nodes[parent].age);
 
         // add counts for every segment along branch
         for (int j=nodes[i].age; j<parent_age; j++) {
             int pop = nodes[i].get_pop(j, pop_tree);
-            nbranches[pop][j]++;
-            nrecombs[pop][j]++;
-            ncoals[pop][j]++;
+            nbranches[j]++;
+            nrecombs[j]++;
+            nbranches_pop[pop][j]++;
+            ncoals_pop[pop][j]++;
         }
 
         // recomb and coal are also allowed at the top of a branch
         int pop = nodes[i].get_pop(parent_age, pop_tree);
-        nrecombs[pop][parent_age]++;
-        ncoals[pop][parent_age]++;
-        if (parent == tree->root)
-            nbranches[pop][parent_age]++;
+        nrecombs[parent_age]++;
+        ncoals_pop[pop][parent_age]++;
+        if (parent == tree->root) {
+            nbranches[parent_age]++;
+            nbranches_pop[pop][parent_age]++;
+        }
     }
 
     // discount one lineage from within subtree, since it will be added
     // back by other procedures
     // CHECK: do we want to do this for all pops?
     for (int i=0; i<minage; i++) {
+        nbranches[i]--;
+        nrecombs[i]--;
 	for (int j=0; j < npop; j++) {
-	    nbranches[j][i]--;
-	    ncoals[j][i]--;
-	    nrecombs[j][i]--;
+	    nbranches_pop[j][i]--;
+	    ncoals_pop[j][i]--;
 	}
     }
 
     // ensure last time segment always has one branch
+    assert(nbranches[ntimes - 1] == 1);
     int final_pop = ( pop_tree == NULL ? 0 : pop_tree->final_pop() );
     for (int i=0; i < npop; i++) {
         if (i == final_pop) {
-            assert(nbranches[i][ntimes - 1] == 1);
-        } else assert(nbranches[i][ntimes - 1] == 0);
+            assert(nbranches_pop[i][ntimes - 1] == 1);
+        } else assert(nbranches_pop[i][ntimes - 1] == 0);
     }
 }
 
@@ -298,10 +315,10 @@ void apply_spr(LocalTree *tree, const Spr &spr,
     nodes[recomb_sib].parent = broke_parent;
     if (pop_tree != NULL)
         nodes[recomb_sib].pop_path =
-            pop_tree->consistent_path(nodes[recoal].pop_path,
-                                      nodes[recoal].age, nodes[broke_parent].age,
-                                      nodes[recomb_sib].pop_path,
-                                      nodes[recomb_sib].age, nodes[recoal].age);
+            pop_tree->consistent_path(nodes[recomb_sib].pop_path,
+                                      nodes[recoal].pop_path,
+                                      nodes[recomb_sib].age, nodes[recoal].age,
+                                      nodes[broke_parent].age);
 
     // fix parent of broken node
     int x = 0;
@@ -340,9 +357,8 @@ void apply_spr(LocalTree *tree, const Spr &spr,
     if (pop_tree != NULL) {
         nodes[spr.recomb_node].pop_path =
             pop_tree->consistent_path(nodes[spr.recomb_node].pop_path,
-                                      nodes[spr.recomb_node].age,
-                                      spr.recomb_time,
                                       spr.pop_path,
+                                      nodes[spr.recomb_node].age,
                                       spr.recomb_time,
                                       spr.coal_time);
     }
@@ -759,6 +775,7 @@ void infer_mapping(const LocalTree *tree1, const LocalTree *tree2,
 
 // Infer the SPR and mapping between two local trees.
 // The local trees and recombination node and time must be correct.
+// The population path should be correct as well.
 // All other information is inferred.
 void repair_spr(const LocalTree *last_tree, const LocalTree *tree, Spr &spr,
                 int *mapping)
@@ -1258,6 +1275,7 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
         tree->nodes[j].age = ages[i];
         tree->nodes[j].child[0] = -1;
         tree->nodes[j].child[1] = -1;
+        tree->nodes[j].pop_path = 0;
     }
 
     // set children
@@ -1576,6 +1594,7 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
 
             spr.recomb_time = find_time(recomb_time, times, ntimes);
             spr.coal_time = find_time(coal_time, times, ntimes);
+            spr.pop_path = 0;
         }
 
 

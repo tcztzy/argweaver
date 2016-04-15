@@ -151,9 +151,9 @@ void sample_arg_thread_internal(
 void resample_arg_thread(const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int chrom);
 
-void cond_sample_arg_thread(const ArgModel *model, const Sequences *sequences,
+/*void cond_sample_arg_thread(const ArgModel *model, const Sequences *sequences,
                             LocalTrees *trees, int new_chrom,
-                            State start_state, State end_state);
+                            State start_state, State end_state);*/
 
 void cond_sample_arg_thread_internal(
     const ArgModel *model, const Sequences *sequences,

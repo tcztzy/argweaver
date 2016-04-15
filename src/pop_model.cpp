@@ -6,7 +6,7 @@
 #include <string.h>
 #include "logging.h"
 #include "pop_model.h"
-
+#include "local_tree.h"
 
 
 namespace argweaver {
@@ -38,18 +38,13 @@ void PathProb::print() const {
 }
 
 
-void PopulationTree::print_sub_path(vector<PathProb> &subpath) const {
-    for (unsigned int i=0; i < subpath.size(); i++)
-        subpath[i].print();
-}
-
 void PopulationTree::print_sub_paths() const {
     for (int t1=0; t1 < model->ntimes; t1++) {
         for (int t2=t1; t2 < model->ntimes; t2++) {
             for (int p1=0; p1 < npop; p1++) {
                 for (int p2=0; p2 < npop; p2++) {
                     printf("sub_path(%i, %i, %i, %i): ", t1, t2, p1, p2);
-                    print_sub_path(sub_paths[t1][t2][p1][p2]);
+                    sub_paths[t1][t2][p1][p2].print();
                     printf("\n");
                 }
             }
@@ -72,6 +67,8 @@ PopulationTree::PopulationTree(int npop, const ArgModel *model) :
     mig_matrix.resize(ntime2);
     for (int i=0; i < ntime2; i++)
         mig_matrix[i].resize(npop);
+    sub_paths = NULL;
+    max_matching_path = NULL;
 }
 
 
@@ -81,9 +78,35 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     //    mig_matrix.init(npop);
     //    mig_matrix.copy(other.mig_matrix);
     mig_matrix = other.mig_matrix;
+    sub_paths = NULL;
+    max_matching_path = NULL;
     if (npop > 0) set_up_population_paths();
 }
 
+
+PopulationTree::~PopulationTree() {
+    if (sub_paths != NULL) {
+        for (int i=0; i < model->ntimes; i++) {
+            for (int j=0; j < model->ntimes; j++) {
+                for (unsigned int k=0; k < all_paths.size(); k++) {
+                    delete [] sub_paths[i][j][k];
+                }
+                delete [] sub_paths[i][j];
+            }
+            delete [] sub_paths[i];
+        }
+        delete sub_paths;
+    }
+    if (max_matching_path != NULL) {
+        for (unsigned int i=0; i < all_paths.size(); i++) {
+            for (unsigned int j=0; j < all_paths.size(); j++) {
+                delete [] max_matching_path[i][j];
+            }
+            delete max_matching_path[i];
+        }
+        delete max_matching_path;
+    }
+}
 
 void PopulationTree::update_npop(int new_npop) {
     if (npop != new_npop) {
@@ -139,10 +162,7 @@ void PopulationTree::update_population_probs() {
         for (int t2=t1; t2 < ntime; t2++) {
             for (int p1=0; p1 < npop; p1++) {
                 for (int p2=0; p1 < npop; p1++) {
-                    vector<PathProb> path_set = sub_paths[t1][t2][p1][p2];
-                    for (unsigned int i=0; i < path_set.size(); i++) {
-                        sub_paths[t1][t2][p1][p2][i].update_prob(all_paths);
-                    }
+                    sub_paths[t1][t2][p1][p2].update_probs(all_paths);
                 }
             }
         }
@@ -151,13 +171,10 @@ void PopulationTree::update_population_probs() {
 
 
 int PopulationTree::find_sub_path(int path,
-                                  const vector<PathProb> &path_vec,
+                                  const SubPath &subpath,
                                   int t1, int t2) {
-    for (unsigned int i=0; i < path_vec.size(); i++) {
-        int cur_path = *(path_vec[i].path.begin());
-        // Can remove below if line above compiles
-        //        set<int> paths = path_vec[i].path;
-        //        int cur_path = *(paths.begin());
+    for (unsigned int i=0; i < subpath.size(); i++) {
+        int cur_path = subpath.first_path(i);
         if (paths_equal(path, cur_path, t1, t2))
             return i;
     }
@@ -212,15 +229,15 @@ void PopulationTree::set_up_population_paths() {
     }
 
     // now get all possible paths for each possible start/end time start/end pop
-    sub_paths = new vector<PathProb> ***[ntime];
+    sub_paths = new SubPath ***[ntime];
     for (int t1=0; t1 < ntime; t1++) {
-        sub_paths[t1] = new vector<PathProb> **[ntime];
+        sub_paths[t1] = new SubPath **[ntime];
         for (int t2=t1; t2 < ntime; t2++) {
-            sub_paths[t1][t2] = new vector<PathProb> *[npop];
+            sub_paths[t1][t2] = new SubPath *[npop];
             for (int p1=0; p1 < npop; p1++) {
-                sub_paths[t1][t2][p1] = new vector<PathProb>[npop];
+                sub_paths[t1][t2][p1] = new SubPath[npop];
                 for (int p2=0; p2 < npop; p2++) {
-                    sub_paths[t1][t2][p1][p2] = vector<PathProb>();
+                    sub_paths[t1][t2][p1][p2].set_size(all_paths.size());
 
                     // find all paths which have start t1,p1 and end t2,p2
                     for (unsigned int i=0; i < all_paths.size(); i++) {
@@ -234,11 +251,10 @@ void PopulationTree::set_up_population_paths() {
                                                       sub_paths[t1][t2][p1][p2],
                                                       t1, t2);
                             if (other >= 0) {
-                                sub_paths[t1][t2][p1][p2][other].path.insert(i);
-                                sub_paths[t1][t2][p1][p2][other].prob += prob;
+                                sub_paths[t1][t2][p1][p2].add_path_to_subpath(
+                                     i, other, prob);
                             } else {
-                                PathProb p(i, prob);
-                                sub_paths[t1][t2][p1][p2].push_back(p);
+                                sub_paths[t1][t2][p1][p2].new_subpath(i, prob);
                             }
                         }
                     }
@@ -246,43 +262,85 @@ void PopulationTree::set_up_population_paths() {
             }
         }
     }
+
+    max_matching_path = new int **[all_paths.size()];
+    for (unsigned int i=0; i < all_paths.size(); i++) {
+        max_matching_path[i] = new int*[all_paths.size()];
+        for (unsigned int j=0; j < all_paths.size(); j++) {
+            max_matching_path[i][j] = new int[ntime];
+            for (int t=0; t < ntime; t++) {
+                if (all_paths[i].get(t) != all_paths[j].get(t))
+                    max_matching_path[i][j][t] = -1;
+                else {
+                    max_matching_path[i][j][t] = t;
+                    for (int t1=t+1; t1 < model->ntimes; t1++) {
+                        if (all_paths[i].get(t1) == all_paths[j].get(t1))
+                            max_matching_path[i][j][t] = t1;
+                        else break;
+                    }
+                }
+            }
+        }
+    }
+
 }
 
  int PopulationTree::final_pop() const {
      return all_paths[0].get(model->ntimes - 1);
  }
 
-int PopulationTree::consistent_path(int path1, int t1_start, int t1_end,
-                                    int path2, int t2_start, int t2_end) const {
+
+// This could be made more efficient if necessary
+int PopulationTree::consistent_path(int path1, int path2,
+                                    int t1, int t2, int t3,
+                                    bool require_exists) const {
     if (path1 == path2) return path1;
-    assert(t1_start <= t1_end);
-    assert(t2_start <= t2_end);
-    int p1, p2, t1, t2;
-    if (t1_start < t2_start) {
-        t1 = t1_start;
-        p1 = all_paths[path1].get(t1);
-    } else {
-        t1 = t2_start;
-        p1 = all_paths[path2].get(t1);
+    if (path1 == -1 || path2 == -1) return -1;
+    assert(t1 <= t2);
+    assert(t2 <= t3);
+    if (t1 >= model->ntimes) t1 = model->ntimes - 1;
+    if (t2 >= model->ntimes) t2 = model->ntimes - 1;
+    if (t3 >= model->ntimes) t3 = model->ntimes - 1;
+    int p1 = all_paths[path1].get(t1);
+    int p2 = all_paths[path1].get(t2);
+    if (p2 != all_paths[path2].get(t2)) {
+        if (require_exists)
+            exitError("No consistent path found\n");
+        return -1;
     }
-    if (t1_end > t2_end) {
-        t2 = t1_end;
-        p2 = all_paths[path1].get(t2);
-    } else {
-        t2 = t2_end;
-        p2 = all_paths[path2].get(t2);
-    }
-    vector<PathProb> possible_paths = sub_paths[t1][t2][p1][p2];
+    int p3 = all_paths[path2].get(t3);
+    SubPath possible_paths;
+    if (sub_paths[t1][t2][p1][p2].size() <=
+        sub_paths[t2][t3][p2][p3].size())
+        possible_paths = sub_paths[t1][t2][p1][p2];
+    else possible_paths = sub_paths[t2][t3][p2][p3];
     for (unsigned int i=0; i < possible_paths.size(); i++) {
-        int path = *(possible_paths[i].path.begin());
-        if (paths_equal(path, path1, t1_start, t1_end) &&
-            paths_equal(path, path2, t2_start, t2_end))
+        int path = possible_paths.first_path(i);
+        if (paths_equal(path, path1, t1, t2) &&
+            paths_equal(path, path2, t2, t3))
             return path;
     }
-    exitError("Error: did not find consistent path\n");
+    if (require_exists)
+        exitError("No consistent path found\n");
     return -1;
 }
 
+
+int PopulationTree::path_to_root(const LocalNode *nodes, int node) const {
+    int path = nodes[node].pop_path;
+    int parent = nodes[node].parent;
+    while (parent != -1) {
+        path = consistent_path(path,
+                               nodes[parent].pop_path,
+                               nodes[node].age,
+                               nodes[parent].age,
+                               ( nodes[parent].parent == -1 ?
+                                 model->ntimes - 1 :
+                                 nodes[nodes[parent].parent].age));
+        node = parent;
+    }
+    return path;
+}
 
 // not implemented efficiently, as only called a few times
 int get_closest_half_time(double tgen, const double *time_steps, int ntime) {
@@ -308,14 +366,14 @@ mig 50 0 1 0.01  # migration at time 50 from pop 0 to pop 1 w/prob 0.01
 div 100 1 0  # divergence at time 100
 ### end example
 
-In this example, there are two populations, so they are numbered 0 and 1. At 50 generations
-ago, there is a migration from population 0 to population 1 with probability 0.01. This is
-looking backwards in time, so this actually represents a forward-time migration from population
-1 to 0.
+In this example, there are two populations, so they are numbered 0 and 1. At 50
+generations ago, there is a migration from population 0 to population 1 with
+probability 0.01. This is looking backwards in time, so this actually represents
+a forward-time migration from population 1 to 0.
 
-The next line indicates that the populations diverged at generation 100. This is implemented
-as a migration from 1 to 0 at time 100 with 100% probability. So after time 100 there is only
-a single population, pop 0.
+The next line indicates that the populations diverged at generation 100. This is
+implemented as a migration from 1 to 0 at time 100 with 100% probability. So
+after time 100 there is only a single population, pop 0.
 
 **/
 void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
@@ -324,7 +382,8 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     double time_steps[2*ntimes-1];
     int npop=-1;
     for (int i=1; i < 2*ntimes-1; i++)
-        time_steps[i] = pop_tree->model->coal_time_steps[i-1] + pop_tree->model->time_steps[i-1];
+        time_steps[i] = pop_tree->model->coal_time_steps[i-1] +
+            pop_tree->model->time_steps[i-1];
     while (1==fscanf(infile, "%s", str)) {
         if (str[0] == '#') {
             while ('\n' != (c=fgetc(infile)) && c != EOF);
@@ -351,7 +410,8 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
             }
             int tidx = get_closest_half_time(tgen, time_steps, ntimes);
             if (fabs(tgen - time_steps[tidx]) > 1)
-                printLog(LOG_LOW, "Using time %f instead of %f for %s event in popfile\n",
+                printLog(LOG_LOW, "Using time %f instead of %f for %s event in "
+                         "popfile\n",
                          time_steps[tidx], tgen, str);
             pop_tree->add_migration(tidx, from_pop, to_pop, prob);
         }

@@ -1,6 +1,7 @@
 
 #include "thread.h"
 #include "trans.h"
+#include "model.h"
 
 namespace argweaver {
 
@@ -44,7 +45,7 @@ void rename_node(LocalTree *tree, int src_node, int dest_node)
 //   - Node currently named 'nleaves' will be displaced to 'nnodes' (displaced)
 //   - New internal node will be named 'nnodes+1' (newcoal)
 //
-void add_tree_branch(LocalTree *tree, int node, int time, int *pop, int ntime)
+void add_tree_branch(LocalTree *tree, int node, int time, int pop_path)
 {
     // Ensure tree has capacity to add nodes.
     // This is the responsibility of the caller.
@@ -75,23 +76,14 @@ void add_tree_branch(LocalTree *tree, int node, int time, int *pop, int ntime)
     nodes[newleaf].child[0] = -1;
     nodes[newleaf].child[1] = -1;
     nodes[newleaf].age = 0;
+    nodes[newleaf].pop_path = pop_path;
 
     // add new coal node
     nodes[newcoal].parent = parent2;
     nodes[newcoal].child[0] = newleaf;
     nodes[newcoal].child[1] = node2;
     nodes[newcoal].age = time;
-
-    if (pop != NULL) {
-	for (int i=0; i <= time; i++)
-	    nodes[newleaf].pop[i] = pop[i];
-	assert(pop[time] == nodes[node].pop[time]);
-	int maxage = (parent == -1 ? ntime - 1 : nodes[parent].age);
-	for (int i=time; i <= maxage; i++)
-	    nodes[newcoal].pop[i] = nodes[node].pop[i];
-	if (parent != -1)
-	    assert(nodes[newcoal].pop[maxage] == nodes[parent].pop[maxage]);
-    }
+    nodes[newcoal].pop_path = nodes[nodes[newcoal].child[1]].pop_path;
 
     // fix pointers
     nodes[node2].parent = newcoal;
@@ -115,7 +107,8 @@ void add_tree_branch(LocalTree *tree, int node, int time, int *pop, int ntime)
 // removes a leaf branch from a local tree
 // any node displacements are recorded in the displace array
 // If displace is NULL, displacements are not recorded
-void remove_tree_branch(LocalTree *tree, int remove_leaf, int *displace)
+void remove_tree_branch(LocalTree *tree, int remove_leaf,
+                        const ArgModel *model, int *displace)
 {
     LocalNode *nodes = tree->nodes;
     int nnodes = tree->nnodes;
@@ -127,6 +120,14 @@ void remove_tree_branch(LocalTree *tree, int remove_leaf, int *displace)
     int coal_child = (c[0] == remove_leaf ? c[1] : c[0]);
     int coal_parent = nodes[remove_coal].parent;
     nodes[coal_child].parent = coal_parent;
+    if (model->pop_tree != NULL) {
+        nodes[coal_child].pop_path = model->pop_tree->consistent_path(
+               nodes[coal_child].pop_path, nodes[remove_coal].pop_path,
+               nodes[coal_child].age,
+               nodes[remove_coal].age,
+               coal_parent == -1 ? model->ntimes - 1 : nodes[coal_parent].age);
+
+    }
     if (coal_parent != -1) {
         c = nodes[coal_parent].child;
         if (c[0] == remove_coal)
@@ -232,6 +233,9 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
             if (state_node == mapping[spr->recomb_node]) {
                 // (3) this is a mediated coal, rename coal node and time
                 spr->coal_node = newleaf;
+                // time should only become more recent, meaning pop_path
+                // need not change
+                assert(spr->coal_time >= state.time);
                 spr->coal_time = state.time;
             } else {
                 // (2) this is the new branch escaping
@@ -282,8 +286,8 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
 // add a leaf thread to an ARG
 void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
                     int ntimes, int *thread_path, int seqid,
-                    vector<int> &recomb_pos, vector<NodePoint> &recombs,
-		    int **thread_pop)
+                    vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+		    const PopulationTree *pop_tree)
 {
     unsigned int irecomb = 0;
     int nleaves = trees->get_num_leaves();
@@ -317,7 +321,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
         // add new branch to local tree
         it->ensure_capacity(nnodes2);
         State state = states[thread_path[start]];
-        add_tree_branch(tree, state.node, state.time, thread_pop[start], ntimes);
+        add_tree_branch(tree, state.node, state.time, state.pop_path);
 
         // update mapping and spr
         int *mapping = it->mapping;
@@ -348,6 +352,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             Spr spr2;
             spr2.recomb_node = recombs[irecomb].node;
             spr2.recomb_time = recombs[irecomb].time;
+            spr2.pop_path = recombs[irecomb].path;
             if (spr2.recomb_node == newleaf)
                 spr2.recomb_node = displaced;
             assert(spr2.recomb_time <= tree->nodes[newcoal].age);
@@ -390,7 +395,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             // make new local tree and apply SPR operation
             LocalTree *new_tree = new LocalTree(nnodes2, tree->capacity);
             new_tree->copy(*tree);
-            apply_spr(new_tree, spr2);
+            apply_spr(new_tree, spr2, pop_tree);
 
             // calculate block end
             int block_end;
@@ -434,7 +439,8 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
 // Removes a leaf thread from an ARG
 // NOTE: if remove_leaf is not last_leaf, nleaves - 1,
 // last_leaf is renamed to remove_leaf
-void remove_arg_thread(LocalTrees *trees, int remove_seqid)
+void remove_arg_thread(LocalTrees *trees, int remove_seqid,
+                       const ArgModel *model)
 {
     int nnodes = trees->nnodes;
     int nleaves = trees->get_num_leaves();
@@ -455,7 +461,18 @@ void remove_arg_thread(LocalTrees *trees, int remove_seqid)
     if (nnodes == 3) {
         assert(remove_leaf == 0 || remove_leaf == 1);
         int seqid = trees->seqids[1-remove_leaf];
-        trees->make_trunk(trees->start_coord, trees->end_coord,
+        int pop_path = 0;
+        // need to choose population for trunk genealogy; this should work
+        // for now, but if we switch to admixture model this may need to be
+        // changed. It might be better not to treat this as a special case.
+        if (model->pop_tree != NULL) {
+            const PopulationTree *pop_tree = model->pop_tree;
+            LocalTree *tree = trees->begin()->tree;
+            pop_path = tree->nodes[1-remove_leaf].pop_path;
+            int start_pop = pop_tree->path_pop(pop_path, 0);
+            pop_path = pop_tree->most_likely_path(start_pop);
+        }
+        trees->make_trunk(trees->start_coord, trees->end_coord, pop_path,
                           trees->begin()->tree->capacity);
         trees->seqids[0] = seqid;
         return;
@@ -474,7 +491,7 @@ void remove_arg_thread(LocalTrees *trees, int remove_seqid)
         int coal_child = (c[0] == remove_leaf ? c[1] : c[0]);
 
         // remove branch from tree
-        remove_tree_branch(tree, remove_leaf, displace);
+        remove_tree_branch(tree, remove_leaf, model, displace);
         //assert_tree(tree);
 
 
@@ -534,9 +551,12 @@ void remove_arg_thread(LocalTrees *trees, int remove_seqid)
         // rename spr coal_node
         if (spr->coal_node == remove_leaf) {
             // mediated coal
+            if (model->pop_tree != NULL)
+                spr->pop_path = model->pop_tree->consistent_path(
+                     spr->pop_path, nodes[coal_child].pop_path,
+                     spr->recomb_time, spr->coal_time, coal_time);
             spr->coal_node = coal_child;
             spr->coal_time = coal_time;
-
         } else if (spr->coal_node == remove_coal) {
             // move coal down a branch
             spr->coal_node = coal_child;
@@ -1221,7 +1241,7 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
     // get tree info
     LocalNode *nodes = tree->nodes;
     LocalNode *last_nodes = last_tree->nodes;
-    int node2 = state.node = state.node;
+    int node2 = state.node;
     int last_newcoal = last_nodes[last_subtree_root].parent;
 
     // determine newcoal
@@ -1258,9 +1278,11 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
                 // (3) this is a mediated coal, rename coal node and time
                 if (state.time < last_nodes[last_subtree_root].age) {
                     spr->coal_node = last_tree->get_sibling(spr->recomb_node);
+                    assert(spr->coal_time >= state.time);
                     spr->coal_time = state.time;
                 } else{
                     spr->coal_node = last_subtree_root;
+                    assert(spr->coal_time >= state.time);
                     spr->coal_time = state.time;
                 }
                 assert(spr->coal_time >= last_nodes[spr->coal_node].age);
@@ -1325,8 +1347,8 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
 // Add a branch to a partial ARG
 void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
                          int ntimes, const int *thread_path,
-                         vector<int> &recomb_pos, vector<NodePoint> &recombs,
-			 int **thread_pop)
+                         vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+			 const PopulationTree *pop_tree)
 {
     States states;
     LocalTree *last_tree = NULL;
@@ -1355,13 +1377,8 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
 
             state = states[thread_path[start]];
             Spr add_spr(subtree_root, nodes[subtree_root].age,
-                        state.node, state.time);
-            apply_spr(tree, add_spr);
-	    if (thread_pop != NULL) {
-		for (int i=nodes[subtree_root].age; i <= state.time; i++)
-		    nodes[subtree_root].pop[i] = thread_pop[i];
-		assert(nodes[subtree_root].pop[state.time] == nodes[state.node].pop[state.time]);
-	    }
+                        state.node, state.time, state.pop_path);
+            apply_spr(tree, add_spr, pop_tree);
         } else {
             // set null state
             state.set_null();
@@ -1399,6 +1416,7 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
             Spr spr2;
             spr2.recomb_node = recombs[irecomb].node;
             spr2.recomb_time = recombs[irecomb].time;
+            spr2.pop_path = recombs[irecomb].path;
             assert(spr2.recomb_time <= tree->nodes[newcoal].age);
 
             // determine coal node and time
@@ -1432,7 +1450,7 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
             // make new local tree and apply SPR operation
             LocalTree *new_tree = new LocalTree(tree->nnodes, tree->capacity);
             new_tree->copy(*tree);
-            apply_spr(new_tree, spr2);
+            apply_spr(new_tree, spr2, pop_tree);
 
             // calculate block end
             int block_end;
@@ -1497,7 +1515,8 @@ LocalTree *get_actual_nodes(LocalTrees *trees, LocalTrees::iterator it,
 
 // Removes a thread path from an ARG and returns a partial ARG
 void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
-                            int maxtime, int *original_thread)
+                            int maxtime, const PopulationTree *pop_tree,
+                            int *original_thread)
 {
     LocalTree *tree = NULL;
     State *original_states = NULL;
@@ -1528,9 +1547,9 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
             // record thread
             if (original_states) {
                 for (int j=start; j<end; j++) {
-                    original_states[j-trees->start_coord].set(-1, -1) ;
+                    original_states[j-trees->start_coord].set(-1, -1, -1) ;
                 }
-            }
+           }
 
             // removal path has "fallen off the top" there is nothing to edit
             continue;
@@ -1540,9 +1559,13 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
         int broken_node = nodes[removal_node].parent;
         int coal_time = nodes[broken_node].age;
         int broken_child = tree->get_sibling(removal_node);
+        int orig_path = nodes[broken_node].pop_path;
+        int pop_path = ( pop_tree == NULL ? 0 :
+                         pop_tree->path_to_root(nodes, removal_node) );
         Spr removal_spr(removal_node, nodes[removal_node].age,
-                        tree->root, maxtime);
-        apply_spr(tree, removal_spr);
+                        tree->root, maxtime, pop_path);
+
+        apply_spr(tree, removal_spr, pop_tree);
 
 
         // determine subtree and maintree roots
@@ -1567,7 +1590,7 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
         if (original_states) {
             for (int j=start; j<end; j++)
                 original_states[j-trees->start_coord].set(
-                    broken_child, coal_time);
+                    broken_child, coal_time, orig_path);
         }
 
 
@@ -1614,6 +1637,11 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                 } else {
                     // recomb is on non-sister branch, therefore it is a
                     // mediated coalescence
+                    if (pop_tree != NULL)
+                        spr->pop_path = pop_tree->consistent_path(
+                             spr->pop_path, tree->nodes[broken_child].pop_path,
+                             spr->recomb_time, spr->coal_time,
+                             coal_time);
                     spr->coal_node = broken_child;
                     spr->coal_time = coal_time;
                 }
@@ -1665,15 +1693,15 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
 
             get_coal_states_internal(tree2, ntimes, states);
             int nstates = states.size();
-            NodeStateLookup lookup(states, nnodes);
-
+            NodeStateLookup lookup(states, 0, pop_tree);
             for (int i=start; i<end; i++) {
                 if (nstates == 0) {
                     original_thread[i-trees->start_coord] = 0;
                 } else {
                     int statei = lookup.lookup(
                         nodes_lookup[original_states[i-trees->start_coord].node],
-                        original_states[i-trees->start_coord].time);
+                        original_states[i-trees->start_coord].time,
+                        original_states[i-trees->start_coord].pop_path);
                     assert(statei != -1);
                     original_thread[i-trees->start_coord] = statei;
                 }
@@ -1693,7 +1721,7 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
 
 //=============================================================================
 // C interface
-
+/*
 extern "C" {
 
 void arghmm_sample_arg_removal_path(LocalTrees *trees, int node, int *path)
@@ -1753,5 +1781,5 @@ void arghmm_get_thread_times(LocalTrees *trees, int ntimes, int *path,
 
 
 } // extern C
-
+*/
 } // namespace argweaver
