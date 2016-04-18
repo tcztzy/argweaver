@@ -112,7 +112,7 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
             for ( ; time <= max_time; time++)
                 states.push_back(State(i, time));
         } else {
-            int target_path = nodes[parent].pop_path;
+            int target_path = nodes[i].pop_path;
             for ( ; time <= max_time; time++) {
                 int end_pop = pop_tree->path_pop(target_path, time);
                 // loop over all unique paths
