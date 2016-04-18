@@ -381,9 +381,9 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     int ntimes = pop_tree->model->ntimes;
     double time_steps[2*ntimes-1];
     int npop=-1;
+    time_steps[0] = 0.0;
     for (int i=1; i < 2*ntimes-1; i++)
-        time_steps[i] = pop_tree->model->coal_time_steps[i-1] +
-            pop_tree->model->time_steps[i-1];
+        time_steps[i] = time_steps[i-1] + pop_tree->model->coal_time_steps[i-1];
     while (1==fscanf(infile, "%s", str)) {
         if (str[0] == '#') {
             while ('\n' != (c=fgetc(infile)) && c != EOF);
