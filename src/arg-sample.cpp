@@ -73,6 +73,9 @@ public:
                    ("-f", "--fasta", "<fasta alignment>", &fasta_file,
                     "sequence alignment in FASTA format"));
         config.add(new ConfigParam<string>
+                   ("", "--pop-file", "<population assignmet file>", &pop_file,
+                    "file assigning each haplotype to a population index"));
+        config.add(new ConfigParam<string>
                    ("-o", "--output", "<output prefix>", &out_prefix,
                     "arg-sample",
                     "prefix for all output filenames (default='arg-sample')"));
@@ -105,7 +108,7 @@ public:
                     "10000",
                     "effective population size (default=1e4)"));
         config.add(new ConfigParam<string>
-                   ("-P", "--popfile", "<population file", &pop_file,
+                   ("-P", "--pop-tree-file", "<population file", &pop_tree_file,
                     "", "File describing population tree (for multiple populations)"));
 	config.add(new ConfigParam<int>
 		   ("", "--popsize-em", "<n>", &popsize_em, 0,
@@ -350,6 +353,7 @@ public:
     // model parameters
     double popsize;
     string popsize_str;
+    string pop_tree_file;
     string pop_file;
     double mu;
     double rho;
@@ -1499,8 +1503,12 @@ int main(int argc, char **argv)
         c.model.set_linear_times(c.time_step, c.ntimes);
     else
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
-    if (c.pop_file != "")
-        c.model.read_population_tree(c.pop_file);
+    if (c.pop_tree_file != "") {
+        c.model.read_population_tree(c.pop_tree_file);
+        if (c.pop_file != "") {
+            sequences.set_pops_from_file(c.pop_file);
+        }
+    }
 
     c.model.rho = c.rho;
     c.model.mu = c.mu;
