@@ -88,7 +88,7 @@ void calc_arghmm_matrices_external(
     matrices->blocklen = blocklen;
     const LocalTree *tree = tree_spr->tree;
 
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
     States last_states;
     States states;
     matrices->states_model.set(model->ntimes, false, 0, model->pop_tree,

@@ -463,7 +463,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
     ArgHmmForwardTable *forward, PhaseProbs *phase_pr,
     bool prior_given, bool internal, bool slow)
 {
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
     States states;
     ArgModel local_model;
     int mu_idx=0, rho_idx=0;

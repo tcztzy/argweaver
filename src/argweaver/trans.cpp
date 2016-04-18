@@ -1025,7 +1025,7 @@ bool assert_transmat(const LocalTree *tree, const ArgModel *model,
     const int nnodes2 = nnodes + 2;
 
 
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
     States states;
     get_coal_states(tree, model->ntimes, states);
     int nstates = states.size();
@@ -1139,7 +1139,7 @@ bool assert_transmat_switch(const LocalTree *tree, const Spr &_spr,
     int nstates2 = states2.size();
 
     // get lineages
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, model->num_pops());
 
     // add/remove branch data
     int newleaf = nleaves;
@@ -1199,7 +1199,7 @@ bool assert_transmat_switch(const LocalTree *tree, const Spr &_spr,
 bool assert_transmat_internal(const LocalTree *tree, const ArgModel *model,
                               const TransMatrix *matrix)
 {
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
     States states;
     get_coal_states_internal(tree, model->ntimes, states);
     int nstates = states.size();
@@ -1291,7 +1291,7 @@ bool assert_transmat_switch_internal(const LocalTree *last_tree,
                                      ArgModel *model,
                                      TransMatrixSwitch *transmat_switch)
 {
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
     States states, last_states;
     get_coal_states_internal(last_tree, model->ntimes, last_states);
     get_coal_states_internal(tree, model->ntimes, states);
@@ -1362,7 +1362,7 @@ double **new_transition_probs(int nnodes, int *ptree,
     // setup model, local tree, states
     ArgModel model(ntimes, times, popsizes, rho, 0.0);
     LocalTree tree(ptree, nnodes, ages);
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, model.num_pops());
     lineages.count(&tree, model.pop_tree);
     States states;
     make_states(istates, nstates, states);
@@ -1394,7 +1394,7 @@ double **new_transition_probs_switch(
     Spr spr(recomb_node, recomb_time, coal_node, coal_time);
     int mapping[nnodes];
     make_node_mapping(last_ptree, nnodes, recomb_node, mapping);
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, model.num_pops());
     lineages.count(&last_tree, model.pop_tree);
 
     // setup states

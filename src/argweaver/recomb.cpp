@@ -139,7 +139,7 @@ void sample_recombinations(
     bool internal)
 {
     States states;
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
     vector <NodePointPath> candidates;
     vector <double> probs;
 

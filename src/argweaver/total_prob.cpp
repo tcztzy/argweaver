@@ -329,7 +329,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 		      double **num_coal, double **num_nocoal)
 {
     double lnl = 0.0;
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
 
     if (num_coal != NULL) {
 	assert(num_nocoal != NULL);
@@ -384,7 +384,7 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
                                        double **num_coal, double **num_nocoal) {
     double lnl = 0.0;
-    LineageCounts lineages(model->ntimes);
+    LineageCounts lineages(model->ntimes, model->num_pops());
 
     if (num_coal != NULL) {
 	assert(num_nocoal != NULL);
@@ -585,7 +585,7 @@ double arghmm_tree_prior_prob(LocalTrees *trees,
 {
     // setup model, local trees, sequences
     ArgModel model(ntimes, times, popsizes, 0.0, 0.0);
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, model->num_pops());
 
     //printf("%f\n", calc_tree_prior_approx(&model, trees->front().tree,
     //                                      lineages));

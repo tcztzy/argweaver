@@ -712,7 +712,7 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
 class LineageCounts
 {
 public:
-   LineageCounts(int ntimes, int npops = 1) :
+   LineageCounts(int ntimes, int npops) :
     ntimes(ntimes), npops(npops)
     {
         nbranches = new int [ntimes];
