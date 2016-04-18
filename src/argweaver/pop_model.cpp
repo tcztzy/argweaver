@@ -411,7 +411,7 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
                 if (1 != fscanf(infile, "%lf", &prob))
                     exitError("Premature end of population file\n");
             }
-            int tidx = get_closest_half_time(tgen, time_steps, ntimes);
+            int tidx = get_closest_half_time(tgen, time_steps, 2*ntimes-1);
             if (fabs(tgen - time_steps[tidx]) > 1)
                 printLog(LOG_LOW, "Using time %f instead of %f for %s event in "
                          "popfile\n",
