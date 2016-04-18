@@ -462,6 +462,7 @@ class ArgModel
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
         model.popsize_config = popsize_config;
+        model.pop_tree = pop_tree;
     }
 
     double get_local_rho(int pos, int *rho_idx=NULL) const {
@@ -487,6 +488,7 @@ class ArgModel
         model.time_steps = time_steps;
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
+        model.pop_tree = pop_tree;
     }
 
     //    void set_popsize_config(string filename);
