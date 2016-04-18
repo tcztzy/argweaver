@@ -269,9 +269,6 @@ bool read_sites(FILE *infile, Sites *sites,
                 return false;
             }
 
-            // convert to 0-index
-            position--;
-
             // validate site locations are unique and sorted.
             int npos = sites->get_num_sites();
             if (npos > 0 && sites->positions[npos-1] >= position) {
