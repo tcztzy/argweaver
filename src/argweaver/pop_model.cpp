@@ -87,8 +87,8 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
 PopulationTree::~PopulationTree() {
     if (sub_paths != NULL) {
         for (int i=0; i < model->ntimes; i++) {
-            for (int j=0; j < model->ntimes; j++) {
-                for (unsigned int k=0; k < all_paths.size(); k++) {
+            for (int j=i; j < model->ntimes; j++) {
+                for (int k=0; k < npop; k++) {
                     delete [] sub_paths[i][j][k];
                 }
                 delete [] sub_paths[i][j];
