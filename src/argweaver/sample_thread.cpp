@@ -221,7 +221,7 @@ void arghmm_forward_block(const ArgModel *model,
     int max_numpath = 1;
     if (numpath > 1) {
         for (int i=0; i < ntimes; i++) {
-            numpath_per_time[ntimes]=0;
+            numpath_per_time[i]=0;
             for (int j=0; j < numpath; j++)
                 paths_per_time[i][j]=0;
         }
