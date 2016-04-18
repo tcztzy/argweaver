@@ -327,9 +327,10 @@ int PopulationTree::consistent_path(int path1, int path2,
 
 
 int PopulationTree::path_to_root(const LocalNode *nodes, int node) const {
+    assert(node != -1);
     int path = nodes[node].pop_path;
     int parent = nodes[node].parent;
-    while (parent != -1) {
+    while (true) {
         path = consistent_path(path,
                                nodes[parent].pop_path,
                                nodes[node].age,
@@ -338,6 +339,8 @@ int PopulationTree::path_to_root(const LocalNode *nodes, int node) const {
                                  model->ntimes - 1 :
                                  nodes[nodes[parent].parent].age));
         node = parent;
+        parent = nodes[node].parent;
+        if (parent == -1) break;
     }
     return path;
 }
