@@ -560,7 +560,7 @@ void Sequences::set_pops_from_file(string fn) {
     for (unsigned int i=0; i < names.size(); i++) {
         if (pops[i] == -1) {
             printError("set_pops_from_file: sequence %s does not have assignment\n",
-                       seqname);
+                       names[i].c_str());
             assert(0);
         }
     }
