@@ -310,15 +310,17 @@ void apply_spr(LocalTree *tree, const Spr &spr,
     int recomb_sib = c[other];
     int broke_parent =  nodes[recoal].parent;
 
-
-    // fix recomb sib pointer
-    nodes[recomb_sib].parent = broke_parent;
-    if (pop_tree != NULL)
+    if (pop_tree != NULL) {
         nodes[recomb_sib].pop_path =
             pop_tree->consistent_path(nodes[recomb_sib].pop_path,
                                       nodes[recoal].pop_path,
                                       nodes[recomb_sib].age, nodes[recoal].age,
-                                      nodes[broke_parent].age);
+                                      ( broke_parent == -1 ? -1 :
+                                        nodes[broke_parent].age));
+    }
+
+    // fix recomb sib pointer
+    nodes[recomb_sib].parent = broke_parent;
 
     // fix parent of broken node
     int x = 0;
