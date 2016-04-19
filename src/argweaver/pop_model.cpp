@@ -296,11 +296,11 @@ int PopulationTree::consistent_path(int path1, int path2,
                                     bool require_exists) const {
     if (path1 == path2) return path1;
     if (path1 == -1 || path2 == -1) return -1;
+    if (t1 < 0 || t1 >= model->ntimes) t1 = model->ntimes - 1;
+    if (t2 < 0 || t2 >= model->ntimes) t2 = model->ntimes - 1;
+    if (t3 < 0 || t3 >= model->ntimes) t3 = model->ntimes - 1;
     assert(t1 <= t2);
     assert(t2 <= t3);
-    if (t1 >= model->ntimes) t1 = model->ntimes - 1;
-    if (t2 >= model->ntimes) t2 = model->ntimes - 1;
-    if (t3 >= model->ntimes) t3 = model->ntimes - 1;
     int p1 = all_paths[path1].get(t1);
     int p2 = all_paths[path1].get(t2);
     if (p2 != all_paths[path2].get(t2)) {
