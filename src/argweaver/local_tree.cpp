@@ -1656,9 +1656,9 @@ void print_local_tree(const LocalTree *tree, FILE *out)
     const LocalNode *nodes = tree->nodes;
 
     for (int i=0; i<tree->nnodes; i++) {
-        fprintf(out, "%d: parent=%2d, child=(%2d, %2d), age=%d\n",
+        fprintf(out, "%d: parent=%2d, child=(%2d, %2d), age=%d, path=%d\n",
                 i, nodes[i].parent, nodes[i].child[0], nodes[i].child[1],
-                nodes[i].age);
+                nodes[i].age, nodes[i].pop_path);
     }
 }
 
