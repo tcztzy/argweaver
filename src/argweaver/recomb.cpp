@@ -78,6 +78,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
             coal_sum += rate;
         else nocoal_sum += rate;
     }
+    if (coal_sum == 0.0) return 0.0;
     double pcoal = ( j >= model->ntimes - 2 ? 1.0 : (1.0 - exp(-coal_sum)));
 
     // probability of recoalescing on a choosen branch
