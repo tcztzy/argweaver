@@ -126,7 +126,7 @@ void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
         for (int k=0; k<=end_time; k++) {
             if (model->get_pop(state.pop_path, k) !=
                 model->get_pop(last_state.pop_path, k)) break;
-            candidates.push_back(NodePointPath(new_node, k));
+            candidates.push_back(NodePointPath(new_node, k, state.pop_path));
         }
     }
 }
