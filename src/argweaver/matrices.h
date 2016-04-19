@@ -247,7 +247,7 @@ public:
 
     void set_start_pop(int _start_pop) {
         start_pop = _start_pop;
-        states_model.set_start_pop(start_pop);
+        states_model.set_start_pop(start_pop, model->pop_tree);
     }
 
     //==================================================

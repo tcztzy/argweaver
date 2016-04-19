@@ -68,7 +68,8 @@ void make_intstates(States states, intstate *istates)
 
 
 void get_coal_states(const LocalTree *tree, int ntimes, States &states,
-                     bool internal, PopulationTree *pop_tree, int start_pop)
+                     bool internal, const PopulationTree *pop_tree,
+                     int start_pop)
 {
     if (internal)
         get_coal_states_internal(tree, ntimes, states, 0, pop_tree);
@@ -93,7 +94,7 @@ int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal)
 // states for the same branch are clustered together and ages are given
 // in increasing order
 void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
-			      int minage, PopulationTree *pop_tree,
+			      int minage, const PopulationTree *pop_tree,
                               int start_pop)
 {
     states.clear();
@@ -175,7 +176,7 @@ int get_num_coal_states_external(const LocalTree *tree, int ntimes)
 // in increasing order
 void get_coal_states_internal(const LocalTree *tree, int ntimes,
                               States &states, int minage,
-                              PopulationTree *pop_tree)
+                              const PopulationTree *pop_tree)
 {
     states.clear();
     const int nnodes = tree->nnodes;

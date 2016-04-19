@@ -93,14 +93,14 @@ void make_states(intstate *istates, int nstates, States &states);
 void make_intstates(States states, intstate *istates);
 
 void get_coal_states(const LocalTree *tree, int ntimes, States &states,
-                     bool internal=false, PopulationTree *pop_tree=NULL,
+                     bool internal=false, const PopulationTree *pop_tree=NULL,
                      int start_pop=0);
 void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
-                              int minage=0, PopulationTree *pop_tree=NULL,
+                              int minage=0, const PopulationTree *pop_tree=NULL,
                               int start_pop=0);
 void get_coal_states_internal(const LocalTree *tree, int ntimes,
                               States &states, int minage=0,
-                              PopulationTree *pop_tree=NULL);
+                              const PopulationTree *pop_tree=NULL);
 
 
 // NOTE: the three get_num_coal_states functions below are not quite accurate
@@ -126,7 +126,7 @@ public:
 
     {}
 
-        void set(int _ntimes, bool _internal, int _minage,
+    void set(int _ntimes, bool _internal, int _minage,
                  PopulationTree *_pop_tree = NULL, int _start_pop = 0) {
         ntimes = _ntimes;
         internal = _internal;
@@ -135,8 +135,9 @@ public:
         start_pop = _start_pop;
     }
 
-   void set_start_pop(int _start_pop) {
+    void set_start_pop(int _start_pop, const PopulationTree *_pop_tree) {
        start_pop = _start_pop;
+       pop_tree = _pop_tree;
     }
 
 
@@ -153,7 +154,7 @@ public:
     bool internal;
     int minage;
     int start_pop;
-    PopulationTree *pop_tree;
+    const PopulationTree *pop_tree;
 };
 
 
