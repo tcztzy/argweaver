@@ -720,7 +720,7 @@ public:
 	nbranches_pop = new int* [npops];
         ncoals_pop = new int* [npops];
 	for (int i=0; i < npops; i++) {
-	    nbranches_pop[i] = new int [ntimes];
+	    nbranches_pop[i] = new int [2*ntimes];
 	    ncoals_pop[i] = new int [ntimes];
 	}
     }

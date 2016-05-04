@@ -29,9 +29,10 @@ void PopulationTree::print_all_paths() const {
     }
 }
 
-void PathProb::print() const {
+void UniquePath::print() const {
     set<int>::iterator it = path.begin();
-    printf("prob=%f paths=(%i", prob, *it);
+    printf("start=%i end=%i prob=%f paths=(%i",
+           start_time, end_time, prob, *it);
     for (++it; it != path.end(); ++it)
         printf(", %i", *it);
     printf(")");
@@ -81,6 +82,7 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     sub_paths = NULL;
     max_matching_path = NULL;
     if (npop > 0) set_up_population_paths();
+    update_population_probs();
 }
 
 
@@ -141,30 +143,39 @@ bool PopulationTree::paths_equal(int path1, int path2, int t1, int t2) const {
 }
 
 
-void PathProb::update_prob(const vector<PopulationPath> &all_paths) {
-    prob = 0;
-    for (set<int>::iterator it = path.begin(); it != path.end(); ++it)
-        prob += all_paths[*it].prob;
+void UniquePath::update_prob(const vector<PopulationPath> &all_paths,
+                             const vector<MigMatrix> &mig_matrix) {
+
+    int p=first_path();
+    assert(p >= 0 && p < (int)all_paths.size());
+    prob = 1.0;
+    for (int t=start_time+1; t <= end_time; t++) {
+        prob *= mig_matrix[2*t-1].get(all_paths[p].pop[t-1],
+                                      all_paths[p].pop[t]);
+    }
+    assert(prob >= 0 && prob <= 1.0);
 }
 
 void PopulationTree::update_population_probs() {
     int ntime = model->ntimes;
-    for (unsigned int i=0; i < all_paths.size(); i++) {
-        all_paths[i].prob = 1.0;
-        for (int t=1; t < ntime; t++) {
-            all_paths[i].prob *= mig_matrix[2*t-1].get(all_paths[i].pop[t-1],
-                                                       all_paths[i].pop[t]);
-        }
-    }
+    //    printf("update_population_probs\n");
 
     // update sub_paths probs
     for (int t1=0; t1 < ntime; t1++) {
         for (int t2=t1; t2 < ntime; t2++) {
             for (int p1=0; p1 < npop; p1++) {
                 for (int p2=0; p1 < npop; p1++) {
-                    sub_paths[t1][t2][p1][p2].update_probs(all_paths);
+                    sub_paths[t1][t2][p1][p2].update_probs(all_paths, mig_matrix);
                 }
             }
+        }
+    }
+
+    for (unsigned int i=0; i < all_paths.size(); i++) {
+        all_paths[i].prob = 1.0;
+        for (int t=1; t < ntime; t++) {
+            all_paths[i].prob *= mig_matrix[2*t-1].get(all_paths[i].pop[t-1],
+                                                       all_paths[i].pop[t]);
         }
     }
 }
@@ -243,7 +254,6 @@ void PopulationTree::set_up_population_paths() {
                     for (unsigned int i=0; i < all_paths.size(); i++) {
                         if (all_paths[i].get(t1) == p1 &&
                             all_paths[i].get(t2) == p2) {
-                            double prob = all_paths[i].prob;
 
                             // path i has this start/end.
                            // search previous paths for identical sub-path
@@ -252,9 +262,9 @@ void PopulationTree::set_up_population_paths() {
                                                       t1, t2);
                             if (other >= 0) {
                                 sub_paths[t1][t2][p1][p2].add_path_to_subpath(
-                                     i, other, prob);
+                                     i, other);
                             } else {
-                                sub_paths[t1][t2][p1][p2].new_subpath(i, prob);
+                                sub_paths[t1][t2][p1][p2].new_subpath(t1, t2, i);
                             }
                         }
                     }
@@ -282,7 +292,7 @@ void PopulationTree::set_up_population_paths() {
             }
         }
     }
-
+    update_population_probs();
 }
 
  int PopulationTree::final_pop() const {
@@ -305,6 +315,7 @@ int PopulationTree::consistent_path(int path1, int path2,
     int p2 = all_paths[path1].get(t2);
     if (p2 != all_paths[path2].get(t2)) {
         if (require_exists)
+            assert(0);
             exitError("No consistent path found\n");
         return -1;
     }
@@ -320,8 +331,10 @@ int PopulationTree::consistent_path(int path1, int path2,
             paths_equal(path, path2, t2, t3))
             return path;
     }
-    if (require_exists)
+    if (require_exists) {
+        assert(0);
         exitError("No consistent path found\n");
+    }
     return -1;
 }
 
@@ -330,10 +343,11 @@ int PopulationTree::path_to_root(const LocalNode *nodes, int node) const {
     assert(node != -1);
     int path = nodes[node].pop_path;
     int parent = nodes[node].parent;
+    int orig_age = nodes[node].age;
     while (true) {
         path = consistent_path(path,
                                nodes[parent].pop_path,
-                               nodes[node].age,
+                               orig_age,
                                nodes[parent].age,
                                ( nodes[parent].parent == -1 ?
                                  model->ntimes - 1 :
@@ -428,6 +442,7 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
         if (c==EOF) break;
     }
     pop_tree->set_up_population_paths();
+    pop_tree->update_population_probs();
 }
 
 }  //namespace argweaver

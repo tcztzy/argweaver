@@ -134,6 +134,8 @@ bool complete_map(Track<T> &track, string chrom, int start, int end, const T &de
 
 int ArgModel::get_pop(int path, int time) const {
     if (pop_tree == NULL) return 0;
+    if (time >= ntimes)
+        time = ntimes-1;
     return pop_tree->get_pop(path, time);
 }
 

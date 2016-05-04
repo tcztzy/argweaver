@@ -113,6 +113,9 @@ int get_num_coal_states_internal(const LocalTree *tree, int ntimes,
                                  int minage=0);
 
 
+ int find_state(const States &states, const State target, const ArgModel *model,
+                int minage);
+
 class StatesModel
 {
 public:
@@ -138,6 +141,10 @@ public:
     void set_start_pop(int _start_pop, const PopulationTree *_pop_tree) {
        start_pop = _start_pop;
        pop_tree = _pop_tree;
+    }
+
+    void set_pop_tree(const PopulationTree *_pop_tree) {
+        pop_tree = _pop_tree;
     }
 
 

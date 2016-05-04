@@ -117,7 +117,7 @@ public:
                 paths_equal_max[i] = new int* [npaths];
                 for (int j=0; j < npaths; j++) {
                     paths_equal_max[i][j] = new int[ntimes];
-                    for (int k=0; k < npaths; k++) {
+                    for (int k=0; k < ntimes; k++) {
                         paths_equal_max[i][j][k] = -1;
                         for (int l=k; l < ntimes; l++) {
                             if (paths_equal[i][j][k][l])
@@ -197,6 +197,9 @@ public:
                                          lnB[path_b][path_b][b-1]) : 0.0)
                             + G2[path_b][b] - minage_term);
         }
+        if (isnan(prob)) {
+            assert(false);
+        }
         if (! same_node) return prob;
 
         // now add same_node term
@@ -205,8 +208,11 @@ public:
             prob += norecombs[a];
 
         if (npaths > 1 && a < b && !(paths_equal[path_b][path_c][a][b] &&
-                                     paths_equal[path_a][path_b][minage][a]))
+                                     paths_equal[path_a][path_b][minage][a])) {
+            if (isnan(prob))
+                assert(false);
             return prob;
+        }
         if (npaths > 1 && b <= a && !(paths_equal[path_a][path_c][b][a] &&
                                       paths_equal[path_b][path_a][minage][b]))
             return prob;
@@ -228,6 +234,8 @@ public:
                                          lnB[path_c][path_b][b-1]) : 0.0)
                             + G2[path_c][b] - minage_term);
         }
+        if (isnan(prob))
+            assert(0);
         return prob;
     }
 
@@ -431,7 +439,7 @@ void get_recomb_transition_switch(const ArgModel *model,
     const LocalTree *tree, const LocalTree *last_tree,
     const Spr &spr, const int *mapping,
     NodeStateLookup &state2_lookup,
-    int next_states[2], int last_path, int minage);
+    int next_states[2], int last_path, int minage2);
 
 } // namespace argweaver
 

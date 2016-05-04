@@ -113,24 +113,27 @@ class MigMatrix {
 };
 
 
-class PathProb {
+class UniquePath {
  public:
-    PathProb(int path_idx, double prob) : prob(prob) {
+    UniquePath(int start_time, int end_time, int path_idx) :
+      start_time(start_time), end_time(end_time), prob(1.0) {
+        assert(start_time <= end_time);
         path.clear();
         path.insert(path_idx);
     };
-   void update_prob(const vector <PopulationPath> &all_paths);
+   void update_prob(const vector <PopulationPath> &all_paths,
+                    const vector<MigMatrix> &mig_matrix);
    void print() const;
 
    int first_path() const {
        if (path.size() == 0) return -1;
        return *path.begin();
    }
-   void add_path(int p, double pr) {
+   void add_path(int p) {
        path.insert(p);
-       prob += prob;
+       assert(prob >= 0.0 && prob <= 1.0);
    }
-
+   int start_time, end_time;
    set<int> path;
    double prob;
 };
@@ -147,13 +150,13 @@ class SubPath {
         for (unsigned int i=0; i < max_paths; i++)
             path_map[i] = -1;
     }
-    void add_path_to_subpath(int path, int idx, int prob) {
+    void add_path_to_subpath(int path, int idx) {
         assert((int)unique_subs.size() > idx);
-        unique_subs[idx].add_path(path, prob);
+        unique_subs[idx].add_path(path);
         path_map[path] = idx;
     }
-    void new_subpath(int path, int prob) {
-        PathProb p(path, prob);
+    void new_subpath(int start_time, int end_time, int path) {
+        UniquePath p(start_time, end_time, path);
         path_map[path] = unique_subs.size();
         unique_subs.push_back(p);
     }
@@ -173,12 +176,13 @@ class SubPath {
             unique_subs[i].print();
         }
     }
-    void update_probs(const vector<PopulationPath> &all_paths) {
+    void update_probs(const vector<PopulationPath> &all_paths,
+                      const vector<MigMatrix>  &mig_matrix) {
         for (unsigned int i=0; i < unique_subs.size(); i++) {
-            unique_subs[i].update_prob(all_paths);
+            unique_subs[i].update_prob(all_paths, mig_matrix);
         }
     }
-    vector<PathProb> unique_subs;
+    vector<UniquePath> unique_subs;
     int *path_map;
 };
 
@@ -199,7 +203,7 @@ class PopulationTree {
   void update_population_probs();
   bool paths_equal(int path1, int path2, int t1, int t2) const;
   void print_all_paths() const;
-  void print_sub_path(vector<PathProb> &subpath) const;
+  void print_sub_path(vector<UniquePath> &subpath) const;
   void print_sub_paths() const;
   void print() const;
   int num_pop_paths() const {return all_paths.size();}
@@ -213,6 +217,8 @@ class PopulationTree {
      starts in pop p1 at time t1 and goes to pop p2 at time t2
    */
   double subpath_prob(int t1, int p1, int t2, int p2, unsigned int i) const {
+      double rv = sub_paths[t1][t2][p1][p2].prob(i);
+      assert(rv >= 0.0 && rv <= 1.0);
       return sub_paths[t1][t2][p1][p2].prob(i);
   }
   /* This one returns the sum of the probability of all paths which are
@@ -229,6 +235,8 @@ class PopulationTree {
           // get here in that case
           assert(0);
       }
+      double rv = sub_paths[t1][t2][pop1][pop2].prob(idx);
+      assert(rv >= 0.0 && rv <= 1.0);
       return sub_paths[t1][t2][pop1][pop2].prob(idx);
   }
   int unique_path(int t1, int p1, int t2, int p2, unsigned int i) const {
@@ -293,7 +301,7 @@ class PopulationTree {
   //sub_paths[t1][t2][p1][p2] is a vector of distinct paths from
   // time t1, pop p1 to time t2, pop p2.
   // If multiple paths from all_paths are identical in this interval,
-  // they are combined in the same PathProb element and their
+  // they are combined in the same UniquePath element and their
   // probabilities are summed.
   SubPath ****sub_paths;
 

@@ -295,6 +295,7 @@ void sample_arg_seq_gibbs(const ArgModel *model, const Sequences *sequences,
 // sub-region resampling
 
 
+ // not updated for pop paths, not currently called
 State find_state_sub_tree(
     const LocalTree *full_tree, const vector<int> &full_seqids,
     const LocalTree *partial_tree, const vector<int> &partial_seqids,
@@ -382,8 +383,8 @@ State find_state_sub_tree(
     }*/
 
 
-State find_state_sub_tree_internal(
-    const LocalTree *full_tree, const LocalTree *partial_tree, int maxtime)
+State find_state_sub_tree_internal(const ArgModel *model,
+        const LocalTree *full_tree, const LocalTree *partial_tree, int maxtime)
 {
     if (partial_tree->nodes[partial_tree->root].age < maxtime) {
         // fully specified tree
@@ -414,7 +415,17 @@ State find_state_sub_tree_internal(
     int sib = full_tree->get_sibling(ptr);
     assert(sib != -1);
     int parent = full_tree->nodes[ptr].parent;
+    assert(parent != -1);
     int coal_time = full_tree->nodes[parent].age;
+    int pop_path = 0;
+    if (model->pop_tree != NULL) {
+        pop_path = model->consistent_path(full_tree->nodes[ptr].pop_path,
+                                          full_tree->nodes[parent].pop_path,
+                                          full_tree->nodes[ptr].age,
+                                          full_tree->nodes[parent].age,
+                                          full_tree->nodes[parent].parent == -1 ? model->ntimes-1 :
+                                          full_tree->nodes[full_tree->nodes[parent].parent].age);
+    }
 
     // identify sibling by leaf and path length
     count = 0;
@@ -431,7 +442,7 @@ State find_state_sub_tree_internal(
         count--;
     }
 
-    return State(ptr, coal_time);
+    return State(ptr, coal_time, pop_path);
 }
 
 
@@ -471,6 +482,7 @@ double resample_arg_region(
     // perform several iterations of resampling
     int accepts = 0;
     for (int i=0; i<niters; i++) {
+        printf("resample_arg_region i=%i (%i,%i)\n", i, region_start, region_end);
         printLog(LOG_LOW, "region sample: iter=%d, region=(%d, %d)\n",
                  i, region_start, region_end);
 
@@ -491,9 +503,9 @@ double resample_arg_region(
         // determine start and end states from start and end trees
         LocalTree *start_tree_partial = trees2->front().tree;
         LocalTree *end_tree_partial = trees2->back().tree;
-        State start_state = find_state_sub_tree_internal(
+        State start_state = find_state_sub_tree_internal(model,
             &start_tree, start_tree_partial, maxtime);
-        State end_state = find_state_sub_tree_internal(
+        State end_state = find_state_sub_tree_internal(model,
             &end_tree, end_tree_partial, maxtime);
 
         // set start/end state to null if open ended is requested
@@ -509,10 +521,13 @@ double resample_arg_region(
                                         start_state, end_state);
         incLogLevel();
         assert_trees(trees2);
+
         double npaths2 = count_total_arg_removal_paths(trees2);
+
         // perform reject if needed
         double accept_prob = exp(heat*(npaths - npaths2));
         bool accept = (frand() < accept_prob);
+        //        printf("%f %f %i\n", npaths, npaths2, (int) accept);
         if (!accept)
             trees2->copy(old_trees2);
         else
@@ -521,8 +536,8 @@ double resample_arg_region(
         // logging
         printLog(LOG_LOW, "accept_prob = exp(%lf - %lf) = %f, accept = %d\n",
                  npaths, npaths2, accept_prob, (int) accept);
-        /*        printf("accept_prob = exp(%lf - %lf) = %f, accept = %d\n",
-                  npaths, npaths2, accept_prob, (int) accept;)*/
+        /*        printf("%i accept_prob = exp(%lf - %lf) = %f, accept = %d\n",
+                  i, npaths, npaths2, accept_prob, (int) accept);*/
     }
 
     // remove stub if it exists

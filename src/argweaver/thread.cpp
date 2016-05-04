@@ -1369,7 +1369,6 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
         states_model.get_coal_states(tree, states);
         int nstates = states.size();
 
-
         // detect whether local tree is partial
         if (nodes[tree->root].age > ntimes) {
             assert(nstates > 0);
@@ -1639,7 +1638,7 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                     // mediated coalescence
                     if (pop_tree != NULL)
                         spr->pop_path = pop_tree->consistent_path(
-                             spr->pop_path, tree->nodes[broken_child].pop_path,
+                             spr->pop_path, tree->nodes[removal_node].pop_path,
                              spr->recomb_time, spr->coal_time,
                              coal_time);
                     spr->coal_node = broken_child;

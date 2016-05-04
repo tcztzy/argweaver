@@ -225,6 +225,7 @@ public:
         if (new_chrom == -1)
             new_chrom = trees->get_num_leaves();
         start_pop = -1;
+        states_model.set_pop_tree(model->pop_tree);
     }
 
     virtual ~ArgHmmMatrixIter()
@@ -242,7 +243,8 @@ public:
     // calculate matrix for internal branch resampling
     void set_internal(bool internal, int minage=0)
     {
-        states_model.set(model->ntimes, internal, minage);
+        states_model.set(model->ntimes, internal, minage,
+                         model->pop_tree);
     }
 
     void set_start_pop(int _start_pop) {

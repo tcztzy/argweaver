@@ -49,7 +49,7 @@ void calc_arghmm_matrices_internal(
         matrices->nstates1 = matrices->nstates2 = nstates;
 
     } else {
-        LocalTree *last_tree = last_tree_spr->tree;
+        const LocalTree *last_tree = last_tree_spr->tree;
         matrices->states_model.get_coal_states(last_tree, last_states);
         matrices->nstates1 = last_states.size();
         matrices->nstates2 = nstates;

@@ -24,38 +24,47 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     int root_time;
     int recomb_parent_age;
     int recomb_node_path;
+    int minage=0;
 
     if (internal) {
         int subtree_root = tree->nodes[tree->root].child[0];
         int maintree_root = tree->nodes[tree->root].child[1];
+        minage = tree->nodes[subtree_root].age;
         root_time = max(tree->nodes[maintree_root].age, last_state.time);
-        if (recomb.node == subtree_root ||
-            tree->nodes[recomb.node].parent == -1 ||
-            recomb.node == last_state.node) {
-            recomb_parent_age = last_state.time;
-            recomb_node_path = last_state.pop_path;
-        } else {
-            recomb_parent_age = tree->nodes[tree->nodes[recomb.node].parent].age;
-            recomb_node_path = tree->nodes[recomb.node].pop_path;
-        }
+        recomb_parent_age = (recomb.node == subtree_root ||
+                             tree->nodes[recomb.node].parent == -1 ||
+                             recomb.node == last_state.node) ?
+            last_state.time :
+            tree->nodes[tree->nodes[recomb.node].parent].age;
+        if (recomb.node == subtree_root) {
+            recomb_node_path = model->consistent_path(last_state.pop_path,
+                                                      recomb.path, minage,
+                                                      recomb.time,
+                                                      state.time);
+        } else if (recomb.node == last_state.node) {
+            recomb_node_path = tree->nodes[last_state.node].pop_path;
+        } else assert(0);
     } else {
         root_time = max(tree->nodes[tree->root].age, last_state.time);
-        if (recomb.node == -1 ||
-            tree->nodes[recomb.node].parent == -1 ||
-            recomb.node == last_state.node) {
-            recomb_parent_age = last_state.time;
-            recomb_node_path = last_state.pop_path;
-        } else {
-            recomb_parent_age = tree->nodes[tree->nodes[recomb.node].parent].age;
-            recomb_node_path = tree->nodes[recomb.node].pop_path;
-        }
+        recomb_parent_age = (recomb.node == -1 ||
+                             tree->nodes[recomb.node].parent == -1 ||
+                             recomb.node == last_state.node) ?
+            last_state.time :
+            tree->nodes[tree->nodes[recomb.node].parent].age;
+        if (recomb.node == -1) {
+            recomb_node_path = model->consistent_path(last_state.pop_path,
+                                                      recomb.path, 0,
+                                                      recomb.time, state.time);
+        } else if (recomb.node == last_state.node) {
+            recomb_node_path = tree->nodes[last_state.node].pop_path;
+        } else assert(0);
     }
 
     int nbranches_k = lineages.nbranches[k]
-        + int(k < last_state.time);
+        + int(k < last_state.time && k >= minage);
     int nrecombs_k = lineages.nrecombs[k]
-        + int(k <= last_state.time)
-        + int(k == last_state.time)
+        + int(k <= last_state.time && k >= minage)
+        + int(k == last_state.time && k >= minage)
         - int(k == root_time);
 
     double precomb = nbranches_k * model->time_steps[k] / nrecombs_k;
@@ -67,8 +76,9 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         int pop_t = (m+1)/2;   // round up to get population assignment
         int pop = model->get_pop(recomb.path, pop_t);
         int coal_t = m/2; // round down to determine which time interval branch is in
-        int nbranches_m = lineages.nbranches_pop[pop][coal_t]
+        int nbranches_m = lineages.nbranches_pop[pop][m]
             + int( coal_t < last_state.time &&
+                   coal_t >= minage &&
                    model->get_pop(last_state.pop_path, pop_t) == pop)
             - int( coal_t < recomb_parent_age &&
                    model->get_pop(recomb_node_path, pop_t)==pop);
@@ -88,10 +98,12 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     int ncoals_j = lineages.ncoals_pop[pop][j]
         - int(j <= recomb_parent_age && recomb_parent_pop==pop)
         - int(j == recomb_parent_age && recomb_parent_pop==pop)
-        + int(j <= last_state.time && pop==last_state_pop)
-        + int(j == last_state.time && pop==last_state_pop);
+        + int(j <= last_state.time && j >= minage && pop==last_state_pop)
+        + int(j == last_state.time && j >= minage && pop==last_state_pop);
 
     // Also return 0 (or maybe assert error?) if recomb path does not end in correct pop
+    /*    printf("%i recomb_prob_unnormalized %.1e %i %.1e %.1e %.1e\n",
+          count++, pcoal, ncoals_j, precomb, exp(-nocoal_sum), model->path_prob(recomb.path, k, j));*/
 
     return pcoal / ncoals_j * precomb * exp(- nocoal_sum)
         * model->path_prob(recomb.path, k, j);

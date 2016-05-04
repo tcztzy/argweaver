@@ -191,13 +191,16 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
         for (int i=0; i<model->ntimes-1; i++) {
             int a;
             if (i == 0) {
-                a = lineages.ncoals_pop[pop][0] - lineages.nbranches_pop[pop][0];
+                assert((lineages.ncoals_pop[pop][0] +
+                        lineages.nbranches_pop[pop][0])%2 == 1);
+                a = (lineages.ncoals_pop[pop][0] +
+                     lineages.nbranches_pop[pop][0])/2;
                 assert( a >= 0);
             } else {
-                a = lineages.nbranches_pop[pop][i-1];
+                a = lineages.nbranches_pop[pop][2*i-1];
             }
             if (a <= 1) break;
-            int b = lineages.nbranches_pop[pop][i];
+            int b = lineages.nbranches_pop[pop][2*i];
             double t = model->coal_time_steps[2*i];
             if (i > 0) t += model->coal_time_steps[2*i-1];
             lnl += log_prob_coal_counts(a, b, t, 2.0 * model->popsizes[pop][2*i]);
@@ -223,7 +226,6 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
 }
 
 
-    // TODO: COME Back here
 void calc_coal_rates_spr(const ArgModel *model, const LocalTree *tree,
                          const Spr &spr, const LineageCounts &lineages,
                          double *coal_rates)
@@ -235,7 +237,7 @@ void calc_coal_rates_spr(const ArgModel *model, const LocalTree *tree,
         int spr_pop = model->get_pop(spr.pop_path, pop_time);
         int recomb_parent_pop =
             model->get_pop(tree->nodes[spr.recomb_node].pop_path, pop_time);
-        int nbranches = lineages.nbranches_pop[spr_pop][i/2]
+        int nbranches = lineages.nbranches_pop[spr_pop][i]
             - int(i/2 < broken_age && spr_pop == recomb_parent_pop);
         coal_rates[i] = model->coal_time_steps[i] * nbranches /
             (2.0 * model->popsizes[spr_pop][i]);

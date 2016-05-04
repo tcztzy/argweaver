@@ -303,6 +303,21 @@ int get_num_coal_states_internal(const LocalTree *tree, int ntimes, int minage)
 }
 
 
+int find_state(const States &states, const State target, const ArgModel *model,
+               int minage) {
+    for (unsigned int i=0; i < states.size(); i++) {
+        if (states[i].node != target.node) continue;
+        if (states[i].time != target.time) continue;
+        if (model->pop_tree == NULL ||
+            states[i].pop_path == target.pop_path) return i;
+        if (model->paths_equal(states[i].pop_path, target.pop_path,
+                               minage, target.time))
+            return i;
+    }
+    return -1;
+}
+
+
 
 //=============================================================================
 // C interface
