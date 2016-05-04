@@ -435,9 +435,9 @@ bool parse_region(const char *region, int *start, int *end)
 
 void set_up_logging(const Config &c, int level, const char *log_mode) {
     Logger *logger;
-    printf("set_up_logging %s %s %s %i %i\n",
+    /*    printf("set_up_logging %s %s %s %i %i\n",
            c.out_prefix.c_str(), c.mcmcmc_prefix.c_str(), LOG_SUFFIX, c.quiet,
-           level);
+           level);*/
     setLogLevel(level);
     if (c.quiet) {
         // log only to file
