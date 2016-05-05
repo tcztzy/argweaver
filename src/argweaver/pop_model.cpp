@@ -136,9 +136,8 @@ void PopulationTree::add_migration(int t, int from_pop, int to_pop, double prob)
 
 bool PopulationTree::paths_equal(int path1, int path2, int t1, int t2) const {
     if (path1 == path2) return true;
-    for (int t=t1; t <= t2; t++)
-        if (all_paths[path1].get(t) != all_paths[path2].get(t))
-            return false;
+    assert(t1 <= t2);
+    return max_matching_path[path1][path2][t1] >= t2;
     return true;
 }
 
@@ -239,6 +238,26 @@ void PopulationTree::set_up_population_paths() {
             exitError("Error: populations do not converge by final time\n");
     }
 
+    max_matching_path = new int **[all_paths.size()];
+    for (unsigned int i=0; i < all_paths.size(); i++) {
+        max_matching_path[i] = new int*[all_paths.size()];
+        for (unsigned int j=0; j < all_paths.size(); j++) {
+            max_matching_path[i][j] = new int[ntime];
+            for (int t=0; t < ntime; t++) {
+                if (all_paths[i].get(t) != all_paths[j].get(t))
+                    max_matching_path[i][j][t] = -1;
+                else {
+                    max_matching_path[i][j][t] = t;
+                    for (int t1=t+1; t1 < model->ntimes; t1++) {
+                        if (all_paths[i].get(t1) == all_paths[j].get(t1))
+                            max_matching_path[i][j][t] = t1;
+                        else break;
+                    }
+                }
+            }
+        }
+    }
+
     // now get all possible paths for each possible start/end time start/end pop
     sub_paths = new SubPath ***[ntime];
     for (int t1=0; t1 < ntime; t1++) {
@@ -273,25 +292,7 @@ void PopulationTree::set_up_population_paths() {
         }
     }
 
-    max_matching_path = new int **[all_paths.size()];
-    for (unsigned int i=0; i < all_paths.size(); i++) {
-        max_matching_path[i] = new int*[all_paths.size()];
-        for (unsigned int j=0; j < all_paths.size(); j++) {
-            max_matching_path[i][j] = new int[ntime];
-            for (int t=0; t < ntime; t++) {
-                if (all_paths[i].get(t) != all_paths[j].get(t))
-                    max_matching_path[i][j][t] = -1;
-                else {
-                    max_matching_path[i][j][t] = t;
-                    for (int t1=t+1; t1 < model->ntimes; t1++) {
-                        if (all_paths[i].get(t1) == all_paths[j].get(t1))
-                            max_matching_path[i][j][t] = t1;
-                        else break;
-                    }
-                }
-            }
-        }
-    }
+
     update_population_probs();
 }
 

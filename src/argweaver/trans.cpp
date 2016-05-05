@@ -995,7 +995,9 @@ void calc_transition_probs_switch(
                 }
 
                 if (model->pop_tree != NULL) {
-                    if (! model->paths_equal(states1[i].pop_path,
+                    int t1 = max(minage1, minage2);
+                    int t2 = min(states1[i].time, states2[j].time);
+                    if (t1 <= t2 && ! model->paths_equal(states1[i].pop_path,
                                              states2[j].pop_path,
                                              max(minage1, minage2),
                                              min(states1[i].time, states2[j].time)))
