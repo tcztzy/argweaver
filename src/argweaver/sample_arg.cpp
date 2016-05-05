@@ -482,7 +482,7 @@ double resample_arg_region(
     // perform several iterations of resampling
     int accepts = 0;
     for (int i=0; i<niters; i++) {
-        printf("resample_arg_region i=%i (%i,%i)\n", i, region_start, region_end);
+        //        printf("resample_arg_region i=%i (%i,%i)\n", i, region_start, region_end);
         printLog(LOG_LOW, "region sample: iter=%d, region=(%d, %d)\n",
                  i, region_start, region_end);
 
