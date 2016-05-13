@@ -515,7 +515,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
     States states;
     ArgModel local_model;
     int mu_idx=0, rho_idx=0;
-    static int count=0;
+    //    static int count=0;
 
     double **fw = forward->get_table();
     // forward algorithm over local trees
