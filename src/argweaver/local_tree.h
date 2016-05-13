@@ -180,13 +180,14 @@ public:
     }
 
 
-    LocalTree(int *ptree, int nnodes, int *ages=NULL, int capacity=-1) :
+    LocalTree(int *ptree, int nnodes, int *ages=NULL, int *paths=NULL,
+           int capacity=-1) :
         nnodes(nnodes),
         capacity(0),
         root(-1),
         nodes(NULL)
     {
-        set_ptree(ptree, nnodes, ages, capacity);
+        set_ptree(ptree, nnodes, ages, paths, capacity);
     }
 
     LocalTree(const LocalTree &other) :
@@ -207,7 +208,8 @@ public:
     }
 
     // initialize a local tree by on a parent array
-    void set_ptree(int *ptree, int _nnodes, int *ages=NULL, int _capacity=-1)
+    void set_ptree(int *ptree, int _nnodes, int *ages=NULL, int *paths=NULL,
+                   int _capacity=-1)
     {
         // delete existing nodes if they exist
         if (nodes) {
@@ -234,6 +236,9 @@ public:
             for (int i=0; i<nnodes; i++)
                 nodes[i].age = ages[i];
 
+        if (paths)
+            for (int i=0; i<nnodes; i++)
+                nodes[i].pop_path = paths[i];
 
         // populate children pointers
         for (int i=0; i<nnodes; i++) {
@@ -605,7 +610,7 @@ public:
 
         int ptree[] = {-1};
         int ages[] = {0};
-        LocalTree *tree = new LocalTree(ptree, 1, ages, capacity);
+        LocalTree *tree = new LocalTree(ptree, 1, ages, NULL, capacity);
         tree->nodes[0].pop_path = pop_path;
         trees.push_back(
          LocalTreeSpr(tree, Spr(-1, -1, -1, -1, -1), end - start, NULL));

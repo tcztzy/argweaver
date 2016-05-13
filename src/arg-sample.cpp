@@ -21,6 +21,7 @@
 #include "argweaver/track.h"
 #include "argweaver/est_popsize.h"
 #include "argweaver/mcmcmc.h"
+#include "argweaver/coal_records.h"
 
 
 using namespace argweaver;
@@ -38,7 +39,7 @@ const char *SMC_SUFFIX = ".smc";
 const char *SITES_SUFFIX = ".sites";
 const char *STATS_SUFFIX = ".stats";
 const char *LOG_SUFFIX = ".log";
-
+const char *COAL_RECORDS_SUFFIX = ".cr";
 
 // debug options level
 const int DEBUG_OPT = 1;
@@ -82,6 +83,9 @@ public:
         config.add(new ConfigParam<string>
                    ("-a", "--arg", "<SMC file>", &arg_file, "",
                     "initial ARG file (*.smc) for resampling (optional)"));
+        config.add(new ConfigParam<string>
+                   ("", "--cr", "<CR file>", &cr_file, "",
+                    "initial ARGfile (*.cf) for resampling (optional)"));
         config.add(new ConfigParam<string>
                    ("", "--region", "<start>-<end>",
                     &subregion_str, "",
@@ -348,6 +352,7 @@ public:
     string subsites_file;
     string out_prefix;
     string arg_file;
+    string cr_file;
     string subregion_str;
 
     // model parameters
@@ -759,6 +764,13 @@ string get_out_arg_file(const Config &config, int iter)
     return config.out_prefix + config.mcmcmc_prefix + iterstr + SMC_SUFFIX;
 }
 
+string get_out_cr_file(const Config &config, int iter)
+{
+    char iterstr[10];
+    snprintf(iterstr, 10, ".%d", iter);
+    return config.out_prefix + config.mcmcmc_prefix + iterstr + COAL_RECORDS_SUFFIX;
+}
+
 string get_out_sites_file(const Config &config, int iter)
 {
     char iterstr[10];
@@ -807,6 +819,18 @@ bool log_local_trees(const ArgModel *model, const Sequences *sequences,
 
     write_local_trees(stream.stream, trees, sequences, model->times);
 
+    // testing for now; output coal records version
+    string out_cr_file = get_out_cr_file(*config, iter);
+    if (!config->no_compress_output)
+        out_cr_file += ".gz";
+    CompressStream stream2(out_cr_file.c_str(), "w");
+    if (!stream2.stream) {
+        printError("cannot write '%s'", out_cr_file.c_str());
+        return false;
+    }
+
+    write_coal_records(stream2.stream, model, trees, sequences);
+
     if (sites_mapping)
         compress_local_trees(trees, sites_mapping);
 
@@ -834,6 +858,17 @@ bool read_doubles(const char *filename, vector<double> &values) {
 }
 
 
+bool read_init_arg_cr(const char *cr_file, const ArgModel *model,
+                   LocalTrees *trees, vector<string> &seqnames)
+{
+    CompressStream stream(cr_file, "r");
+    if (!stream.stream) {
+        printError("cannot read '%s'", cr_file);
+        return false;
+    }
+    return read_coal_records(stream.stream, model, trees, seqnames);
+}
+
 bool read_init_arg(const char *arg_file, const ArgModel *model,
                    LocalTrees *trees, vector<string> &seqnames)
 {
@@ -842,7 +877,6 @@ bool read_init_arg(const char *arg_file, const ArgModel *model,
         printError("cannot read '%s'", arg_file);
         return false;
     }
-
     return read_local_trees(stream.stream, model->times, model->ntimes,
                             trees, seqnames);
 }
@@ -1325,6 +1359,10 @@ int main(int argc, char **argv)
         sprintf(tmp, "%s%i", c.out_prefix.c_str(),
                 sites_num);
         c.out_prefix = (string)tmp;
+        if (c.cr_file != "") {
+            sprintf(tmp, "%s%i.cr.gz", c.cr_file.c_str(), sites_num);
+            c.cr_file = (string)tmp;
+        }
 	if (c.arg_file != "") {
 	    sprintf(tmp, "%s%i.smc.gz", c.arg_file.c_str(), sites_num);
 	    c.arg_file = (string)tmp;
@@ -1626,15 +1664,26 @@ int main(int argc, char **argv)
     // setup init ARG
     LocalTrees *trees = NULL;
     auto_ptr<LocalTrees> trees_ptr;
-    if (c.arg_file != "") {
+    if (c.arg_file != "" || c.cr_file != "") {
         // init ARG from file
 
         trees = new LocalTrees();
         trees_ptr = auto_ptr<LocalTrees>(trees);
         vector<string> seqnames;
-        if (!read_init_arg(c.arg_file.c_str(), &c.model, trees, seqnames)) {
-            printError("could not read ARG");
-            return EXIT_ERROR;
+        if (c.cr_file != "") {
+            if (c.arg_file != "") {
+                printError("cannot use --arg-file and --cr-file");
+                return EXIT_ERROR;
+            }
+            if (!read_init_arg_cr(c.cr_file.c_str(), &c.model, trees, seqnames)) {
+                printError("Could not read ARG");
+                return EXIT_ERROR;
+            }
+        } else {
+            if (!read_init_arg(c.arg_file.c_str(), &c.model, trees, seqnames)) {
+                printError("could not read ARG");
+                return EXIT_ERROR;
+            }
         }
 
         if (!trees->set_seqids(seqnames, sequences.names)) {

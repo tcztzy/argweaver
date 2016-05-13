@@ -410,7 +410,7 @@ LocalTrees::LocalTrees(int **ptrees, int**ages, int **isprs, int *blocklens,
         }
 
         trees.push_back(LocalTreeSpr(new LocalTree(ptrees[i], nnodes, ages[i],
-                                                   capacity),
+                                                   NULL, capacity),
                                      isprs[i], blocklens[i], mapping));
 
         pos = end_coord;
