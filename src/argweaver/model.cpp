@@ -449,13 +449,13 @@ double ArgModel::path_prob(int path, int t1, int t2) const {
 }
 
 bool ArgModel::paths_equal(int path1, int path2, int t1, int t2) const {
-    if (pop_tree == NULL) return true;
+    if (pop_tree == NULL || path1==path2) return true;
     return pop_tree->paths_equal(path1, path2, t1, t2);
 }
 
 int ArgModel::max_matching_path(int path1, int path2, int t) const {
     if (pop_tree == NULL) return ntimes-1;
-    return pop_tree->max_matching_path[path1][path2][t];
+    return pop_tree->max_matching_path(path1, path2, t);
 }
 
 
