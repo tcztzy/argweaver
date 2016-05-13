@@ -287,7 +287,7 @@ class PopulationTree {
   int consistent_path(int path1, int path2, int t1, int t2, int t3,
                       bool require_exists=true) const;
 
-  int path_to_root(const LocalNode *nodes, int node) const;
+  int path_to_root(const LocalNode *nodes, int node, int time=-1) const;
 
   //  npop is the total number of non-ancestral populations
   int npop;
@@ -305,11 +305,12 @@ class PopulationTree {
   // probabilities are summed.
   SubPath ****sub_paths;
 
-  // max_matching_path[p1][p2][t] is -1 if the path p1 and p2 have different
+  // max_matching_path(p1, p2, t) is -1 if the path p1 and p2 have different
   // populations at time t. Otherwise it is the maximum t1 such that
   // paths p1 and p2 match from time t to t1. It is set in
   // set_up_population_paths
-  int ***max_matching_path;
+  int max_matching_path(int p1, int p2, int t) const;
+  int ***max_matching_path_arr;
 
 
 
