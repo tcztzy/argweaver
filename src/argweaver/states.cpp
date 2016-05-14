@@ -20,7 +20,7 @@ NodeStateLookup::NodeStateLookup(const States &states, int minage,
         if (i==0 || states[i].time > maxtime) maxtime = states[i].time;
     }
     ntime = maxtime - mintime + 1;
-    int table_size = npath * nnode * ntime;
+    table_size = npath * nnode * ntime;
     lookup_table = new int[table_size];
     for (int i=0; i < table_size; i++) lookup_table[i] = -1;
 

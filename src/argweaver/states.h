@@ -67,6 +67,8 @@ public:
       if (node < 0 || node >= nnode ||
           time < mintime || time > maxtime ||
           path < 0 || path >= npath) return -1;
+      int pos = path*nnode*ntime + node*ntime + time - mintime;
+      assert(pos >= 0 && pos < table_size);
       return lookup_table[path*nnode*ntime + node*ntime + time - mintime];
   }
 
@@ -78,6 +80,7 @@ protected:
   int ntime;
   int npath;
   int *lookup_table;
+  int table_size;
 };
 
 
