@@ -372,6 +372,7 @@ int PopulationTree::consistent_path(int path1, int path2,
     assert(node != -1);
     int path = nodes[node].pop_path;
     int parent = nodes[node].parent;
+    if (parent == -1) return path;
     int orig_age = (time < 0 ? nodes[node].age : time);
     assert(orig_age >= nodes[node].age);
     if (parent >= 0) assert(orig_age <= nodes[parent].age);
