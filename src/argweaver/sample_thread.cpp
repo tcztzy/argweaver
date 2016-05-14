@@ -279,6 +279,7 @@ void arghmm_forward_block(const ArgModel *model,
                                          -1, minage, false);
                     //                    printf("tmatrix %i %i = %e\n", a, b, tmatrix[a][b][pa][pb]);
                     assert(!isnan(tmatrix[a][b][pa][pb]));
+                    assert(!isinf(tmatrix[a][b][pa][pb]));
                 }
             }
         }
@@ -299,7 +300,7 @@ void arghmm_forward_block(const ArgModel *model,
                 matrix->get_time(a, b, c, p, p, pc, minage, true) -
                 matrix->get_time(a, b, 0, p, p, -1, minage, false);
             //            printf("tmatrix2[%i][%i] = %e\n", a, k, tmatrix2[a][k]);
-            if (isnan(tmatrix2[a][k])) {
+            if (isnan(tmatrix2[a][k]) || isinf(tmatrix2[a][k])) {
                 printf("a=%i k=%i b=%i node2=%i c=%i p=%i pc=%i\n",
                        a, k, b, node2, c, p, pc);
                 assert(false);
@@ -322,6 +323,7 @@ void arghmm_forward_block(const ArgModel *model,
         for (int j=0; j<nstates; j++) {
             const int a = states[j].time;
             fgroups[path_map[j]][a] += col1[j];
+            assert(!isinf(col1[j]));
         }
 
         // multiply tmatrix and fgroups together
@@ -342,20 +344,26 @@ void arghmm_forward_block(const ArgModel *model,
         for (int k=0; k<nstates; k++) {
             const int b = states[k].time;
             const int node2 = states[k].node;
-            const int age1 = ages1[node2];
+            int age1 = ages1[node2];
             const int age2 = ages2[node2];
             const int path = states[k].pop_path;
 
-            if (isnan(col1[k])) {
+            if (isnan(col1[k]) || isinf(col1[k])) {
                 assert(false);
             }
 
             double sum = tmatrix_fgroups[path_map[k]][b];
+            if (isnan(sum) || isinf(sum))
+                assert(false);
 
             // same branch case
             // note taking advantage of convention in nodestatelookup that
             // consecutive times are in a row
             int j=state_lookup.lookup(node2, age1, path);
+            while (j < 0 && age1 <= age2) {
+                age1++;
+                j=state_lookup.lookup(node2, age1, path);
+            }
             for (int a=age1; a <= age2; a++, j++)
                 if (col1[j] > 0) {
                     if (isnan(tmatrix2[a][k])) {
@@ -370,6 +378,9 @@ void arghmm_forward_block(const ArgModel *model,
             if (isnan(col2[k]))
                 assert(false);
         }
+        assert(norm > 0);
+        assert(!isnan(norm));
+        assert(!isinf(norm));
 
         // normalize column for numerical stability
         for (int k=0; k<nstates; k++)
