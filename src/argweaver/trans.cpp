@@ -320,11 +320,21 @@ void get_deterministic_transitions(
                     for (int c1=0; c1 <= 1; c1++) {
                         int c2 = (c1 == 0 ? 1 : 0);
                         if (c[c1] == spr.recomb_node) {
-                            path2 = model->consistent_path(
-                                last_tree->nodes[c2].pop_path, path1,
-                                last_tree->nodes[c2].age,
-                                last_tree->nodes[subtree_root].age,
-                                time1);
+                            if (c[c2] == spr.coal_node) {
+                                path2 =
+                                    model->consistent_path(
+                                        last_tree->nodes[c[c2]].pop_path,
+                                        path1,
+                                        spr.coal_time,
+                                        last_tree->nodes[subtree_root].age,
+                                        time1);
+                            } else {
+                                path2 = model->consistent_path(
+                                    last_tree->nodes[c[c2]].pop_path, path1,
+                                    last_tree->nodes[c[c2]].age,
+                                    last_tree->nodes[subtree_root].age,
+                                    time1);
+                            }
                             break;
                         }
                     }
@@ -365,9 +375,10 @@ void get_deterministic_transitions(
                                     0);
                 if (minage > time2) next_states[i] = -1;
                 else {
-                    const int path2 = model->consistent_path(path1,
-                                  last_tree->nodes[spr.recomb_node].pop_path,
-                                  minage, max(minage,spr.recomb_time), time2);
+                    int path2 = (time2 < time1 ? path1 :
+                                 model->consistent_path(path1,
+                                     last_tree->nodes[spr.recomb_node].pop_path,
+                                     minage, max(minage, time1), time2) );
                     next_states[i] = state2_lookup.lookup(node2, time2, path2);
                 }
             }
