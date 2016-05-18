@@ -37,10 +37,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
             last_state.time :
             tree->nodes[tree->nodes[recomb.node].parent].age;
         if (recomb.node == subtree_root) {
-            recomb_node_path = model->consistent_path(last_state.pop_path,
-                                                      recomb.path, minage,
-                                                      recomb.time,
-                                                      state.time);
+            recomb_node_path = last_state.pop_path;
         } else if (recomb.node == last_state.node) {
             recomb_node_path = tree->nodes[last_state.node].pop_path;
         } else assert(0);
@@ -52,9 +49,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
             last_state.time :
             tree->nodes[tree->nodes[recomb.node].parent].age;
         if (recomb.node == -1) {
-            recomb_node_path = model->consistent_path(last_state.pop_path,
-                                                      recomb.path, 0,
-                                                      recomb.time, state.time);
+            recomb_node_path = last_state.pop_path;
         } else if (recomb.node == last_state.node) {
             recomb_node_path = tree->nodes[last_state.node].pop_path;
         } else assert(0);
@@ -72,7 +67,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     // probability of not coalescing before time j-1
     double coal_sum=0.0;
     double nocoal_sum = 0.0;
-    for (int m=2*k; m <=2*j; m++) {
+    for (int m=2*k; m<=2*j; m++) {
         int pop_t = (m+1)/2;   // round up to get population assignment
         int pop = model->get_pop(recomb.path, pop_t);
         int coal_t = m/2; // round down to determine which time interval branch is in
@@ -105,8 +100,9 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     /*    printf("%i recomb_prob_unnormalized %.1e %i %.1e %.1e %.1e\n",
           count++, pcoal, ncoals_j, precomb, exp(-nocoal_sum), model->path_prob(recomb.path, k, j));*/
 
-    return pcoal / ncoals_j * precomb * exp(- nocoal_sum)
+    double p = pcoal / ncoals_j * precomb * exp(- nocoal_sum)
         * model->path_prob(recomb.path, k, j);
+    return p;
 }
 
 
@@ -119,7 +115,12 @@ void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
     // represents the branch above the new node in the tree.
     const int new_node = -1;
     int end_time = min(state.time, last_state.time);
-    if (state.node == last_state.node) {
+
+    // note: cannot normally compare pop_paths directly but OK in following
+    // line because get_coal_states() assures that the paths are consistent
+    // with branch that is being coalesced to, so when the node is the same
+    // the paths should be comparable
+    if (state.node == last_state.node && state.pop_path == last_state.pop_path) {
         // y = v, k in [0, min(timei, last_timei)]
         // y = node, k in Sr(node)
         for (int k=tree->nodes[state.node].age; k<=end_time; k++)
@@ -224,8 +225,8 @@ void sample_recombinations(
 
             // sample recombination
             recomb_pos.push_back(i);
-            recombs.push_back(candidates[sample(&probs[0], probs.size())]);
-
+            int r = sample(&probs[0], probs.size());
+            recombs.push_back(candidates[r]);
             /*            printf("%i\t%i\n", recomb_pos[recomb_pos.size()-1],
                           recombs[recombs.size()-1].time);*/
             assert(recombs[recombs.size()-1].time <= min(state.time,
