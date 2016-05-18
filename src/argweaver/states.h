@@ -44,6 +44,10 @@ public:
         return node == -1 && time == -1;
     }
 
+    void write() const {
+        printf("state = %i\t%i\t%i\n", node, time, pop_path);
+    }
+
     int node;
     int time;
     int pop_path;
