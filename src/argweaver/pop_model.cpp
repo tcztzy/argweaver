@@ -348,17 +348,20 @@ int PopulationTree::consistent_path(int path1, int path2,
             exitError("No consistent path found\n");
         return -1;
     }
-    int p3 = all_paths[path2].get(t3);
     SubPath possible_paths;
-    if (sub_paths[t1][t2][p1][p2].size() <=
-        sub_paths[t2][t3][p2][p3].size())
-        possible_paths = sub_paths[t1][t2][p1][p2];
-    else possible_paths = sub_paths[t2][t3][p2][p3];
+    possible_paths = sub_paths[t1][t2][p1][p2];
     for (unsigned int i=0; i < possible_paths.size(); i++) {
         int path = possible_paths.first_path(i);
-        if (paths_equal(path, path1, t1, t2) &&
-            paths_equal(path, path2, t2, t3))
-            return path;
+        if (paths_equal(path, path1, t1, t2)) {
+            UniquePath u = possible_paths.unique_subs[i];
+            for (set<int>::iterator it=u.path.begin(); it != u.path.end(); it++) {
+                path = *it;
+                assert(paths_equal(path, path1, t1, t2));
+                if (paths_equal(path, path2, t2, t3))
+                    return path;
+            }
+            break;
+        }
     }
     if (require_exists) {
         assert(0);
