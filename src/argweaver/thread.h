@@ -16,11 +16,11 @@ void remove_tree_branch(LocalTree *tree, int remove_leaf, const ArgModel *model,
                         int *displace=NULL);
 
 // update an SPR and mapping after adding a new branch
-void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
+void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
                     State state, State last_state,
                     Spr *spr, int *mapping,
                     int newleaf, int displaced, int newcoal);
-void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
+void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
                     State state, State last_state,
                     Spr *spr, int *mapping,
                     int subtree_root, int last_subtree_root);

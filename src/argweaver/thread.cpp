@@ -185,14 +185,14 @@ void remove_tree_branch(LocalTree *tree, int remove_leaf,
 // newleaf -- new leaf node added to the tree
 // displaced  -- node that used to be named 'newleaf'
 // newcoal -- new node that has 'newleaf' as a child.
-void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
+void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
                     State state, State last_state,
                     Spr *spr, int *mapping,
                     int newleaf, int displaced, int newcoal)
 {
     // get tree info
-    LocalNode *nodes = tree->nodes;
-    LocalNode *last_nodes = last_tree->nodes;
+    const LocalNode *nodes = tree->nodes;
+    const LocalNode *last_nodes = last_tree->nodes;
 
     // determine node displacement
     int last_node2 = (last_state.node != newleaf ? last_state.node : displaced);
@@ -245,7 +245,7 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
     } else {
         // the other possibility is that newcoal is under recoal point
         // if newcoal is child of recoal, then coal is renamed
-        int *c = nodes[recoal].child;
+        const int *c = nodes[recoal].child;
         if (c[0] == newcoal || c[1] == newcoal) {
             // we either coal above the newcoal or our existing
             // node just broke and newcoal was underneath.
@@ -334,7 +334,6 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
 
         // assert new branch is where it should be
         assert(tree->nodes[newcoal].age == states[thread_path[start]].time);
-
 
         // break this block for each new recomb within this block
         for (;irecomb < recombs.size() &&
@@ -1233,14 +1232,14 @@ void sample_arg_removal_path_cut(const LocalTrees *trees, int ntimes,
 
 
 // update an SPR and mapping after adding a new internal branch
-void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
+void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
                     State state, State last_state,
                     Spr *spr, int *mapping,
                     int subtree_root, int last_subtree_root)
 {
     // get tree info
-    LocalNode *nodes = tree->nodes;
-    LocalNode *last_nodes = last_tree->nodes;
+    const LocalNode *nodes = tree->nodes;
+    const LocalNode *last_nodes = last_tree->nodes;
     int node2 = state.node;
     int last_newcoal = last_nodes[last_subtree_root].parent;
 
@@ -1294,7 +1293,7 @@ void add_spr_branch(LocalTree *tree, LocalTree *last_tree,
     } else {
         // the other possibility is that newcoal is under recoal point
         // if newcoal is child of recoal, then coal is renamed
-        int *c = nodes[recoal].child;
+        const int *c = nodes[recoal].child;
         if (c[0] == newcoal || c[1] == newcoal) {
             // we either coal above the newcoal or our existing
             // node just broke and newcoal was underneath.
@@ -1361,7 +1360,7 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
     {
         LocalTree *tree = it->tree;
         LocalNode *nodes = tree->nodes;
-        Spr *spr = &(it->spr);
+        Spr *spr = &(it->spr);  // this is spr to left of tree
         State state;
         int start = end;
         end += it->blocklen;
@@ -1393,11 +1392,9 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
             }
         }
 
-
         // break this block for each new recomb within this block
         for (;irecomb < recombs.size() &&
               recomb_pos[irecomb] < end; irecomb++) {
-
             int pos = recomb_pos[irecomb];
             LocalNode *nodes = tree->nodes;
 
