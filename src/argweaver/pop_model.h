@@ -210,7 +210,7 @@ class PopulationTree {
   int path_pop(int path, int t) const {
       return all_paths[path].get(t);
   }
-  bool num_paths(int t1, int p1, int t2, int p2) const {
+  int num_paths(int t1, int p1, int t2, int p2) const {
       return sub_paths[t1][t2][p1][p2].size();
   }
   /* This one returns the probability of the i^{th} unique path that
