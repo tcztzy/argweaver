@@ -63,6 +63,11 @@ public:
         return recomb_node == -1;
     }
 
+    void write() const {
+        printf("rn=%i rt=%i cn=%i ct=%i pp=%i\n", recomb_node,
+               recomb_time, coal_node, coal_time, pop_path);
+    }
+
     int recomb_node;
     int recomb_time;
     int coal_node;
@@ -831,6 +836,7 @@ void print_local_trees(const LocalTrees *trees, FILE *out=stdout);
 //=============================================================================
 // input and output
 
+void write_local_tree(const LocalTree *tree);
 void write_newick_tree(FILE *out, const LocalTree *tree,
                        const char *const *names,
                        const double *times, int depth, bool oneline);

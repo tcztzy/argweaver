@@ -1323,6 +1323,16 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
 //=============================================================================
 // output ARG as local trees
 
+
+void write_local_tree(const LocalTree *tree) {
+    for (int i=0; i < tree->nnodes; i++) {
+        printf("node %i: parent=%i child=(%i,%i) age=%i path=%i\n", i, tree->nodes[i].parent,
+               tree->nodes[i].child[0], tree->nodes[i].child[1],
+               tree->nodes[i].age, tree->nodes[i].pop_path);
+    }
+}
+
+
 void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
                               const char *const *names,
                               const double *times, int sample) {
