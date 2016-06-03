@@ -1672,7 +1672,7 @@ int main(int argc, char **argv)
         vector<string> seqnames;
         if (c.cr_file != "") {
             if (c.arg_file != "") {
-                printError("cannot use --arg-file and --cr-file");
+                printError("cannot use --arg-file and --cr");
                 return EXIT_ERROR;
             }
             if (!read_init_arg_cr(c.cr_file.c_str(), &c.model, trees, seqnames)) {
