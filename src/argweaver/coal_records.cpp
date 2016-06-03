@@ -219,8 +219,8 @@ CoalRecords::CoalRecords(const ArgModel *model, const LocalTree *first_tree,
 
 CoalRecords::~CoalRecords() {
     if (model != NULL) {
-        delete branch_created;
-        delete node_created;
+        delete [] branch_created;
+        delete [] node_created;
     }
 }
 
@@ -351,7 +351,7 @@ bool read_coal_records(FILE *file, const ArgModel *model,
                     error=true;
                 }
                 vector<string> path0;
-                split(&line[strlen(tmp)], " ", path0);
+                split(&line[strlen(tmp)+1], " ", path0);
                 assert((int)path0.size() == model->ntimes);
                 for (int j=0; j < model->ntimes; j++)
                     if (atoi(path0[j].c_str()) != model->get_pop(i, j)) {
