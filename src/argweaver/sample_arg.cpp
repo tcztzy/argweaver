@@ -456,6 +456,7 @@ double resample_arg_region(
     bool open_ended, double heat)
 {
     const int maxtime = model->get_removed_root_time();
+    static int count=0;
 
     // special case: zero length region
     if (region_start == region_end)
@@ -482,6 +483,7 @@ double resample_arg_region(
     // perform several iterations of resampling
     int accepts = 0;
     for (int i=0; i<niters; i++) {
+        count++;
         //        printf("resample_arg_region i=%i (%i,%i)\n", i, region_start, region_end);
         printLog(LOG_LOW, "region sample: iter=%d, region=(%d, %d)\n",
                  i, region_start, region_end);
@@ -499,6 +501,7 @@ double resample_arg_region(
         double npaths = sample_arg_removal_path_uniform(trees2, removal_path);
         remove_arg_thread_path(trees2, removal_path, maxtime, model->pop_tree);
         delete [] removal_path;
+        assert_trees(trees2, model->pop_tree);
 
         // determine start and end states from start and end trees
         LocalTree *start_tree_partial = trees2->front().tree;
@@ -520,7 +523,7 @@ double resample_arg_region(
         cond_sample_arg_thread_internal(model, sequences, trees2,
                                         start_state, end_state);
         incLogLevel();
-        assert_trees(trees2);
+        assert_trees(trees2, model->pop_tree);
 
         double npaths2 = count_total_arg_removal_paths(trees2);
 
@@ -775,7 +778,9 @@ LocalTrees *arghmm_resample_mcmc_arg(
     char **seqs, int nseqs, int seqlen, int niters, int niters2, int window)
 {
     // setup model, local trees, sequences
-    double frac_leaf = 0.5;
+    //    double frac_leaf = 0.5;
+    // TODO : Change back!
+    double frac_leaf = 1.0;
     //    int step = window / 2;
     ArgModel model(ntimes, times, popsizes, rho, mu);
     Sequences sequences(seqs, nseqs, seqlen);
