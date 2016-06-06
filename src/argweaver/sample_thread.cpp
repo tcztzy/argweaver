@@ -310,15 +310,15 @@ void arghmm_forward_block(const ArgModel *model,
 
     NodeStateLookup state_lookup(states, minage, model->pop_tree);
 
-    double tmatrix_fgroups[numpath][ntimes];
-    double fgroups[numpath][ntimes];
+    double tmatrix_fgroups[max_numpath][ntimes];
+    double fgroups[max_numpath][ntimes];
     for (int i=1; i<blocklen; i++) {
         const double *col1 = fw[i-1];
         double *col2 = fw[i];
         const double *emit2 = emit[i];
 
         // precompute the fgroup sums
-        for (int p=0; p < numpath; p++)
+        for (int p=0; p < max_numpath; p++)
             fill(fgroups[p], fgroups[p]+ntimes, 0.0);
         for (int j=0; j<nstates; j++) {
             const int a = states[j].time;
@@ -463,7 +463,6 @@ void arghmm_forward_switch(const double *col1, double* col2,
     }
 
     // add recombination and recoalescing transitions
-    double norm = 0.0;
     for (int j=0; j < nstates1; j++) {
         if (matrix->recombsrc[j] >= 0) {
             for (int k=0; k<nstates2; k++) {
@@ -488,6 +487,7 @@ void arghmm_forward_switch(const double *col1, double* col2,
             }
         }
     }
+    double norm = 0.0;
     for (int k=0; k<nstates2; k++) {
         col2[k] *= emit[k];
         norm += col2[k];
@@ -930,6 +930,8 @@ void cond_sample_arg_thread_internal(
            start_state.node, start_state.time,
            end_state.node, end_state.time);*/
 
+    assert_trees(trees, model->pop_tree);
+
     // build matrices
     ArgHmmMatrixIter matrix_iter(model, sequences, trees);
     matrix_iter.set_internal(internal);
@@ -1013,9 +1015,11 @@ void cond_sample_arg_thread_internal(
                           thread_path, recomb_pos, recombs, internal);
 
     // add thread to ARG
+    assert_trees(trees, model->pop_tree);
     add_arg_thread_path(trees, matrix_iter.states_model,
                         model->ntimes, thread_path,
                         recomb_pos, recombs, model->pop_tree);
+    assert_trees(trees, model->pop_tree);
     printTimerLog(time, LOG_LOW,
                   "add thread:                         ");
 

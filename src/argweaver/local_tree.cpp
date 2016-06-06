@@ -303,6 +303,24 @@ void apply_spr(LocalTree *tree, const Spr &spr,
         return;
     }
 
+    if (spr.recomb_node == spr.coal_node) {
+        assert(pop_tree != NULL);
+        int path1 = tree->nodes[spr.recomb_node].pop_path;
+        int path2 = spr.pop_path;
+        assert(! pop_tree->paths_equal(path1, path2,
+                                       spr.recomb_time, spr.coal_time));
+        int path3 =
+            pop_tree->consistent_path(path1, path2,
+                                      tree->nodes[spr.recomb_node].age,
+                                      spr.recomb_time, spr.coal_time);
+        tree->nodes[spr.recomb_node].pop_path =
+            pop_tree->consistent_path(path3, path1,
+                                      tree->nodes[spr.recomb_node].age,
+                                      spr.coal_time,
+                                      tree->nodes[tree->nodes[spr.recomb_node].parent].age);
+        return;
+    }
+
     // recoal is also the node we are breaking
     int recoal = nodes[spr.recomb_node].parent;
 
@@ -490,6 +508,14 @@ bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it)
         return false;
 
     int nnodes = it2->tree->nnodes;
+
+    int subtree_root = it->tree->nodes[it->tree->root].child[0];
+    assert(it2->tree->nodes[it2->tree->root].child[0] == subtree_root);
+    for (int i=0; i < it2->tree->nnodes; i++) {
+        assert(i==subtree_root ||
+               it->tree->nodes[i].pop_path == it2->tree->nodes[i].pop_path);
+    }
+
 
     if (it->mapping == NULL) {
         // it2 will become first tree and therefore does not need a mapping
@@ -1793,16 +1819,25 @@ bool assert_tree(const LocalTree *tree)
 
 
 bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
-                const Spr *spr, const int *mapping)
+                const Spr *spr, const int *mapping,
+                const PopulationTree *pop_tree)
 {
     LocalNode *last_nodes = last_tree->nodes;
     LocalNode *nodes = tree->nodes;
 
+
+    if (pop_tree != NULL) {
+        assert(pop_tree->get_pop(last_tree->nodes[spr->recomb_node].pop_path,
+                                 spr->recomb_time) ==
+               pop_tree->get_pop(spr->pop_path, spr->recomb_time));
+        assert(pop_tree->get_pop(last_tree->nodes[spr->coal_node].pop_path,
+                                 spr->coal_time) ==
+               pop_tree->get_pop(spr->pop_path, spr->coal_time));
+        assert(pop_tree->path_prob(spr->pop_path, spr->recomb_time, spr->coal_time) > 0);
+    }
+
     if (spr->recomb_node == -1)
         assert(false);
-
-    // recomb baring branch cannot be broken
-    assert(mapping[spr->recomb_node] != -1);
 
     // coal time is older than recomb time
     if (spr->recomb_time > spr->coal_time)
@@ -1822,6 +1857,25 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
     if (last_nodes[spr->coal_node].parent != -1) {
         if (spr->coal_time > last_nodes[last_nodes[spr->coal_node].parent].age)
             assert(false);
+    }
+
+    // recomb baring branch cannot be broken
+    assert(mapping[spr->recomb_node] != -1);
+
+    if (spr->recomb_node == spr->coal_node) {
+        assert(pop_tree != NULL);
+        assert(!pop_tree->paths_equal(last_tree->nodes[spr->recomb_node].pop_path,
+                                      spr->pop_path,
+                                      spr->recomb_time,
+                                      spr->coal_time));
+        assert(spr->recomb_time != spr->coal_time);
+        assert(pop_tree->paths_equal(tree->nodes[spr->recomb_node].pop_path,
+                                     spr->pop_path,
+                                     spr->recomb_time,
+                                     spr->coal_time));
+        for (int i=0; i < last_tree->nnodes; i++)
+            assert(mapping[i] == i);
+        return true;
     }
 
     // ensure spr matches the trees
@@ -1844,8 +1898,29 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
     // ensure mapped nodes don't change in age
     for (int i=0; i<last_tree->nnodes; i++) {
         int i2 = mapping[i];
-        if (i2 != -1)
+        if (i2 != -1) {
             assert(last_nodes[i].age == nodes[i2].age);
+            if (pop_tree != NULL) {
+                if (i == spr->recomb_node) {
+                    int target_path = pop_tree->consistent_path(last_nodes[i].pop_path,
+                                                                spr->pop_path,
+                                                                last_nodes[i].age,
+                                                                spr->recomb_time,
+                                                                spr->coal_time);
+                    assert(pop_tree->paths_equal(nodes[i2].pop_path,
+                                                 target_path,
+                                                 nodes[i2].age,
+                                                 i2 == tree->root ? -1 :
+                                                 nodes[nodes[i2].parent].age));
+                } else {
+                    assert(pop_tree->paths_equal(last_nodes[i].pop_path,
+                                                 nodes[i2].pop_path,
+                                                 last_nodes[i].age,
+                                                 i == last_tree->root ? -1 :
+                                                 last_nodes[last_nodes[i].parent].age ));
+                }
+            }
+        }
         if (last_nodes[i].is_leaf())
             assert(nodes[i2].is_leaf());
     }
@@ -1858,7 +1933,7 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
 
 
 // add a thread to an ARG
-bool assert_trees(const LocalTrees *trees)
+bool assert_trees(const LocalTrees *trees, const PopulationTree *pop_tree)
 {
     LocalTree *last_tree = NULL;
     int seqlen = 0;
@@ -1894,7 +1969,7 @@ bool assert_trees(const LocalTrees *trees)
                 }
 
             } else {
-                assert(assert_spr(last_tree, tree, spr, mapping));
+                assert(assert_spr(last_tree, tree, spr, mapping, pop_tree));
             }
         }
 

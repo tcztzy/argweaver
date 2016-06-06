@@ -245,7 +245,19 @@ void get_deterministic_transitions(
             (node1 == spr.recomb_node && time1 == spr.recomb_time)) {
             // not a deterministic case
             next_states[i] = -1;
-
+        } else if (node1 == spr.coal_node && spr.coal_node == spr.recomb_node) {
+            // "bubble" recomb; tree topology does not change but pop path of
+            // recomb branch may
+            if (time1 < spr.recomb_time || time1 > spr.coal_time) {
+                next_states[i] = state2_lookup.lookup(node1, time1, path1);
+            } else {
+                if (model->pop_tree != NULL) {
+                    // this should be true because state paths are meant to be consistent with node that
+                    // they coalesce to
+                    assert(model->paths_equal(path1, last_tree->nodes[node1].pop_path, time1, spr.coal_time));
+                }
+                next_states[i] = state2_lookup.lookup(node1, spr.coal_time, path1);
+            }
         } else if (node1 != spr.recomb_node) {
             // SPR only removes a subset of descendents, if any
             // trace up from remaining leaf to find correct new state
@@ -349,11 +361,17 @@ void get_deterministic_transitions(
                 // we move with SPR subtree
                 next_states[i] = state2_lookup.lookup(
                                  mapping[spr.recomb_node], time1, path1);
-
             } else {
                 // SPR should not be able to coal back onto same branch
                 // this would be a self cycle
-                assert(spr.coal_node != node1);
+                // But it is possible under population model if the recomb
+                // changes the population path of the branch
+                if (spr.coal_node == node1) {
+                    assert(model->pop_tree != NULL &&
+                           !model->paths_equal(last_nodes[spr.recomb_node].pop_path,
+                                               spr.pop_path,
+                                               spr.recomb_time, spr.coal_time));
+                }
 
                 // SPR subtree moves out from underneath us
                 // therefore the new chromosome coalesces with
@@ -665,6 +683,7 @@ double calc_recoal(
 
     // asserts
     if (ncoals_j <= 0 || nbranches_j <= 0) {
+        return 0.0;
         printError("counts %d %d %e\n",
                    ncoals_j, nbranches_j, p);
         assert(false);
@@ -754,7 +773,8 @@ void calc_transition_probs_switch(
     int recomb_parent_path;
     int minage1 = internal ? last_tree->nodes[last_tree->nodes[last_tree->root].child[0]].age : 0;
     int minage2 = internal ? tree->nodes[tree->nodes[tree->root].child[0]].age : 0;
-    //    static int count=0;
+    static int count=0;
+    count++;
 
     //    printf("calc_transition_probs_switch internal=%i\n", internal);
     for (int i=0; i < max(1,nstates1); i++)
@@ -779,13 +799,6 @@ void calc_transition_probs_switch(
             assert(spr.coal_node == last_tree->root);
             const int maintree_root = tree->nodes[tree->root].child[1];
             const int subtree_root = tree->nodes[tree->root].child[0];
-            //            const int target_path = spr.pop_path;
-            // Not sure if this assert is necessarily true. If not, need
-            // to deal separately with case where maintree_root is spr.coal_node.
-            // I think one or the other should be true.
-            /*            assert(mapping[spr.coal_node] == subtree_root ||
-                   mapping[spr.coal_node] == maintree_root ||
-                   mapping[spr.coal_node] == tree->root);*/
             int target_path=-1;
             if (subtree_root == mapping[spr.recomb_node]) {
                 target_path = model->consistent_path(last_tree->nodes[spr.recomb_node].pop_path,
@@ -997,22 +1010,72 @@ void calc_transition_probs_switch(
                 const int time2 = states2[j].time;
                 //                const int path2 = states2[j].pop_path;
 
-                if (!((node2 == mapping[spr.recomb_node]
-                       && time2 >= spr.recomb_time) ||
-                      (node2 == node3 && time2 == time1) ||
-                      (node2 == parent && time2 == time1))) {
-                    // not a probabilistic transition
-                    continue;
+                bool possible=false;
+                if ((node2 == node3 && time2 == time1) ||
+                    (node2 == parent && time2 == time1)) {
+                    possible=true;
+                } else if (node2 == mapping[spr.recomb_node] &&
+                           time2 >= spr.recomb_time &&
+                           time2 <= time1 &&
+                           model->paths_equal(states2[j].pop_path,
+                                              spr.pop_path,
+                                              time2, time1)) {
+                    possible=true;
+                }
+                if (!possible) continue;
+
+                // if internal, check if minage changed, implying that
+                // broken branch is below
+                // path must match along broken b
+                if (model->pop_tree != NULL) {
+                    int subtree_root = last_tree->nodes[last_tree->root].child[0];
+                    int main_subtree_root = tree->nodes[tree->root].child[0];
+                    assert(time2 <= time1);
+                    assert(time2 >= minage2);
+                    if ((!internal) || mapping[subtree_root] == main_subtree_root) {
+                        assert(minage1 == minage2);
+                        if (!model->paths_equal(states1[i].pop_path,
+                                                states2[j].pop_path,
+                                                minage1, time2)) {
+                            continue;
+                        }
+                    } else {   // subtree_root has changed
+                        assert(minage2 <= minage1);
+                        assert(subtree_root == last_parent);
+                        int other;
+                        if (last_tree->nodes[subtree_root].child[0] ==
+                            spr.recomb_node) {
+                            other = last_tree->nodes[subtree_root].child[1];
+                        } else {
+                            assert(last_tree->nodes[subtree_root].child[1] ==
+                                   spr.recomb_node);
+                            other = last_tree->nodes[subtree_root].child[0];
+                        }
+                        assert(last_tree->nodes[other].age == minage2);
+                        int path1 =
+                            model->consistent_path(last_tree->nodes[other].pop_path,
+                                                   states1[i].pop_path,
+                                                   minage2, minage1,
+                                                   time1, false);
+                        if (path1 == -1) continue;
+
+                        int path2 =
+                            model->consistent_path(states2[j].pop_path,
+                                                   spr.pop_path,
+                                                   minage2, time2, time1, false);
+                        if (path2 == -1) continue;
+                        if (! model->paths_equal(path1, path2, minage2, time1))
+                            continue;
+                    }
                 }
 
-                if (model->pop_tree != NULL) {
-                    int t1 = max(minage1, minage2);
-                    int t2 = min(states1[i].time, states2[j].time);
-                    if (t1 <= t2 && ! model->paths_equal(states1[i].pop_path,
-                                             states2[j].pop_path,
-                                             max(minage1, minage2),
-                                             min(states1[i].time, states2[j].time)))
-                        continue;
+                // in all cases check that path is same between two states
+                // for times where they overlap
+                if (max(minage1, minage2) <= min(time1, time2)) {
+                    assert(model->paths_equal(states1[i].pop_path,
+                                              states2[j].pop_path,
+                                              max(minage1, minage2),
+                                              min(time1, time2)));
                 }
 
                 recomb_parent_age = last_tree->nodes[last_tree->nodes[spr.recomb_node].parent].age;
