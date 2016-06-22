@@ -604,7 +604,7 @@ public:
     }
 
     // make trunk genealogy
-    void make_trunk(int start, int end, int pop_path,
+    void make_trunk(int start, int end, int seqid, int pop_path,
                     int capacity=-1)
     {
         clear();
@@ -619,7 +619,8 @@ public:
         tree->nodes[0].pop_path = pop_path;
         trees.push_back(
          LocalTreeSpr(tree, Spr(-1, -1, -1, -1, -1), end - start, NULL));
-        set_default_seqids();
+        seqids.clear();
+        seqids.push_back(seqid);
     }
 
     // set default sequence IDs

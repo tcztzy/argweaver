@@ -29,6 +29,12 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
     const int nseqs = sequences->get_num_seqs();
     const int seqlen = sequences->length();
 
+    vector<int> seqids;
+    for (int i=0; i<nseqs; i++)
+        seqids.push_back(i);
+    if (random)
+        shuffle(&seqids[0], seqids.size());
+
     if (trees->get_num_leaves() == 0) {
         // initialize ARG as trunk
         const int capacity = 2 * sequences->get_num_seqs() - 1;
@@ -39,8 +45,8 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
             end = seqlen;
         }
         int pop_path = ( model->pop_tree == NULL ? 0 :
-                         model->pop_tree->most_likely_path(sequences->pops[0]) );
-        trees->make_trunk(start, end, pop_path, capacity);
+                         model->pop_tree->most_likely_path(sequences->pops[seqids[0]]) );
+        trees->make_trunk(start, end, seqids[0], pop_path, capacity);
     }
 
     // record which sequences are already in the tree
@@ -48,12 +54,6 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
     fill(has_sequence, has_sequence+nseqs, false);
     for (int i=0; i<trees->get_num_leaves(); i++)
         has_sequence[trees->seqids[i]] = true;
-
-    vector<int> seqids;
-    for (int i=0; i<nseqs; i++)
-        seqids.push_back(i);
-    if (random)
-        shuffle(&seqids[0], seqids.size());
 
     // add more chromosomes one by one
     for (int i=0; i<nseqs; i++) {

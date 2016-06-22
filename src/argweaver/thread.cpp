@@ -471,9 +471,8 @@ void remove_arg_thread(LocalTrees *trees, int remove_seqid,
             int start_pop = pop_tree->path_pop(pop_path, 0);
             pop_path = pop_tree->most_likely_path(start_pop);
         }
-        trees->make_trunk(trees->start_coord, trees->end_coord, pop_path,
+        trees->make_trunk(trees->start_coord, trees->end_coord, seqid, pop_path,
                           trees->begin()->tree->capacity);
-        trees->seqids[0] = seqid;
         return;
     }
 
