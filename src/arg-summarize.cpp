@@ -43,6 +43,8 @@ int getQuantiles=0;
 vector <double> quantiles;
 vector<string> node_dist_leaf1;
 vector<string> node_dist_leaf2;
+vector<string> ind_dist_leaf1;
+vector<string> ind_dist_leaf2;
 
 const int EXIT_ERROR = 1;
 
@@ -128,8 +130,16 @@ public:
                    ("-D", "--node-dist", "<leaf0;leaf1,leaf2;...>",
                     &node_dist,
                     "leaf branch length *or* distance between pairs of"
-		    "leafs. In this example return length of leaf leaf0,"
+		    " leafs. In this example return length of leaf leaf0,"
 		    " then distance between leaf1 and leaf2"));
+	config.add(new ConfigParam<string>
+		   ("-I", "--ind-dist", "<ind1_hap1,ind1_hap2;ind2_hap1,ind2_hap2,...>",
+		    &ind_dist,
+		    "return three statistics for each individual (identified"
+		    " by two haplotypes): the minimum coalescence time to rest of"
+		    " tree, the maximum coalescence time to rest of tree, and"
+		    " a 0/1 indicating whether the two lineages coalesce with each"
+		    " other before any other lineage"));
         config.add(new ConfigSwitch
                    ("-Z", "--zero-len", &zero,
                     "number of branches of length zero"));
@@ -201,6 +211,7 @@ public:
     bool popsize;
     bool allele_age;
     string node_dist;
+    string ind_dist;
     bool zero;
     bool coalcounts;
     bool numsample;
@@ -219,10 +230,10 @@ void checkResults(IntervalIterator<vector<double> > *results) {
     Interval<vector<double> > summary=results->next();
     vector<vector <double> > scores;
     while (summary.start != summary.end) {
-        cout << summary.chrom << "\t" << summary.start << "\t"
-             << summary.end;
         scores = summary.get_scores();
         if (scores.size() > 0) {
+        cout << summary.chrom << "\t" << summary.start << "\t"
+             << summary.end;
             vector<double> tmpScore(scores.size());
             int numscore = scores[0].size();
             assert(numscore > 0);
@@ -297,6 +308,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
                    line->trees->orig_tree);
     double bl=-1.0;
     int node_dist_idx=0;
+    int ind_dist_idx=0;
     if (line->stats.size() == statname.size()) return;
     line->stats.resize(statname.size());
     for (unsigned int i=0; i < statname.size(); i++) {
@@ -339,7 +351,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
             line->stats[i] = (double)infsites;
         else if (statname[i].substr(0, 9)=="node_dist") {
 	    if (node_dist_leaf2[node_dist_idx].empty()) {
-		line->stats[i] = tree->leafLen(node_dist_leaf1[node_dist_idx]);
+		line->stats[i] = tree->branch_len(node_dist_leaf1[node_dist_idx]);
 	    } else {
 		line->stats[i] =
 		    tree->distBetweenLeaves(node_dist_leaf1[node_dist_idx],
@@ -347,6 +359,23 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
 	    }
             node_dist_idx++;
         }
+	else if (statname[i].substr(0, 8)=="ind_dist") {
+	    string h1 = ind_dist_leaf1[ind_dist_idx];
+	    string h2 = ind_dist_leaf2[ind_dist_idx];
+	    Node *parent = tree->are_sisters(h1, h2);
+	    if (parent != NULL) {
+		line->stats[i] = line->stats[i+1] = tree->branch_len(h1) + parent->dist;
+		line->stats[i+2] = 1;
+	    } else {
+		double d1 = tree->branch_len(h1);
+		double d2 = tree->branch_len(h2);
+		line->stats[i] = min(d1, d2);
+		line->stats[i+1] = max(d1, d2);
+		line->stats[i+2] = 0;
+	    }
+	    i += 2;
+	    ind_dist_idx++;
+	}
         else if (statname[i].substr(0, 10)=="coalcount.") {
             vector<double>coal_counts = tree->coalCounts(times);
             for (unsigned int j=0; j < coal_counts.size(); j++) {
@@ -1041,7 +1070,7 @@ int main(int argc, char *argv[]) {
 	    } else {
 		if (tokens2.size() != 2) {
 		    fprintf(stderr, "Bad format to --node-dist argument; expect"
-			    " two leaf names separated by comma");
+			    " one or two leaf names separated by comma");
 		    return 1;
 		}
 		statname.push_back(string("node_dist-") + tokens2[0]
@@ -1050,6 +1079,29 @@ int main(int argc, char *argv[]) {
 		node_dist_leaf2.push_back(tokens2[1]);
 	    }
         }
+    }
+    if (!c.ind_dist.empty()) {
+	vector<string> tokens1, tokens2;
+	split(c.ind_dist.c_str(), ';', tokens1);
+	for (unsigned int i=0; i < tokens1.size(); i++) {
+	    split(tokens1[i].c_str(), ',', tokens2);
+	    if (tokens2.size() != 2) {
+		fprintf(stderr, "Bad format to --ind-dist argument; expect"
+			" two leaf names separated by comma");
+		return 1;
+	    }
+	    statname.push_back(string("ind_dist-") + tokens2[0]
+			       + string(",") + tokens2[1] + 
+			       string("-min"));
+	    statname.push_back(string("ind_dist-") + tokens2[0]
+			       + string(",") + tokens2[1] +
+			       string("-max"));
+	    statname.push_back(string("ind_dist-") + tokens2[0]
+			       + string(",") + tokens2[1] +
+			       string("-homo"));
+	    ind_dist_leaf1.push_back(tokens2[0]);
+	    ind_dist_leaf2.push_back(tokens2[1]);
+	}
     }
     if (c.rawtrees)
         statname.push_back(string("tree"));

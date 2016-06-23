@@ -288,8 +288,19 @@ public:
     double popsize();
     vector<double> coalCounts(vector<double> times);
     double num_zero_branches();
-    double leafLen(string n) {
+    double branch_len(string n) {
 	return nodes[nodename_map.find(n)->second]->dist;
+    }
+    // if n1 and n2 are sisters, return parent node.
+    // otherwise return NULL
+    Node* are_sisters(const Node *n1, const Node *n2) const {
+	if (n1->parent != NULL && n1 != n2 && n1->parent == n2->parent)
+	    return n1->parent;
+	return NULL;
+    }
+    Node* are_sisters(string n1, string n2) const {
+	return are_sisters(nodes[nodename_map.find(n1)->second],
+			   nodes[nodename_map.find(n2)->second]);
     }
     double distBetweenLeaves(Node *n1, Node *n2);
     double distBetweenLeaves(string n1, string n2) {
