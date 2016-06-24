@@ -217,6 +217,7 @@ public:
                                       paths_equal[path_b][path_a][minage][b]))
             return prob;
 
+        term1 = D[a] * E[path_c][b] * path_prob[path_c][b];
         minage_term = 0.0;
         if (c > 0)
             minage_term = exp(lnE2[path_c][path_b][b] + lnB[path_c][path_b][c-1]);
