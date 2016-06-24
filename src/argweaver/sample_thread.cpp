@@ -300,7 +300,7 @@ void arghmm_forward_block(const ArgModel *model,
                 matrix->get_time(a, b, c, p, p, pc, minage, true) -
                 matrix->get_time(a, b, 0, p, p, -1, minage, false);
             //            printf("tmatrix2[%i][%i] = %e\n", a, k, tmatrix2[a][k]);
-            if (isnan(tmatrix2[a][k]) || isinf(tmatrix2[a][k])) {
+            if (isnan(tmatrix2[a][k]) || isinf(tmatrix2[a][k]) || tmatrix2[a][k] < 0) {
                 printf("a=%i k=%i b=%i node2=%i c=%i p=%i pc=%i\n",
                        a, k, b, node2, c, p, pc);
                 assert(false);
@@ -359,21 +359,28 @@ void arghmm_forward_block(const ArgModel *model,
             // same branch case
             // note taking advantage of convention in nodestatelookup that
             // consecutive times are in a row
-            int j=state_lookup.lookup(node2, age1, path);
+            int j=state_lookup.lookup_idx(node2, age1, path);
             while (j < 0 && age1 <= age2) {
                 age1++;
-                j=state_lookup.lookup(node2, age1, path);
+                j = state_lookup.lookup_idx(node2, age1, path);
             }
-            for (int a=age1; a <= age2; a++, j++)
-                if (col1[j] > 0) {
+            for (int a=age1; a <= age2; a++, j++) {
+                int j_state = state_lookup.lookup_by_idx(j);
+                if (j_state >= 0 && col1[j_state] > 0) {
                     if (isnan(tmatrix2[a][k])) {
                         printf("a=%i k=%i\n", a, k);
                         assert(false);
                     }
-                    sum += tmatrix2[a][k] * col1[j];
+                    assert(states[j_state].node == node2 &&
+                           states[j_state].pop_path == path &&
+                           states[j_state].time == a);
+                    sum += tmatrix2[a][k] * col1[j_state];
                 }
+            }
+
 
             col2[k] = sum * emit2[k];
+            //            col2[k] = sum;  // use this hack to sample from prior
             norm += col2[k];
             if (isnan(col2[k]))
                 assert(false);
@@ -385,6 +392,7 @@ void arghmm_forward_block(const ArgModel *model,
         // normalize column for numerical stability
         for (int k=0; k<nstates; k++)
             col2[k] /= norm;
+
     }
 }
 
@@ -465,6 +473,7 @@ void arghmm_forward_switch(const double *col1, double* col2,
     // add recombination and recoalescing transitions
     for (int j=0; j < nstates1; j++) {
         if (matrix->recombsrc[j] >= 0) {
+            assert(matrix->recoalsrc[j] < 0);
             for (int k=0; k<nstates2; k++) {
                 double val = matrix->get(j, k);
                 if (val > 0) {
@@ -477,6 +486,7 @@ void arghmm_forward_switch(const double *col1, double* col2,
     }
     for (int j=0; j < nstates1; j++) {
         if (matrix->recoalsrc[j] >= 0) {
+            assert(matrix->recombsrc[j] < 0);
             for (int k=0; k<nstates2; k++) {
                 double val = matrix->get(j, k);
                 if (val > 0) {
