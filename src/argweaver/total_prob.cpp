@@ -253,6 +253,11 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
                      double treelen, double **num_coal, double **num_nocoal,
                      double coal_weight, int lineages_counted)
 {
+    if (spr.recomb_node == tree->root) {
+        assert(spr.coal_node == tree->root);
+        assert(model->pop_tree != NULL);
+        return (model->path_prob(spr.pop_path, spr.recomb_time, spr.coal_time));
+    }
     assert(spr.recomb_node != tree->root);
     const LocalNode *nodes = tree->nodes;
     const int root_age = nodes[tree->root].age;
