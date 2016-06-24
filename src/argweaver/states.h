@@ -66,14 +66,24 @@ public:
                   const PopulationTree *pop_tree);
   ~NodeStateLookup();
 
-    // Returns the state index for state (node, time)
-  inline int lookup(int node, int time, int path=0) {
+  inline int lookup_idx(int node, int time, int path=0) {
       if (node < 0 || node >= nnode ||
           time < mintime || time > maxtime ||
           path < 0 || path >= npath) return -1;
       int pos = path*nnode*ntime + node*ntime + time - mintime;
+      return pos;
+  }
+
+  // Returns the state index for state (node, time)
+  inline int lookup(int node, int time, int path=0) {
+      int pos = lookup_idx(node, time, path);
       assert(pos >= 0 && pos < table_size);
       return lookup_table[path*nnode*ntime + node*ntime + time - mintime];
+  }
+
+  inline int lookup_by_idx(int pos) {
+      if (pos < 0 || pos >= table_size) return -1;
+      return lookup_table[pos];
   }
 
 protected:
