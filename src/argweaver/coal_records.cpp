@@ -126,12 +126,16 @@ void CoalRecords::addRecord(const Spr &spr, int pos, const LocalTree *last_tree,
                             int *mapping, FILE *outfile) {
     int recomb_node = spr.recomb_node;
     int coal_node = spr.coal_node;
-    int broken_node = last_tree->nodes[recomb_node].parent;
+    // broken_node is -1 if this is a self-recombination OR recomb on root node
+    int broken_node = ( spr.recomb_node == spr.coal_node ? -1
+                        : last_tree->nodes[recomb_node].parent );
 
     if (branch_created[recomb_node] != -1)
         records[branch_created[recomb_node]].end = pos;
-    if (node_created[broken_node] != -1)
+    if (broken_node >= 0 && node_created[broken_node] != -1)
         records[node_created[broken_node]].end = pos;
+    else if (broken_node < 0 && node_created[recomb_node] != -1)
+        records[node_created[recomb_node]].end = pos;
     int pop_path = 0;
     if (model->pop_tree != NULL) {
         int path1 = model->consistent_path(last_tree->nodes[recomb_node].pop_path,
@@ -155,8 +159,14 @@ void CoalRecords::addRecord(const Spr &spr, int pos, const LocalTree *last_tree,
       idx = records.size();
       records.push_back(cr);
     }
-    node_created[broken_node] = idx;
+    if (broken_node >= 0) {
+        node_created[broken_node] = idx;
+    } else {
+        assert(recomb_node == coal_node);
+        node_created[recomb_node] = idx;
+    }
     order.push(idx);
+
     if (outfile != NULL)
         writeAndPopCompleteRecords(outfile);
 }
@@ -449,7 +459,7 @@ bool read_coal_records(FILE *file, const ArgModel *model,
 
     trees->nnodes = nnodes;
     trees->set_default_seqids();
-    assert_trees(trees);
+    assert_trees(trees, model->pop_tree);
     return true;
 }
 
