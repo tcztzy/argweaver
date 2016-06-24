@@ -144,7 +144,8 @@ int PopulationTree::max_matching_path(int path1, int path2, int t) const {
 
 bool PopulationTree::paths_equal(int path1, int path2, int t1, int t2) const {
     if (path1 == path2) return true;
-    if (t2 == -1) t2 = model->ntimes - 1;
+    if (t1 > model->ntimes - 1) t1 = model->ntimes - 1;
+    if (t2 == -1 || t2 > model->ntimes - 1) t2 = model->ntimes - 1;
     assert(t1 <= t2);
     return ( max_matching_path(path1, path2, t1) >= t2 );
     //    return max_matching_path[path1][path2][t1] >= t2;
