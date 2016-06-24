@@ -817,7 +817,8 @@ bool log_local_trees(const ArgModel *model, const Sequences *sequences,
     }
 
 
-    write_local_trees(stream.stream, trees, sequences, model->times);
+    write_local_trees(stream.stream, trees, sequences, model->times,
+                      model->pop_tree != NULL);
 
     // testing for now; output coal records version
     string out_cr_file = get_out_cr_file(*config, iter);
