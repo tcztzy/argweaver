@@ -550,8 +550,8 @@ double resample_arg_region(
     }
 
     // rejoin trees
-    append_local_trees(trees, trees2);
-    append_local_trees(trees, trees3);
+    append_local_trees(trees, trees2, model->pop_tree);
+    append_local_trees(trees, trees3, model->pop_tree);
 
     // clean up
     delete trees2;
