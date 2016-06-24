@@ -479,6 +479,12 @@ double calc_recomb(
     if (internal) {
         int subtree_root = last_tree->nodes[last_tree->root].child[0];
         int maintree_root = last_tree->nodes[last_tree->root].child[1];
+
+        // THIS IS A HACK.. need to revisit best way to deal with recombs on root node
+        if (spr.recomb_node == spr.coal_node &&
+            spr.recomb_node == maintree_root) {
+            return 1.0;
+        }
         minage = last_tree->nodes[subtree_root].age;
         root_age = last_tree->nodes[maintree_root].age;
 
