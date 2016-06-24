@@ -1686,9 +1686,9 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                         int p = nodes[spr->recomb_node].parent;
                         assert(mapping[p] != -1 || p == tree->root);
                         for (int j=0; j < tree->nnodes; j++) {
-                            if (j != removal_node && j != tree->root)
+                            if (j != removal_node && j != tree->root && mapping[j] != -1)
                                 assert(pop_tree->paths_equal(tree->nodes[j].pop_path,
-                                                             it2->tree->nodes[j].pop_path,
+                                                             it2->tree->nodes[mapping[j]].pop_path,
                                                              tree->nodes[j].age,
                                                              min(maxtime-2,tree->nodes[tree->nodes[j].parent].age)));
                             assert(mapping[j] != -1 || j == tree->root);
