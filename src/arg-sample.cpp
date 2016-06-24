@@ -112,7 +112,7 @@ public:
                     "10000",
                     "effective population size (default=1e4)"));
         config.add(new ConfigParam<string>
-                   ("-P", "--pop-tree-file", "<population file", &pop_tree_file,
+                   ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
                     "", "File describing population tree (for multiple populations)"));
 	config.add(new ConfigParam<int>
 		   ("", "--popsize-em", "<n>", &popsize_em, 0,
