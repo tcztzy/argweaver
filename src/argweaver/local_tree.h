@@ -797,15 +797,17 @@ void infer_mapping(const LocalTree *tree1, const LocalTree *tree2,
 void repair_spr(const LocalTree *last_tree, const LocalTree *tree, Spr &spr,
                 int *mapping);
 
-bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it);
-void remove_null_sprs(LocalTrees *trees);
+bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it,
+                     const PopulationTree *pop_tree);
+void remove_null_sprs(LocalTrees *trees, const PopulationTree *pop_tree);
 void get_inverse_mapping(const int *mapping, int size, int *inv_mapping);
 
 LocalTrees *partition_local_trees(LocalTrees *trees, int pos,
                                   LocalTrees::iterator it, int it_start,
                                   bool trim=true);
 LocalTrees *partition_local_trees(LocalTrees *trees, int pos, bool trim=true);
-void append_local_trees(LocalTrees *trees, LocalTrees *trees2, bool merge=true);
+void append_local_trees(LocalTrees *trees, LocalTrees *trees2, bool merge=true,
+                        const PopulationTree *pop_tree=NULL);
 
 void uncompress_local_trees(LocalTrees *trees,
                             const SitesMapping *sites_mapping);
@@ -840,19 +842,24 @@ void print_local_trees(const LocalTrees *trees, FILE *out=stdout);
 void write_local_tree(const LocalTree *tree);
 void write_newick_tree(FILE *out, const LocalTree *tree,
                        const char *const *names,
-                       const double *times, int depth, bool oneline);
+                       const double *times, int depth, bool oneline,
+                       bool pop_model=false);
 bool write_newick_tree(const char *filename, const LocalTree *tree,
                        const char *const *names, const double *times,
-                       bool oneline);
+                       bool oneline, bool pop_model=false);
 void write_local_trees(FILE *out, const LocalTrees *trees,
-                       const char *const *names, const double *times);
+                       const char *const *names, const double *times,
+                       bool pop_model=false);
 bool write_local_trees(const char *filename, const LocalTrees *trees,
-                       const char *const *names, const double *times);
+                       const char *const *names, const double *times,
+                       bool pop_model=false);
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
-                       const Sequences &seqs, const double *times);
+                       const Sequences &seqs, const double *times,
+                       bool pop_model=false);
 bool write_local_trees(const char *filename, const LocalTrees *trees,
-                       const Sequences &seqs, const double *times);
+                       const Sequences &seqs, const double *times,
+                       bool pop_model=false);
 
 bool parse_local_tree(const char* newick, LocalTree *tree,
                       const double *times, int ntimes);

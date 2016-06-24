@@ -494,7 +494,8 @@ double get_arglen(const LocalTrees *trees, const double *times)
 
 
 // removes a null SPR from one local tree
-bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it)
+bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it,
+                     const PopulationTree *pop_tree)
 {
     // look one tree ahead
     LocalTrees::iterator it2 = it;
@@ -512,8 +513,18 @@ bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it)
     int subtree_root = it->tree->nodes[it->tree->root].child[0];
     assert(it2->tree->nodes[it2->tree->root].child[0] == subtree_root);
     for (int i=0; i < it2->tree->nnodes; i++) {
+        assert(it->tree->nodes[i].age == it2->tree->nodes[it2->mapping[i]].age);
+        if (i != it->tree->root) {
+            assert(it->tree->nodes[it->tree->nodes[i].parent].age ==
+                   it2->tree->nodes[it2->tree->nodes[it2->mapping[i]].parent].age);
+        }
         assert(i==subtree_root ||
-               it->tree->nodes[i].pop_path == it2->tree->nodes[i].pop_path);
+               ( pop_tree == NULL ||
+                 pop_tree->paths_equal(it->tree->nodes[i].pop_path,
+                                       it2->tree->nodes[it2->mapping[i]].pop_path,
+                                       it->tree->nodes[i].age,
+                                       i == it->tree->root ? -1 :
+                                       it->tree->nodes[it->tree->nodes[i].parent].age)));
     }
 
 
@@ -554,12 +565,12 @@ bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it)
 
 
 // Removes trees with null SPRs from the local trees
-void remove_null_sprs(LocalTrees *trees)
+void remove_null_sprs(LocalTrees *trees, const PopulationTree *pop_tree)
 {
     for (LocalTrees::iterator it=trees->begin(); it != trees->end();) {
         LocalTrees::iterator it2 = it;
         ++it2;
-        remove_null_spr(trees, it);
+        remove_null_spr(trees, it, pop_tree);
         it = it2;
     }
 }
@@ -580,6 +591,10 @@ int get_recoal_node(const LocalTree *tree, const Spr &spr, const int *mapping)
         if (!mapped[i])
             return i;
 
+    // this can happen for self-recombinations, though spr.recomb_node may
+    // not equal spr.coal_node if it has already been renamed in
+    // remove_arg_thread_path
+    return spr.coal_node;
     assert(false);
     return -1;
 }
@@ -839,7 +854,8 @@ void repair_spr(const LocalTree *last_tree, const LocalTree *tree, Spr &spr,
 // appends the data in 'trees2' to 'trees'
 // trees2 is then empty
 // if merge is true, then merge identical neighboring local trees
-void append_local_trees(LocalTrees *trees, LocalTrees *trees2, bool merge)
+void append_local_trees(LocalTrees *trees, LocalTrees *trees2, bool merge,
+                        const PopulationTree *pop_tree)
 {
     const int ntrees = trees->get_num_trees();
     const int ntrees2 = trees2->get_num_trees();
@@ -869,7 +885,7 @@ void append_local_trees(LocalTrees *trees, LocalTrees *trees2, bool merge)
                 it2->mapping = new int [trees2->nnodes];
             map_congruent_trees(it->tree, &trees->seqids[0],
                                 it2->tree, &trees2->seqids[0], it2->mapping);
-            remove_null_spr(trees, it);
+            remove_null_spr(trees, it, pop_tree);
         } else {
             // there should be an SPR between these trees, repair it.
             repair_spr(it->tree, it2->tree, it2->spr, it2->mapping);
@@ -990,13 +1006,17 @@ void assert_uncompress_local_trees(LocalTrees *trees,
 // write out the newick notation of a tree
 void write_newick_node(FILE *out, const LocalTree *tree,
                        const char *const *names,
-                       const double *times, int node, int depth, bool oneline)
+                       const double *times, int node, int depth, bool oneline,
+                       bool pop_model)
 {
     if (tree->nodes[node].is_leaf()) {
         if (!oneline)
             for (int i=0; i<depth; i++) fprintf(out, "  ");
-        fprintf(out, "%s:%f[&&NHX:age=%f]", names[node],
+        fprintf(out, "%s:%f[&&NHX:age=%f", names[node],
                 tree->get_dist(node, times), times[tree->nodes[node].age]);
+        if (pop_model)
+            fprintf(out, ":pop_path=%i", tree->nodes[node].pop_path);
+        fprintf(out, "]");
     } else {
         // indent
         if (oneline) {
@@ -1007,14 +1027,16 @@ void write_newick_node(FILE *out, const LocalTree *tree,
         }
 
         write_newick_node(out, tree, names, times,
-                          tree->nodes[node].child[0], depth+1, oneline);
+                          tree->nodes[node].child[0], depth+1, oneline,
+                          pop_model);
         if (oneline)
             fprintf(out, ",");
         else
             fprintf(out, ",\n");
 
         write_newick_node(out, tree, names, times,
-                          tree->nodes[node].child[1], depth+1, oneline);
+                          tree->nodes[node].child[1], depth+1, oneline,
+                          pop_model);
         if (!oneline) {
             fprintf(out, "\n");
             for (int i=0; i<depth; i++) fprintf(out, "  ");
@@ -1022,12 +1044,15 @@ void write_newick_node(FILE *out, const LocalTree *tree,
         fprintf(out, ")");
 
         if (depth > 0)
-            fprintf(out, "%s:%f[&&NHX:age=%f]",
+            fprintf(out, "%s:%f[&&NHX:age=%f",
                     names[node], tree->get_dist(node, times),
                     times[tree->nodes[node].age]);
         else
-            fprintf(out, "%s[&&NHX:age=%f]", names[node],
+            fprintf(out, "%s[&&NHX:age=%f", names[node],
                     times[tree->nodes[node].age]);
+        if (pop_model)
+            fprintf(out, ":pop_path=%i", tree->nodes[node].pop_path);
+        fprintf(out, "]");
     }
 }
 
@@ -1035,7 +1060,8 @@ void write_newick_node(FILE *out, const LocalTree *tree,
 // write out the newick notation of a tree to a stream
 void write_newick_tree(FILE *out, const LocalTree *tree,
                        const char *const *names,
-                       const double *times, int depth, bool oneline)
+                       const double *times, int depth, bool oneline,
+                       bool pop_model)
 {
     // setup default names
     char **names2 = (char **) names;
@@ -1050,7 +1076,7 @@ void write_newick_tree(FILE *out, const LocalTree *tree,
     }
 
 
-    write_newick_node(out, tree, names2, times, tree->root, 0, oneline);
+    write_newick_node(out, tree, names2, times, tree->root, 0, oneline, pop_model);
     if (oneline)
         fprintf(out, ";");
     else
@@ -1067,7 +1093,7 @@ void write_newick_tree(FILE *out, const LocalTree *tree,
 // write out the newick notation of a tree to a file
 bool write_newick_tree(const char *filename, const LocalTree *tree,
                        const char *const *names, const double *times,
-                       bool oneline)
+                       bool oneline, bool pop_model)
 {
     FILE *out = NULL;
 
@@ -1076,7 +1102,7 @@ bool write_newick_tree(const char *filename, const LocalTree *tree,
         return false;
     }
 
-    write_newick_tree(out, tree, names, times, 0, oneline);
+    write_newick_tree(out, tree, names, times, 0, oneline, pop_model);
     fclose(out);
     return true;
 }
@@ -1407,7 +1433,8 @@ void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
 
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
-                       const char *const *names, const double *times)
+                       const char *const *names, const double *times,
+                       bool pop_model)
 {
     const int nnodes = trees->nnodes;
     const int nodeid_len = 10;
@@ -1449,7 +1476,7 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
         // write tree
         // convert to 1-index
         fprintf(out, "TREE\t%d\t%d\t", start+1, end);
-        write_newick_tree(out, tree, nodeids, times, 0, true);
+        write_newick_tree(out, tree, nodeids, times, 0, true, pop_model);
         fprintf(out, "\n");
 
         LocalTrees::const_iterator it2 = it;
@@ -1457,9 +1484,12 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
         if (it2 != trees->end()) {
             // write SPR
             const Spr &spr = it2->spr;
-            fprintf(out, "SPR\t%d\t%d\t%f\t%d\t%f\n", end,
+            fprintf(out, "SPR\t%d\t%d\t%f\t%d\t%f", end,
                     total_mapping[spr.recomb_node], times[spr.recomb_time],
                     total_mapping[spr.coal_node], times[spr.coal_time]);
+            if (pop_model)
+                fprintf(out, "\t%i", spr.pop_path);
+            fprintf(out, "\n");
 
             // update total mapping
             int *mapping = it2->mapping;
@@ -1486,7 +1516,8 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
 
 
 bool write_local_trees(const char *filename, const LocalTrees *trees,
-                       const char *const *names, const double *times)
+                       const char *const *names, const double *times,
+                       bool pop_model)
 {
     FILE *out = NULL;
 
@@ -1495,7 +1526,7 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
         return false;
     }
 
-    write_local_trees(out, trees, names, times);
+    write_local_trees(out, trees, names, times, pop_model);
     fclose(out);
     return true;
 }
@@ -1503,7 +1534,7 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
                        const Sequences &seqs,
-                       const double *times)
+                       const double *times, bool pop_model)
 {
     // setup names
     char **names;
@@ -1521,7 +1552,7 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
         }
     }
 
-    write_local_trees(out, trees, names, times);
+    write_local_trees(out, trees, names, times, pop_model);
 
     // clean up names
     for (unsigned int i=0; i<nleaves; i++)
@@ -1531,7 +1562,7 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
 
 
 bool write_local_trees(const char *filename, const LocalTrees *trees,
-                       const Sequences &seqs, const double *times)
+                       const Sequences &seqs, const double *times, bool pop_model)
 {
     FILE *out = NULL;
 
@@ -1540,7 +1571,7 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
         return false;
     }
 
-    write_local_trees(out, trees, seqs, times);
+    write_local_trees(out, trees, seqs, times, pop_model);
     fclose(out);
     return true;
 }
@@ -1844,10 +1875,12 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
         assert(false);
 
     // recomb cannot be on root branch
-    assert(last_nodes[spr->recomb_node].parent != -1);
+    if (pop_tree == NULL)
+        assert(last_nodes[spr->recomb_node].parent != -1);
 
     // ensure recomb is within branch
-    if (spr->recomb_time > last_nodes[last_nodes[spr->recomb_node].parent].age
+    if ((last_nodes[spr->recomb_node].parent != -1 &&
+         spr->recomb_time > last_nodes[last_nodes[spr->recomb_node].parent].age)
         || spr->recomb_time < last_nodes[spr->recomb_node].age)
         assert(false);
 
@@ -1873,8 +1906,8 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                      spr->pop_path,
                                      spr->recomb_time,
                                      spr->coal_time));
-        for (int i=0; i < last_tree->nnodes; i++)
-            assert(mapping[i] == i);
+        //        for (int i=0; i < last_tree->nnodes; i++)
+        //            assert(mapping[i] == i);
         return true;
     }
 
@@ -1912,7 +1945,7 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                                  nodes[i2].age,
                                                  i2 == tree->root ? -1 :
                                                  nodes[nodes[i2].parent].age));
-                } else {
+                } else if (i != last_tree->nodes[last_tree->root].child[0]) {
                     assert(pop_tree->paths_equal(last_nodes[i].pop_path,
                                                  nodes[i2].pop_path,
                                                  last_nodes[i].age,
@@ -2072,9 +2105,9 @@ void delete_local_trees(LocalTrees *trees)
 
 
 void write_local_trees(char *filename, LocalTrees *trees, char **names,
-                       double *times, int ntimes)
+                       double *times, int ntimes, bool pop_model)
 {
-    write_local_trees(filename, trees, names, times);
+    write_local_trees(filename, trees, names, times, pop_model);
 }
 
 
