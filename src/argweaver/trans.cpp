@@ -1187,7 +1187,8 @@ double calc_state_priors(const ArgModel *model,
     } else {
         // b = ntimes -1, guaranteed coalescence
     }
-
+    if (model->pop_tree != NULL)
+        p *= model->path_prob(pop_path, minage, b);
     return p;
 }
 
