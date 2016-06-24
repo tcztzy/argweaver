@@ -117,7 +117,7 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
             for ( ; time <= max_time; time++) {
                 int end_pop = pop_tree->path_pop(target_path, time);
                 // loop over all unique paths
-                for (unsigned int p=0;
+                for (int p=0;
                      p < pop_tree->num_paths(minage, start_pop, time, end_pop);
                      p++) {
                     double path_prob =
@@ -243,7 +243,7 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                 }
                 int end_pop = pop_tree->path_pop(target_path, time);
                 // loop over all unique paths
-                for (unsigned int p=0;
+                for (int p=0;
                      p < pop_tree->num_paths(minage, start_pop, time, end_pop);
                      p++) {
                     double path_prob =
