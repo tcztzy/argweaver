@@ -227,6 +227,21 @@ bool read_sites(FILE *infile, Sites *sites,
             printError("deprecated RANGE line detected (use REGION instead)");
             delete [] line;
             return false;
+        } else if (strncmp(line, "POPS\t", 5) == 0) {
+            if (nseqs == 0) {
+                printError("NAMES line should come before POP line");
+                delete [] line;
+                return false;
+            }
+            vector<string> popstr;
+            split(&line[5], delim, popstr);
+            if ((int)popstr.size() != nseqs) {
+                printError("number of entries in POPS line should match entries in NAMES line");
+                delete [] line;
+                return false;
+            }
+            for (int i=0; i < nseqs; i++)
+                sites->pops.push_back(atoi(popstr[i].c_str()));
 
         } else {
             // parse a site line
@@ -316,6 +331,7 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     int seqlen = sites->length();
     int start = sites->start_coord;
     int nsites = sites->get_num_sites();
+    bool have_pops = ( sites->pops.size() > 0);
 
     sequences->clear();
     sequences->set_owned(true);
@@ -333,7 +349,7 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
             }
         }
 
-        sequences->append(sites->names[i], seq);
+        sequences->append(sites->names[i], seq, -1, have_pops ? sites->pops[i] : 0);
     }
 
     sequences->set_length(seqlen);

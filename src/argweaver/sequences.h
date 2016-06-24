@@ -300,6 +300,7 @@ public:
         names.clear();
         positions.clear();
         cols.clear();
+        pops.clear();
     }
 
     inline int length() const
@@ -326,6 +327,7 @@ public:
     int start_coord;
     int end_coord;
     vector<string> names;
+    vector<int> pops;
     vector<int> positions;
     vector<char*> cols;
 };
