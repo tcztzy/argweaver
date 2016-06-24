@@ -173,8 +173,9 @@ void PopulationTree::update_population_probs() {
     for (int t1=0; t1 < ntime; t1++) {
         for (int t2=t1; t2 < ntime; t2++) {
             for (int p1=0; p1 < npop; p1++) {
-                for (int p2=0; p1 < npop; p1++) {
-                    sub_paths[t1][t2][p1][p2].update_probs(all_paths, mig_matrix);
+                for (int p2=0; p2 < npop; p2++) {
+                    sub_paths[t1][t2][p1][p2].update_probs(all_paths,
+                                                           mig_matrix);
                 }
             }
         }
