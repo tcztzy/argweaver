@@ -371,10 +371,10 @@ void arghmm_forward_block(const ArgModel *model,
                         printf("a=%i k=%i\n", a, k);
                         assert(false);
                     }
-                    assert(states[j_state].node == node2 &&
-                           states[j_state].pop_path == path &&
-                           states[j_state].time == a);
-                    sum += tmatrix2[a][k] * col1[j_state];
+                    if (model->pop_tree == NULL ||
+                        model->paths_equal(states[j_state].pop_path,
+                                           path, a, b))
+                        sum += tmatrix2[a][k] * col1[j_state];
                 }
             }
 
