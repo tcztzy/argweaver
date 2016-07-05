@@ -370,6 +370,12 @@ int Sites::subset(set<string> names_to_keep) {
     for (unsigned int i=0; i < keep.size(); i++)
         new_names.push_back(names[keep[i]]);
     names = new_names;
+    if (pops.size() != 0) {
+        vector<int> new_pops;
+        for (unsigned int i=0; i < keep.size(); i++)
+            new_pops.push_back(pops[keep[i]]);
+        pops = new_pops;
+    }
     vector<int> new_positions;
     vector<char*> new_cols;
     for (unsigned int i=0; i < positions.size(); i++) {
@@ -668,7 +674,7 @@ bool find_compress_cols(const Sites *sites, int compress,
 
     // special case
     if (compress == 1) {
-        for (int i=sites->start_coord; i<sites->end_coord; i++) {
+        for (int i=sites->start_coord; i<=sites->end_coord; i++) {
             sites_mapping->all_sites.push_back(i);
         }
 
