@@ -77,7 +77,7 @@ public:
   // Returns the state index for state (node, time)
   inline int lookup(int node, int time, int path=0) {
       int pos = lookup_idx(node, time, path);
-      assert(pos >= 0 && pos < table_size);
+      if (pos == -1) return -1;
       return lookup_table[path*nnode*ntime + node*ntime + time - mintime];
   }
 
