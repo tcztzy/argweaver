@@ -1307,6 +1307,9 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
             } else if (last_state.time <= spr->recomb_time) {
                 spr->recomb_node = recoal;
                 spr->coal_node = recoal;
+            } else if (last_state.time == spr->coal_time) {
+                spr->coal_time = state.time;
+                spr->coal_node = last_tree->get_sibling(spr->recomb_node);
             }
         } else if (mapping[last_state.node] == node2) {
             // (1) recomb is above coal state, we rename spr recomb node
@@ -1357,7 +1360,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
         if (spr->recomb_node != spr->coal_node) {
             mapping[last_newcoal] = -1;
             int p = last_nodes[last_newcoal].parent;
-            if (p != -1)
+            if (p != -1 && spr->coal_node != last_newcoal)
                 mapping[p] = newcoal;
         }
     } else {

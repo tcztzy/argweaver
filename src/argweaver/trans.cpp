@@ -1017,15 +1017,23 @@ void calc_transition_probs_switch(
                 //                const int path2 = states2[j].pop_path;
 
                 bool possible=false;
-                if ((node2 == node3 && time2 == time1) ||
-                    (node2 == parent && time2 == time1)) {
+                if (time2 == time1 &&
+                    (node2 == node3 || node2 == parent) &&
+                    model->paths_equal(states2[j].pop_path,
+                                       states1[i].pop_path,
+                                       max(minage1, minage2), time1)) {
                     possible=true;
                 } else if (node2 == mapping[spr.recomb_node] &&
                            time2 >= spr.recomb_time &&
                            time2 <= time1 &&
                            model->paths_equal(states2[j].pop_path,
                                               spr.pop_path,
-                                              time2, time1)) {
+                                              time2, time1) &&
+                           model->paths_equal(states1[i].pop_path,
+                                              spr.pop_path, time2, time1) &&
+                           model->paths_equal(states2[j].pop_path,
+                                              states1[i].pop_path,
+                                              max(minage1, minage2), time2)) {
                     possible=true;
                 }
                 if (!possible) continue;
