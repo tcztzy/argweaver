@@ -1229,6 +1229,36 @@ bool parse_node_age(char* text, char *end, double *age)
 }
 
 
+// Parse the node age from a string 'text'
+// NOTE: end is exclusive
+// Example: "&&NHX:pop_path=1"
+bool parse_node_pop_path(char* text, char *end, int *pop_path)
+{
+    *pop_path = 0; // default pop_path
+    // ensure comment begins with "&&NHX:"
+    if (strncmp(text, "&&NHX:", 6) != 0) {
+        return false;
+    }
+
+    text += 6;
+
+    char *key = text;
+    char *key_end, *value, *value_end;
+    while (iter_nhx_key_values(text, end, &key, &key_end, &value, &value_end)){
+        if (strncmp(key, "pop_path", 8) == 0 && key_end - key == 8) {
+            if (sscanf(value, "%d", pop_path) != 1)
+                return false;
+            else {
+                return true;
+            }
+        }
+
+        key = value_end + 1;
+    }
+    return false;
+}
+
+
 // Parses a local tree from a newick string
 bool parse_local_tree(const char* newick, LocalTree *tree,
                       const double *times, int ntimes)
@@ -1238,11 +1268,13 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
     vector<int> ages;
     vector<int> stack;
     vector<int> names;
+    vector<int> pop_paths;
 
     // create root node
     ptree.push_back(-1);
     ages.push_back(-1);
     names.push_back(-1);
+    pop_paths.push_back(0);
     int node = 0;
 
     for (int i=0; i<len; i++) {
@@ -1250,6 +1282,7 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
         case '(': // new branchset
             ptree.push_back(node);
             ages.push_back(-1);
+            pop_paths.push_back(0);
             names.push_back(-1);
             stack.push_back(node);
             node = ptree.size() - 1;
@@ -1258,6 +1291,7 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
         case ',': // another branch
             ptree.push_back(stack.back());
             ages.push_back(-1);
+            pop_paths.push_back(0);
             names.push_back(-1);
             node = ptree.size() - 1;
             break;
@@ -1280,6 +1314,8 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
                 if (parse_node_age((char*) &newick[i+1],
                                    (char*) &newick[j], &age))
                     ages[node] = find_time(age, times, ntimes);
+                parse_node_pop_path((char*) &newick[i+1],
+                                    (char*) &newick[j], &(pop_paths[node]));
                 i = j;
             } else {
                 // error, quit early
@@ -1346,7 +1382,7 @@ bool parse_local_tree(const char* newick, LocalTree *tree,
         tree->nodes[j].age = ages[i];
         tree->nodes[j].child[0] = -1;
         tree->nodes[j].child[1] = -1;
-        tree->nodes[j].pop_path = 0;
+        tree->nodes[j].pop_path = pop_paths[i];
     }
 
     // set children
@@ -1667,12 +1703,14 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
         } else if (strncmp(line, "SPR", 3) == 0) {
             // parse SPR
 
-            int pos;
+            int pos, val;
             double recomb_time, coal_time;
 
-            if (sscanf(&line[4], "%d\t%d\t%lf\t%d\t%lf",
-                       &pos, &spr.recomb_node, &recomb_time,
-                       &spr.coal_node, &coal_time) != 5) {
+            spr.pop_path = 0;
+            val = sscanf(&line[4], "%d\t%d\t%lf\t%d\t%lf\t%i",
+                         &pos, &spr.recomb_node, &recomb_time,
+                         &spr.coal_node, &coal_time, &spr.pop_path);
+            if (val != 5 && val != 6) {
                 printError("bad SPR line (line %d)", lineno);
                 delete [] line;
                 return false;
@@ -1680,7 +1718,6 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
 
             spr.recomb_time = find_time(recomb_time, times, ntimes);
             spr.coal_time = find_time(coal_time, times, ntimes);
-            spr.pop_path = 0;
         }
 
 
@@ -1906,8 +1943,12 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                      spr->pop_path,
                                      spr->recomb_time,
                                      spr->coal_time));
-        //        for (int i=0; i < last_tree->nnodes; i++)
-        //            assert(mapping[i] == i);
+        for (int i=0; i < last_tree->nnodes; i++) {
+            assert(last_tree->nodes[i].age == tree->nodes[i].age);
+            assert(last_tree->nodes[i].parent == tree->nodes[i].parent);
+            assert(last_tree->nodes[i].child[0] == tree->nodes[i].child[0]);
+            assert(last_tree->nodes[i].child[1] == tree->nodes[i].child[1]);
+        }
         return true;
     }
 
