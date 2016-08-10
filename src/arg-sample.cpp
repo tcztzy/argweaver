@@ -502,6 +502,16 @@ void log_model(const ArgModel &model)
         printLog(LOG_LOW, "%c", i == 2*model.ntimes-2 ? ']' : ',');
         printLog(LOG_LOW, "\n");
     }
+    if (model.pop_tree != NULL) {
+        printLog(LOG_LOW, "    numpath = %d\n", model.num_pop_paths());
+        for (int i=0; i < model.num_pop_paths(); i++) {
+            printLog(LOG_LOW, "    path%d = [%d", i,
+                   model.get_pop(i, 0));
+            for (int j=1; j < model.ntimes; j++)
+                printLog(LOG_LOW, ", %d", model.get_pop(i, j));
+            printLog(LOG_LOW, "]\n");
+        }
+    }
     if (isLogLevel(LOG_HIGH)) {
         printLog(LOG_HIGH, "mutmap = [\n");
         for (unsigned int i=0; i<model.mutmap.size(); i++) {
