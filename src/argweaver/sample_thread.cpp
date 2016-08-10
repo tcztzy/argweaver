@@ -346,7 +346,8 @@ void arghmm_forward_block(const ArgModel *model,
             const int node2 = states[k].node;
             int age1 = ages1[node2];
             const int age2 = ages2[node2];
-            const int path = states[k].pop_path;
+            const int path1 = tree->nodes[node2].pop_path;
+            const int path2 = states[k].pop_path;
 
             if (isnan(col1[k]) || isinf(col1[k])) {
                 assert(false);
@@ -359,10 +360,10 @@ void arghmm_forward_block(const ArgModel *model,
             // same branch case
             // note taking advantage of convention in nodestatelookup that
             // consecutive times are in a row
-            int j=state_lookup.lookup_idx(node2, age1, path);
+            int j=state_lookup.lookup_idx(node2, age1, path2);
             while (j < 0 && age1 <= age2) {
                 age1++;
-                j = state_lookup.lookup_idx(node2, age1, path);
+                j = state_lookup.lookup_idx(node2, age1, path2);
             }
             for (int a=age1; a <= age2; a++, j++) {
                 int j_state = state_lookup.lookup_by_idx(j);
@@ -371,9 +372,9 @@ void arghmm_forward_block(const ArgModel *model,
                         printf("a=%i k=%i\n", a, k);
                         assert(false);
                     }
-                    if (model->pop_tree == NULL ||
-                        model->paths_equal(states[j_state].pop_path,
-                                           path, a, b))
+                    if (model->pop_tree == NULL || a >= b ||
+                        model->paths_equal(path1,
+                                           path2, a, b))
                         sum += tmatrix2[a][k] * col1[j_state];
                 }
             }
