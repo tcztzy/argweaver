@@ -22,7 +22,8 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 // NOTE: trees should be uncompressed and sequences compressed
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees,
-                           const SitesMapping* sites_mapping);
+                           const SitesMapping* sites_mapping,
+                           const TrackNullValue *maskmap_uncompressed);
 
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,

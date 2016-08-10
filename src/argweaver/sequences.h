@@ -353,12 +353,13 @@ public:
     int compress(int pos, int round_dir, int start=0) const {
         const int n = all_sites.size();
         for (int pos2 = start; pos2<n; pos2++) {
-            if (all_sites[pos2] >= pos) {
+            if (all_sites[pos2] == pos) return pos2;
+            if (all_sites[pos2] > pos) {
                 if (round_dir >= 0 || pos2 == 0 || pos2 == n - 1) return pos2;
                 else return pos2 - 1;
             }
         }
-        return n - 1;
+        return n;
     }
 
     int uncompress(int pos) const {

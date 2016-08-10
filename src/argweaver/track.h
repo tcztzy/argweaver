@@ -95,6 +95,19 @@ public:
             return Track<T>::back().end;
     }
 
+    bool find(int pos, int *start_idx=NULL) const {
+        int start = (start_idx == NULL ? 0 : *start_idx );
+        for (unsigned int i=start; i<Track<T>::size(); i++) {
+            const RegionValue<T> &region = Track<T>::at(i);
+            if (region.start <= pos && pos < region.end) {
+                if (start_idx != NULL) *start_idx = i;
+                return true;
+            }
+        }
+        // region not found
+        return false;
+    }
+
     // Returns value of region containing position
     // If start_idx not NULL, is updated to index of return value
     T find(int pos, const T &default_value, int *start_idx=NULL) const {

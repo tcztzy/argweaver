@@ -688,7 +688,8 @@ void print_stats_header(Config *config) {
 void print_stats(FILE *stats_file, const char *stage, int iter,
                  ArgModel *model,
                  const Sequences *sequences, LocalTrees *trees,
-                 const SitesMapping* sites_mapping, const Config *config)
+                 const SitesMapping* sites_mapping, const Config *config,
+                 const TrackNullValue *maskmap_uncompressed)
 {
     // calculate number of recombinations
     int nrecombs = trees->get_num_trees() - 1;
@@ -713,7 +714,8 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
 
     double prior = calc_arg_prior(model, trees);
     double likelihood = calc_arg_likelihood(model, sequences, trees,
-                                            sites_mapping);
+                                            sites_mapping,
+                                            maskmap_uncompressed);
     double joint = prior + likelihood;
     double arglen = get_arglen(trees, model->times);
 
@@ -899,7 +901,8 @@ bool read_init_arg(const char *arg_file, const ArgModel *model,
 
 // build initial arg by sequential sampling
 void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
-                    SitesMapping* sites_mapping, Config *config)
+                    SitesMapping* sites_mapping, Config *config,
+                    const TrackNullValue *maskmap_orig)
 {
 
     if (trees->get_num_leaves() < sequences->get_num_seqs()) {
@@ -908,14 +911,16 @@ void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "------------------------------------------------\n");
         sample_arg_seq(model, sequences, trees, true, config->num_buildup);
         print_stats(config->stats_file, "seq", trees->get_num_leaves(),
-                    model, sequences, trees, sites_mapping, config);
+                    model, sequences, trees, sites_mapping, config,
+                    maskmap_orig);
 
     }
 }
 
 
 void climb_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
-               SitesMapping* sites_mapping, Config *config)
+               SitesMapping* sites_mapping, Config *config,
+               const TrackNullValue *maskmap_orig)
 {
     if (config->resume)
         return;
@@ -927,7 +932,7 @@ void climb_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "climb %d\n", i+1);
         resample_arg_climb(model, sequences, trees, recomb_preference);
         print_stats(config->stats_file, "climb", i, model, sequences, trees,
-                    sites_mapping, config);
+                    sites_mapping, config, maskmap_orig);
     }
     printLog(LOG_LOW, "\n");
 }
@@ -1033,7 +1038,8 @@ void mcmcmc_swap(Config *config, ArgModel *model, const Sequences *sequences,
 
 
 void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
-                      SitesMapping* sites_mapping, Config *config)
+                      SitesMapping* sites_mapping, Config *config,
+                      const TrackNullValue *maskmap_orig)
 {
     // setup search options
     bool do_leaf[config->niters+1];
@@ -1050,7 +1056,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     else {
         // save first ARG (iter=0)
         print_stats(config->stats_file, "resample", 0, model, sequences, trees,
-                    sites_mapping, config);
+                    sites_mapping, config, maskmap_orig);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0);
     }
 
@@ -1100,7 +1106,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         // logging
         print_stats(config->stats_file, "resample", i, model, sequences, trees,
-                    sites_mapping, config);
+                    sites_mapping, config, maskmap_orig);
 
         // sample saving
         if (i % config->sample_step == 0 && ! config->no_sample_arg)
@@ -1115,13 +1121,15 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
 // overall sampling workflow
 void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
-                SitesMapping* sites_mapping, Config *config)
+                SitesMapping* sites_mapping, Config *config,
+                const TrackNullValue *maskmap_orig)
 {
     if (!config->resume)
         print_stats_header(config);
 
     // build initial arg by sequential sampling
-    seq_sample_arg(model, sequences, trees, sites_mapping, config);
+    seq_sample_arg(model, sequences, trees, sites_mapping, config,
+                   maskmap_orig);
 
     if (config->resample_region[0] != -1) {
         // region sampling
@@ -1131,7 +1139,8 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "--------------------------------------------\n");
 
         print_stats(config->stats_file, "resample_region", 0,
-                    model, sequences, trees, sites_mapping, config);
+                    model, sequences, trees, sites_mapping, config,
+                    maskmap_orig);
 
         resample_arg_region(model, sequences, trees,
                             config->resample_region[0],
@@ -1140,14 +1149,17 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         // logging
         print_stats(config->stats_file, "resample_region", config->niters,
-                    model, sequences, trees, sites_mapping, config);
+                    model, sequences, trees, sites_mapping, config,
+                    maskmap_orig);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0);
 
     } else{
         // climb sampling
-        climb_arg(model, sequences, trees, sites_mapping, config);
+        climb_arg(model, sequences, trees, sites_mapping, config,
+                  maskmap_orig);
         // resample all branches
-        resample_arg_all(model, sequences, trees, sites_mapping, config);
+        resample_arg_all(model, sequences, trees, sites_mapping, config,
+                         maskmap_orig);
     }
 }
 
@@ -1497,6 +1509,7 @@ int main(int argc, char **argv)
 
     //read in mask
     TrackNullValue maskmap;
+    TrackNullValue maskmap_orig;
     if (c.maskmap != "") {
         //read mask
         CompressStream stream(c.maskmap.c_str(), "r");
@@ -1506,6 +1519,7 @@ int main(int argc, char **argv)
                        c.maskmap.c_str());
             return EXIT_ERROR;
         }
+        maskmap_orig = maskmap;
     }
 
     // compress sequences
@@ -1765,7 +1779,7 @@ int main(int argc, char **argv)
 
     // sample ARG
     printLog(LOG_LOW, "\n");
-    sample_arg(&model, &sequences, trees, sites_mapping, &c);
+    sample_arg(&model, &sequences, trees, sites_mapping, &c, &maskmap_orig);
 
     // final log message
     maxrss = get_max_memory_usage() / 1000.0;

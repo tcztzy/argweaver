@@ -48,10 +48,13 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 }
 
 
+    // TODO: This fills in compressed sites with A's... should
+    // take mask into account!
 // NOTE: trees should be uncompressed and sequences compressed
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees,
-                           const SitesMapping* sites_mapping)
+                           const SitesMapping* sites_mapping,
+                           const TrackNullValue *maskmap_uncompressed)
 {
     if (!sites_mapping)
         return calc_arg_likelihood(model, sequences, trees);
@@ -67,6 +70,7 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     int end = trees->start_coord;
     int mu_idx = 0;
     int rho_idx = 0;
+    int mask_pos=0;
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
         int blocklen = it->blocklen;
@@ -94,8 +98,11 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
                     seqs[j][i-start] = sequences->seqs[trees->seqids[j]][i2];
             } else {
                 // copy non-variant site
+                char c=default_char;
+                if (maskmap_uncompressed->find(i, &mask_pos))
+                    c='N';
                 for (int j=0; j<nseqs; j++)
-                    seqs[j][i-start] = default_char;
+                    seqs[j][i-start] = c;
             }
         }
 
