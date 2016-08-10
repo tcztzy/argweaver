@@ -34,7 +34,9 @@ NodeStateLookup::NodeStateLookup(const States &states, int minage,
                 pop_tree->get_equivalent_paths(states[i].pop_path, minage, t);
             for (set<int>::iterator it=paths->begin(); it != paths->end();
                  it++) {
-                lookup_table[(*it)*nnode*ntime + node*ntime + t - mintime] = i;
+                int idx = (*it)*nnode*ntime + node*ntime + t - mintime;
+                assert(lookup_table[idx] == -1);
+                lookup_table[idx] = i;
             }
         }
     }
