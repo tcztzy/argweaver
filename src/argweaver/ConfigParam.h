@@ -130,7 +130,7 @@ public:
     ConfigParamBase(shortarg, longarg, "", help, debug),
         value(value), default_val(default_val)
     {
-        *value = false;
+        *value = default_val;
     }
 
     virtual int parse(int argc, const char **argv)
