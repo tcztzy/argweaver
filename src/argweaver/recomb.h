@@ -37,6 +37,9 @@ void sample_recombinations(
     int *thread_path, vector<int> &recomb_pos, vector<NodePointPath> &recombs,
     bool internal=false);
 
+void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
+                                     vector<int> &recomb_pos,
+                                     vector<Spr> &recombs);
 
 } // namespace argweaver
 

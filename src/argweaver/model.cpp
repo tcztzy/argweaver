@@ -159,6 +159,7 @@ void ArgModel::copy(const ArgModel &other) {
     unphased_file = other.unphased_file;
     popsize_config = other.popsize_config;
     mc3 = other.mc3;
+    smc_prime = other.smc_prime;
 
     if (other.pop_tree)
         pop_tree = new PopulationTree(*other.pop_tree);

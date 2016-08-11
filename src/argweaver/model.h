@@ -154,7 +154,8 @@ class ArgModel
     unphased(0),
     sample_phase(0),
     unphased_file(""),
-    pop_tree(NULL) {}
+    pop_tree(NULL),
+    smc_prime(smc_prime) {}
 
  // Model with constant population sizes and log-spaced time points
  ArgModel(int ntimes, double maxtime, double popsize,
@@ -170,7 +171,8 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    pop_tree(NULL)
+    pop_tree(NULL),
+    smc_prime(true)
         {
             set_log_times(maxtime, ntimes);
             set_popsizes(popsize);
@@ -192,7 +194,8 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    pop_tree(NULL)
+    pop_tree(NULL),
+    smc_prime(true)
         {
             set_log_times(maxtime, ntimes);
             if (_popsizes)
@@ -214,7 +217,8 @@ class ArgModel
     infsites_penalty(1.0),
     unphased(0),
     sample_phase(0),
-    pop_tree(NULL)
+    pop_tree(NULL),
+    smc_prime(true)
         {
             set_times(_times, ntimes);
             if (_popsizes)
@@ -238,7 +242,8 @@ class ArgModel
     unphased_file(other.unphased_file),
     popsize_config(other.popsize_config),
     mc3(other.mc3),
-    pop_tree(other.pop_tree) {}
+    pop_tree(other.pop_tree),
+    smc_prime(other.smc_prime) {}
 
     // Copy constructor
     ArgModel(const ArgModel &other) :
@@ -254,7 +259,8 @@ class ArgModel
         sample_phase(other.sample_phase),
         unphased_file(other.unphased_file),
         popsize_config(other.popsize_config),
-        mc3(other.mc3)
+        mc3(other.mc3),
+        smc_prime(other.smc_prime)
     {
         copy(other);
     }
@@ -463,6 +469,7 @@ class ArgModel
         model.popsizes = popsizes;
         model.popsize_config = popsize_config;
         model.pop_tree = pop_tree;
+        model.smc_prime = smc_prime;
     }
 
     double get_local_rho(int pos, int *rho_idx=NULL) const {
@@ -489,6 +496,7 @@ class ArgModel
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
         model.pop_tree = pop_tree;
+        model.smc_prime = smc_prime;
     }
 
     //    void set_popsize_config(string filename);
@@ -554,6 +562,7 @@ protected:
     Track<double> mutmap;    // mutation map
     Track<double> recombmap; // recombination map
     PopulationTree *pop_tree;
+    bool smc_prime;
 };
 
 

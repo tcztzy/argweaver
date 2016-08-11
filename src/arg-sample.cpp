@@ -22,6 +22,7 @@
 #include "argweaver/est_popsize.h"
 #include "argweaver/mcmcmc.h"
 #include "argweaver/coal_records.h"
+#include "argweaver/recomb.h"
 
 
 using namespace argweaver;
@@ -204,6 +205,7 @@ public:
                     &recombmap, "",
                     "recombination map file (optional)"));
 
+
         // sampling
         config.add(new ConfigParamComment("Sampling"));
         config.add(new ConfigParam<int>
@@ -283,6 +285,16 @@ public:
                     &resample_window_iters, 10,
                     "number of iterations per sliding window for resampling"
                     " (default=10)", DEBUG_OPT));
+        // note the following two are ConfigSwitch with default value=true,
+        // so that providing the switch makes the variable false
+        config.add(new ConfigSwitch
+                   ("", "--smc-orig", &smc_prime,
+                    "Use non-prime SMC model consistent with original ARGweaver"
+                    " release (otherwise use SMC')", DEBUG_OPT, true));
+        config.add(new ConfigSwitch
+                   ("", "--no-invisible-recombs", &invisible_recombs,
+                    "Only output recombinations which alter the tree topology"
+                    " (will make output file smaller)", DEBUG_OPT, true));
 
         // help information
         config.add(new ConfigParamComment("Information"));
@@ -380,6 +392,8 @@ public:
     string popsize_config_file;
     int sample_popsize_num;
     bool sample_popsize_const;
+    bool smc_prime;
+    bool invisible_recombs;
     double epsilon;
     double pseudocount;
 #ifdef ARGWEAVER_MPI
@@ -664,6 +678,8 @@ void compress_model(ArgModel *model, const SitesMapping *sites_mapping,
 void print_stats_header(Config *config) {
     fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\t"
             "recombs\tnoncompats\targlen");
+    if (config->invisible_recombs)
+        fprintf(config->stats_file, "\tinvis_recombs");
     if (config->model.popsize_config.sample) {
         list<PopsizeConfigParam> l = config->model.popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
@@ -689,7 +705,8 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
                  ArgModel *model,
                  const Sequences *sequences, LocalTrees *trees,
                  const SitesMapping* sites_mapping, const Config *config,
-                 const TrackNullValue *maskmap_uncompressed)
+                 const TrackNullValue *maskmap_uncompressed,
+                 int num_invisible_recombs)
 {
     // calculate number of recombinations
     int nrecombs = trees->get_num_trees() - 1;
@@ -729,6 +746,8 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f",
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
+    if (config->invisible_recombs)
+        fprintf(stats_file, "\t%d", num_invisible_recombs);
     if (model->popsize_config.sample) {
         list<PopsizeConfigParam> l=model->popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
@@ -912,7 +931,7 @@ void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         sample_arg_seq(model, sequences, trees, true, config->num_buildup);
         print_stats(config->stats_file, "seq", trees->get_num_leaves(),
                     model, sequences, trees, sites_mapping, config,
-                    maskmap_orig);
+                    maskmap_orig, 0);
 
     }
 }
@@ -932,7 +951,7 @@ void climb_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "climb %d\n", i+1);
         resample_arg_climb(model, sequences, trees, recomb_preference);
         print_stats(config->stats_file, "climb", i, model, sequences, trees,
-                    sites_mapping, config, maskmap_orig);
+                    sites_mapping, config, maskmap_orig, 0);
     }
     printLog(LOG_LOW, "\n");
 }
@@ -1049,6 +1068,9 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     int niters = config->resample_window_iters;
     window /= config->compress_seq;
 
+    vector<int> invisible_recomb_pos;
+    vector<Spr> invisible_recombs;
+
     // set iteration counter
     int iter = 1;
     if (config->resume)
@@ -1056,7 +1078,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     else {
         // save first ARG (iter=0)
         print_stats(config->stats_file, "resample", 0, model, sequences, trees,
-                    sites_mapping, config, maskmap_orig);
+                    sites_mapping, config, maskmap_orig, 0);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0);
     }
 
@@ -1104,9 +1126,16 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         mcmcmc_swap(config, model, sequences, trees, sites_mapping);
 
+        if ( config->invisible_recombs) {
+            sample_invisible_recombinations(model, trees,
+                                            invisible_recomb_pos,
+                                            invisible_recombs);
+        }
+
         // logging
         print_stats(config->stats_file, "resample", i, model, sequences, trees,
-                    sites_mapping, config, maskmap_orig);
+                    sites_mapping, config, maskmap_orig,
+                    invisible_recomb_pos.size());
 
         // sample saving
         if (i % config->sample_step == 0 && ! config->no_sample_arg)
@@ -1124,6 +1153,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                 SitesMapping* sites_mapping, Config *config,
                 const TrackNullValue *maskmap_orig)
 {
+
     if (!config->resume)
         print_stats_header(config);
 
@@ -1140,7 +1170,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         print_stats(config->stats_file, "resample_region", 0,
                     model, sequences, trees, sites_mapping, config,
-                    maskmap_orig);
+                    maskmap_orig, -1);
 
         resample_arg_region(model, sequences, trees,
                             config->resample_region[0],
@@ -1150,7 +1180,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         // logging
         print_stats(config->stats_file, "resample_region", config->niters,
                     model, sequences, trees, sites_mapping, config,
-                    maskmap_orig);
+                    maskmap_orig, -1);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0);
 
     } else{

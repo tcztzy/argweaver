@@ -146,6 +146,8 @@ void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
 }
 
 
+// if using SMC' model, this will not sample invisible recombinations.
+// those can be sampled later with sample_invisible_recombinations
 void sample_recombinations(
     const LocalTrees *trees, const ArgModel *model,
     ArgHmmMatrixIter *matrix_iter,
@@ -181,8 +183,9 @@ void sample_recombinations(
         // loop through positions in block
         for (int i=start; i<end; i++) {
 
-            if (thread_path[i] == thread_path[i-1]) {
+            if (thread_path[i] == thread_path[i-1] && !model->smc_prime) {
                 // no change in state, recombination is optional
+                // under SMC prime invisible recombs are sampled later
 
                 if (i > next_recomb) {
                     // sample the next recomb pos
@@ -234,5 +237,18 @@ void sample_recombinations(
         }
     }
 }
+
+
+// this is meant to be called on a full ARG (after threading is complete)
+// assumes no invisible recombinations currently exist; resamples all of them
+// there can be more than one per position
+void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
+                                     vector<int> &recomb_pos,
+                                     vector<Spr> &recombs) {
+    recomb_pos.clear();
+    recombs.clear();
+    // TODO: sample!
+}
+
 
 } // namespace argweaver
