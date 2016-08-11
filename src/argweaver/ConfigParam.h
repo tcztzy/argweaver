@@ -125,20 +125,22 @@ class ConfigSwitch : public ConfigParamBase
 {
 public:
     ConfigSwitch(string shortarg, string longarg,
-                bool *value, string help, int debug=0) :
-        ConfigParamBase(shortarg, longarg, "", help, debug),
-        value(value)
+                 bool *value, string help, int debug=0,
+                 bool default_val=false) :
+    ConfigParamBase(shortarg, longarg, "", help, debug),
+        value(value), default_val(default_val)
     {
         *value = false;
     }
 
     virtual int parse(int argc, const char **argv)
     {
-        *value = true;
+        *value = !default_val;
         return 0;
     }
 
     bool *value;
+    bool default_val;
 };
 
 
