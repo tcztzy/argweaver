@@ -144,6 +144,10 @@ public:
                     "number of recombinations for each time interval"
                     " (requires --time-file)"));
         config.add(new ConfigSwitch
+                   ("", "--invis-recombs-per-time", &invis_recombs_per_time,
+                    "number of invisiblel recombinations for each time interval"
+                    " (requires --time-file)"));
+        config.add(new ConfigSwitch
                    ("", "--branchlen-per-time", &branchlen_per_time,
                    "total branchlen existing at each time interval"
                     " (does not count root branch; requires --time-file)"));
@@ -280,6 +284,7 @@ public:
     bool branchlen;
     bool recomb;
     bool recombs_per_time;
+    bool invis_recombs_per_time;
     bool branchlen_per_time;
     bool breaks;
     bool tmrca_half;
@@ -467,6 +472,21 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                 line->stats[i+j] = 0;
             }
             if (nodespr->recomb_node != NULL) {
+                int t = get_time_index(nodespr->recomb_time, data.times);
+                line->stats[i + t] = 1;
+            }
+            i += data.times.size() - 1;
+        }
+        else if (statname[i].substr(0, 14)=="invis-recombs.") {
+            const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
+                                      &(line->trees->pruned_spr) :
+                                      &(line->trees->orig_spr));
+            for (unsigned int j=0; j < data.times.size(); j++) {
+                assert(i+j < statname.size() &&
+                       statname[i+j].substr(0, 14)=="invis-recombs.");
+                line->stats[i+j] = 0;
+            }
+            if (nodespr->is_invisible()) {
                 int t = get_time_index(nodespr->recomb_time, data.times);
                 line->stats[i + t] = 1;
             }
@@ -1450,6 +1470,17 @@ int main(int argc, char *argv[]) {
         for (unsigned int i=0; i < data.times.size(); i++) {
             char tmp[1000];
             sprintf(tmp, "recombs.%i", i);
+            statname.push_back(string(tmp));
+        }
+    }
+    if (c.recombs_per_time) {
+        if (c.timefile.empty()) {
+            fprintf(stderr, "Error: --time-file required with --invis-recombs-per-time\n");
+            return 1;
+        }
+        for (unsigned int i=0; i < data.times.size(); i++) {
+            char tmp[1000];
+            sprintf(tmp, "invis-recombs.%i", i);
             statname.push_back(string(tmp));
         }
     }

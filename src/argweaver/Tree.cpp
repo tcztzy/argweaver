@@ -618,6 +618,26 @@ void SprPruned::update_spr_pruned() {
     if (pruned_spr.recomb_node != NULL) assert(pruned_spr.coal_node != NULL);
 }
 
+
+bool NodeSpr::is_invisible() const {
+    if (recomb_node == NULL || coal_node == NULL) return false;
+    if (recomb_node == coal_node) return true;
+    if (recomb_node->parent == NULL) return false;
+    const Node *parent = recomb_node->parent;
+    if (coal_node == parent &&
+        fabs(coal_time - parent->age) < 0.001) {
+        return true;
+    }
+    for (int i=0; i < parent->nchildren; i++) {
+         if (parent->children[i] != recomb_node &&
+            coal_node == parent->children[i] &&
+            fabs(coal_time - parent->children[i]->age) < 0.001) {
+            return true;
+        }
+    }
+          return false;
+}
+
 void SprPruned::update(char *newick, const set<string> inds,
                        const vector<double> &times) {
     //in this first case need to parse newick tree again

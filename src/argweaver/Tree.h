@@ -359,6 +359,7 @@ public:
     void correct_recomb_times(const vector<double> &times);
     void update_spr_from_newick(Tree *tree, char *newick_str,
                                 const vector<double> &times=vector<double>());
+    bool is_invisible() const;
     Node *recomb_node;
     Node *coal_node;
     double recomb_time;
