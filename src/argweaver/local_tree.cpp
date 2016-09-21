@@ -1470,10 +1470,13 @@ void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
                        const char *const *names, const double *times,
-                       bool pop_model)
+                       bool pop_model, const vector<int> &self_recomb_pos,
+                       const vector<Spr> &self_recombs)
 {
     const int nnodes = trees->nnodes;
     const int nodeid_len = 10;
+
+    assert(self_recomb_pos.size() == self_recombs.size());
 
     // print names
     if (names) {
@@ -1487,6 +1490,10 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
     fprintf(out, "REGION\t%s\t%d\t%d\n",
             trees->chrom.c_str(), trees->start_coord + 1, trees->end_coord);
 
+    int next_self_pos = self_recomb_pos.size() == 0 ?
+        trees->end_coord + 1 : self_recomb_pos[0];
+    int self_idx = 0;
+
 
     // setup nodeids
     char **nodeids = new char* [nnodes];
@@ -1498,6 +1505,7 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
     }
 
     int end = trees->start_coord;
+
     for (LocalTrees::const_iterator it=trees->begin();
          it != trees->end(); ++it)
     {
@@ -1514,6 +1522,20 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
         fprintf(out, "TREE\t%d\t%d\t", start+1, end);
         write_newick_tree(out, tree, nodeids, times, 0, true, pop_model);
         fprintf(out, "\n");
+
+        while (next_self_pos < end) {
+            assert(self_idx < (int)self_recomb_pos.size());
+            fprintf(out, "SPR-INVIS\t%d\t%d\t%f\t%d\t%f\n",
+                    next_self_pos + 1,
+                    total_mapping[self_recombs[self_idx].recomb_node],
+                    times[self_recombs[self_idx].recomb_time],
+                    total_mapping[self_recombs[self_idx].recomb_node],
+                    times[self_recombs[self_idx].coal_time]);
+            self_idx++;
+            if (self_idx < (int)self_recomb_pos.size())
+                next_self_pos = self_recomb_pos[self_idx];
+            else next_self_pos = trees->end_coord + 1;
+        }
 
         LocalTrees::const_iterator it2 = it;
         ++it2;
@@ -1553,7 +1575,8 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
 
 bool write_local_trees(const char *filename, const LocalTrees *trees,
                        const char *const *names, const double *times,
-                       bool pop_model)
+                       bool pop_model, const vector<int> &self_recomb_pos,
+                       const vector<Spr> &self_recombs)
 {
     FILE *out = NULL;
 
@@ -1562,7 +1585,8 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
         return false;
     }
 
-    write_local_trees(out, trees, names, times, pop_model);
+    write_local_trees(out, trees, names, times, pop_model,
+                      self_recomb_pos, self_recombs);
     fclose(out);
     return true;
 }
@@ -1570,7 +1594,9 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
                        const Sequences &seqs,
-                       const double *times, bool pop_model)
+                       const double *times, bool pop_model,
+                       const vector<int> &self_recomb_pos,
+                       const vector<Spr> &self_recombs)
 {
     // setup names
     char **names;
@@ -1588,7 +1614,8 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
         }
     }
 
-    write_local_trees(out, trees, names, times, pop_model);
+    write_local_trees(out, trees, names, times, pop_model,
+                      self_recomb_pos, self_recombs);
 
     // clean up names
     for (unsigned int i=0; i<nleaves; i++)

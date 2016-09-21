@@ -297,9 +297,11 @@ void arghmm_forward_block(const ArgModel *model,
         const int pc = nodes[node2].pop_path;
         for (int a=ages1[node2]; a <= ages2[node2]; a++) {
             tmatrix2[a][k] =
-                matrix->get_time(a, b, c, p, p, pc, minage, true) -
+                matrix->get_time(a, b, c, p, p, pc, minage, true, k) -
                 matrix->get_time(a, b, 0, p, p, -1, minage, false);
-            //            printf("tmatrix2[%i][%i] = %e\n", a, k, tmatrix2[a][k]);
+            /*            printf("tmatrix2\t%i\t%i\t%e\t%e\t%e\n", a, k, tmatrix2[a][k],
+                   matrix->get_time(a, b, c, p, p, pc, minage, true, k),
+                   matrix->get_time(a, b, 0, p, p, -1, minage, false));*/
             if (isnan(tmatrix2[a][k]) || isinf(tmatrix2[a][k]) || tmatrix2[a][k] < 0) {
                 printf("a=%i k=%i b=%i node2=%i c=%i p=%i pc=%i\n",
                        a, k, b, node2, c, p, pc);
@@ -307,6 +309,7 @@ void arghmm_forward_block(const ArgModel *model,
             }
         }
     }
+    //    exit(0);
 
     NodeStateLookup state_lookup(states, minage, model->pop_tree);
 

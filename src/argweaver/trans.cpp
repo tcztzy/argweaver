@@ -9,38 +9,286 @@
 
 namespace argweaver {
 
+void TransMatrix::initialize(const ArgModel *model, int nstates)
+{
+    ntimes = model->ntimes;
+    npaths = model->num_pop_paths();
+    smc_prime = model->smc_prime;
+    int data_len=0;
+    if (smc_prime) {
+        data_len = ntimes * 2 + npaths * ntimes;
+    } else {
+        data_len = ntimes*2 + npaths*ntimes*4 + npaths*npaths*ntimes*3;
+    }
+    data_alloc = new double [data_len];
+
+    C1_prime = new MultiArray(3, npaths, npaths, 2*ntimes);
+    Q1_prime = new MultiArray(3, npaths, npaths, 2*ntimes);
+    if (smc_prime) {
+        B0_prime = new MultiArray(2, npaths, ntimes);
+        B1_prime = new MultiArray(3, npaths, npaths, ntimes);
+        B2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        E0_prime = new MultiArray(2, npaths, ntimes);
+        E1_prime = new MultiArray(3, npaths, npaths, ntimes);
+        E2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        F0_prime = new MultiArray(2, npaths, ntimes);
+        F1_prime = new MultiArray(3, npaths, npaths, ntimes);
+        F2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        F2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        C0_prime = new MultiArray(2, npaths, 2*ntimes);
+        Q0_prime = new MultiArray(2, npaths, 2*ntimes);
+        G0_prime = new double[ntimes];
+        G1_prime = new double[ntimes];
+        G2_prime = new double[ntimes];
+        self_recomb = new double[nstates];
+    } else {
+        E = new double* [npaths];
+        lnB = new double** [npaths];
+        lnE2 = new double** [npaths];
+        lnNegG1 = new double** [npaths];
+        G2 = new double* [npaths];
+        G3 = new double* [npaths];
+    }
+    path_prob = new double* [npaths];
+    D = &data_alloc[0];
+    norecombs = &data_alloc[ntimes];
+    int idx=ntimes*2;
+    for (int i=0; i < npaths; i++) {
+        if (!smc_prime) {
+            E[i] = &data_alloc[idx]; idx += ntimes;
+            G2[i] = &data_alloc[idx]; idx += ntimes;
+            G3[i] = &data_alloc[idx]; idx += ntimes;
+            lnB[i] = new double* [npaths];
+            lnE2[i] = new double* [npaths];
+            lnNegG1[i] = new double* [npaths];
+            for (int j=0; j < npaths; j++) {
+                lnB[i][j] = &data_alloc[idx]; idx += ntimes;
+                lnE2[i][j] = &data_alloc[idx]; idx += ntimes;
+                lnNegG1[i][j] = &data_alloc[idx]; idx += ntimes;
+            }
+        }
+        path_prob[i] = &data_alloc[idx]; idx += ntimes;
+    }
+    assert(idx == data_len);
+
+    if (npaths > 1) {
+        paths_equal = new bool*** [npaths];
+        for (int i=0; i < npaths; i++) {
+            paths_equal[i] = new bool** [npaths];
+            for (int j=0; j < npaths; j++) {
+                paths_equal[i][j] = new bool *[ntimes];
+                for (int k=0; k < ntimes; k++) {
+                    paths_equal[i][j][k] = new bool[ntimes];
+                    for (int l=k; l < ntimes; l++) {
+                        paths_equal[i][j][k][l] =
+                            model->paths_equal(i,j,k,l);
+                    }
+                }
+            }
+        }
+        paths_equal_max = new int** [npaths];
+        for (int i=0; i < npaths; i++) {
+            paths_equal_max[i] = new int* [npaths];
+            for (int j=0; j < npaths; j++) {
+                paths_equal_max[i][j] = new int[ntimes];
+                for (int k=0; k < ntimes; k++) {
+                    paths_equal_max[i][j][k] = -1;
+                    for (int l=k; l < ntimes; l++) {
+                        if (paths_equal[i][j][k][l])
+                            paths_equal_max[i][j][k] = l;
+                        else break;
+                    }
+                }
+            }
+        }
+    } else {
+        paths_equal = NULL;
+        paths_equal_max = NULL;
+    }
+}
 
 void calc_coal_rates_partial_tree(const ArgModel *model, const LocalTree *tree,
                                   const LineageCounts *lineages,
-                                  double ***coal_rates, bool *do_path, int minage)
+                                  MultiArray *coal_rates,
+                                  MultiArray *coal_rates_noprime,
+                                  bool *do_path, int minage)
 {
-    for (int path=0; path < model->num_pop_paths(); path++) {
-        if (do_path != NULL && do_path[path] == false) continue;
-        for (int path2=0; path2 < model->num_pop_paths(); path2++) {
-            if (do_path != NULL && do_path[path2] == false) continue;
-            coal_rates[path][path2][-1] = 0.0;
-            for (int i=0; i<2*model->ntimes-1; i++) {
+    if (model->smc_prime) {
+        for (int path=0; path < model->num_pop_paths(); path++) {
+            if (do_path != NULL && do_path[path] == false) continue;
+            for (int i=0; i < 2*model->ntimes - 1; i++) {
                 int pop = model->get_pop(path, (i+1)/2);
-                int pop2 = model->get_pop(path2, (i+1)/2);
                 int nbranch = lineages->nbranches_pop[pop][i];
-                if (pop != pop2) nbranch--;
-                else if (i < minage*2) nbranch--;  //same pop
-                if (nbranch < 0) nbranch = 0;
-                //                assert(nbranch >= 0);
-                coal_rates[path][path2][i] = model->coal_time_steps[i] *
-                    nbranch / (2.0 * model->popsizes[pop][i]);
+                coal_rates_noprime->set(model->coal_time_steps[i] *
+                                        nbranch / (2.0 * model->popsizes[pop][i]),
+                                        path, i);
+                coal_rates_noprime->set(1.0, path, 2 * model->ntimes - 1);
             }
-            coal_rates[path][path2][2 * model->ntimes - 1] = 1.0;
+            coal_rates_noprime->set(1.0, path, 2 * model->ntimes - 1);
+            for (int path2=0; path2 < model->num_pop_paths(); path2++) {
+                if (do_path != NULL && do_path[path2] == false) continue;
+                for (int i=0; i < 2*model->ntimes - 1; i++) {
+                    int pop = model->get_pop(path, (i+1)/2);
+                    int pop2 = model->get_pop(path2, (i+1)/2);
+                    int nbranch = lineages->nbranches_pop[pop][i];
+                    if (pop == pop2) nbranch++;
+                    coal_rates->set(model->coal_time_steps[i] *
+                                    nbranch / (2.0 * model->popsizes[pop][i]),
+                                    path, path2, i);
+                }
+                coal_rates->set(1.0, path, path2, 2*model->ntimes - 1);
+            }
+        }
+    } else {
+        for (int path=0; path < model->num_pop_paths(); path++) {
+            if (do_path != NULL && do_path[path] == false) continue;
+            for (int path2=0; path2 < model->num_pop_paths(); path2++) {
+                if (do_path != NULL && do_path[path2] == false) continue;
+                for (int i=0; i<2*model->ntimes-1; i++) {
+                    int pop = model->get_pop(path, (i+1)/2);
+                    int pop2 = model->get_pop(path2, (i+1)/2);
+                    int nbranch = lineages->nbranches_pop[pop][i];
+                    if (pop != pop2) nbranch--;
+                    else if (i < minage*2) nbranch--;  //same pop
+                    if (nbranch < 0) nbranch = 0;
+                    //                assert(nbranch >= 0);
+                    coal_rates->set(model->coal_time_steps[i] *
+                                    nbranch / (2.0 * model->popsizes[pop][i]),
+                                    path, path2, i);
+                }
+                coal_rates->set(1.0, path, path2, 2 * model->ntimes - 1);
+            }
         }
     }
 }
 
+// self recombination probability
+// recomb along a branch that starts at time "minage"
+// and coalesces at time d (d <= end time of branch)
+// given that the branch being threaded coalesces at time a
+double TransMatrix::self_recomb_prob(int a, int path_a,
+                                     int minage, int d, int path_d) {
+    double prob = 0.0;
+    if (minage < d) {
+        double pathprob = path_prob[path_d][d];
+        double cterm;
+        if (d <= a)
+            cterm = exp(-C1_prime->get(path_d, path_a, 2*d-2));
+        else
+            cterm = exp(-C0_prime->get(path_d, 2*d-2)
+                        +C0_prime->get(path_d, 2*a-1)
+                        -C1_prime->get(path_d, path_a, 2*a-1));
+        double bterm;
+        if (d-1 > a) {
+            bterm = B0_prime->get(path_d, d-1)
+                - B0_prime->get(path_d, a)
+                + B1_prime->get(path_d, path_a, a)
+                + B2_prime->get(path_d, path_a, a-1);
+        } else if (d-1 == a) {
+            bterm = B1_prime->get(path_d, path_a, a)
+                + B2_prime->get(path_d, path_a, a-1);
+        } else {
+            bterm = B2_prime->get(path_d, path_a, d-1);
+        }
+        if (minage > 0) {
+            if (minage-1 > a) {
+                bterm  -= ( B0_prime->get(path_d, minage-1)
+                            - B0_prime->get(path_d, a)
+                            + B1_prime->get(path_d, path_a, a)
+                            + B2_prime->get(path_d, path_a, a-1));
+            } else if (minage-1 == a) {
+                bterm -= ( B1_prime->get(path_d, path_a,  a)
+                           + B2_prime->get(path_d, path_a, a-1));
+            } else {
+                bterm -= B2_prime->get(path_d, path_a, minage-1);
+            }
+        }
+        double eterm;
+        if (d > a) {
+            eterm = E0_prime->get(path_d, d);
+        } else if (d == a) {
+            eterm = E1_prime->get(path_d, path_a, d);
+        } else {
+            eterm = E2_prime->get(path_d, path_a, d);
+        }
+
+        prob = pathprob * D[a] * cterm * bterm * eterm;
+    }
+    double term2;
+    if (d > a) {
+        term2 = G0_prime[d] * F0_prime->get(path_d, d);
+    } else if (d == a) {
+        term2 = G1_prime[d] * F1_prime->get(path_d, path_a, d);
+    } else {
+        term2 = G2_prime[d] * F2_prime->get(path_d, path_a, d);
+    }
+    prob += D[a] * term2;
+    return prob;
+}
+
+
+
+void TransMatrix::assert_transmat(const LocalTree *tree,
+                                  const ArgModel *model,
+                                  const States &states,
+                                  bool internal, int minage) const {
+    /*    const double *times = model->times;
+    int root_age_index, root_age, minage;
+    double subtree_age = times[tree->nodes[subtree_root].age];
+    double treelen0;
+    int minage;
+    if (internal) {
+        root_age_index = tree->nodes[maintree_root].age;
+        root_age = times[root_age_index];
+        minage = max(minage, tree->nodes[subtree_root].age);
+        subtree_age = times[tree->nodes[subtree_root].age];
+        treelen0 = get_treelen_internal(tree, times, ntimes);
+    } else {
+        root_age_index = tree->nodes[tree->root].age;
+        root_age = times[root_age_index];
+        treelen0 = get_treelen(tree, times, ntimes, false);
+        minage = minage0;
+        } */
+    for (unsigned int s1=0; s1 < states.size(); s1++) {
+        const State state1 = states[s1];
+        int a = state1.time;
+        /*        double treelen = treelen0 + times[a] - minage;
+        if (a > root_age_index)
+        treelen += (a - times[root_age_index]);
+        double pr_recomb = 1.0 - exp(-rho * treelen);*/
+        double total_prob=0.0;
+        //        double total_prob_recomb=0.0;
+        for (unsigned int s2=0; s2 < states.size(); s2++) {
+            const State state2 = states[s2];
+            double p1=0, p2=0;
+            p1 = get_time(a, state2.time, -1,
+                          state1.pop_path,
+                          state2.pop_path,
+                          -1,
+                          minage, false, -1);
+            if (state2.node == state1.node) {
+                p2 = get_time(a, state2.time, tree->nodes[state2.node].age,
+                              state1.pop_path, state2.pop_path,
+                              tree->nodes[state2.node].pop_path,
+                              minage, true, s1) - p1;
+            }
+            total_prob += p1 + p2;
+        }
+        printf("total_prob %i = %e\n", s1, total_prob);
+    }
+
+}
+
 
 // Calculate transition probability within a local block
-void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
-    const States &states, const LineageCounts *lineages, TransMatrix *matrix,
-    bool internal, int minage)
+void TransMatrix::calc_transition_probs(const LocalTree *tree,
+                                        const ArgModel *model,
+                                        const States &states,
+                                        const LineageCounts *lineages,
+                                        bool internal0, int minage0)
 {
+    internal = internal0;
+    minage = minage0;
     // get model parameters
     const int ntimes = model->ntimes;
     const double *times = model->times;
@@ -51,79 +299,68 @@ void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
     int* const* ncoals_pop = lineages->ncoals_pop;
     const int num_paths = model->num_pop_paths();
     bool have_pop_path[num_paths];
+    const int subtree_root = internal ? tree->nodes[tree->root].child[0] : -1;
+    const int maintree_root = internal ? tree->nodes[tree->root].child[1] : -1;
     if (num_paths > 1) {
         for (int i=0; i < num_paths; i++)
             have_pop_path[i]=false;
         for (unsigned int i=0; i < states.size(); i++)
             have_pop_path[states[i].pop_path] = true;
-        for (int i=0; i < tree->nnodes; i++)
-            have_pop_path[tree->nodes[i].pop_path] = true;
+        for (int i=0; i < tree->nnodes; i++) {
+            if (i != subtree_root)
+                have_pop_path[tree->nodes[i].pop_path] = true;
+        }
     } else have_pop_path[0] = true;
-
-    // set internal branch resampling flag
-    matrix->internal = internal;
-    matrix->minage = minage;
 
     // determine tree information: root, root age, tree length
     int root_age_index;
     double root_age;
     double treelen;
     if (internal) {
-        const int *c = tree->nodes[tree->root].child;
-        const int subtree_root = c[0];
-        const int maintree_root = c[1];
         const double subtree_age = times[tree->nodes[subtree_root].age];
         root_age_index = tree->nodes[maintree_root].age;
         root_age = times[root_age_index];
         // NOTE: subtree_age is discounted in advance to offset +times[b]
         treelen = get_treelen_internal(tree, times, ntimes) - subtree_age;
-        matrix->minage = max(matrix->minage, tree->nodes[subtree_root].age);
+        minage = max(minage, tree->nodes[subtree_root].age);
     } else {
         root_age_index = tree->nodes[tree->root].age;
         root_age = times[root_age_index];
         treelen = get_treelen(tree, times, ntimes, false);
     }
 
-    // get coalescent rates for each time sub-interval
-    double coal_rates_alloc[num_paths * num_paths * (2*ntimes+1)];
-    double **coal_rates[num_paths];
-    int idx=1;
-    for (int i=0; i < num_paths; i++) {
-        coal_rates[i] = new double* [num_paths];
-        for (int j=0; j < num_paths; j++) {
-            coal_rates[i][j] = &coal_rates_alloc[idx];
-            idx += 2 * ntimes + 1;
-        }
-    }
-    calc_coal_rates_partial_tree(model, tree, lineages, coal_rates,
-                                 have_pop_path, matrix->minage);
+    calc_coal_rates_partial_tree(model, tree, lineages,
+                                 Q1_prime, Q0_prime,
+                                 have_pop_path, minage);
 
     // compute cumulative coalescent rates
-    double C_alloc[num_paths * num_paths * (2*ntimes+2)];
-    double **C[num_paths];
-    idx=2;
     for (int i=0; i < num_paths; i++) {
-        C[i] = new double* [num_paths];
         for (int j=0; j < num_paths; j++) {
             if (have_pop_path[i] && have_pop_path[j]) {
-                C[i][j] = &C_alloc[idx];
-                C[i][j][-2] = 0.0;
-                C[i][j][-1] = 0.0;
                 for (int b=0; b < 2*ntimes - 1; b++)
-                    C[i][j][b] = C[i][j][b-1] + coal_rates[i][j][b];
+                    C1_prime->set(C1_prime->get(i, j, b-1)
+                                  + Q1_prime->get(i, j, b),
+                                  i, j, b);
             }
-            idx += 2*ntimes + 2;
         }
     }
-
-
+    if (smc_prime) {
+        for (int i=0; i < num_paths; i++) {
+            if (have_pop_path[i]) {
+                for (int j=0; j < 2*ntimes - 1; j++) {
+                    C0_prime->set(C0_prime->get(i, j-1) + Q0_prime->get(i, j),
+                                  i, j);
+                }
+            }
+        }
+    }
 
     // calculate transition matrix terms
     for (int b=0; b<ntimes-1; b++) {
         // get tree length
         double treelen2 = treelen + times[b];
         double treelen2_b;
-        if (b > root_age_index) {
+        if (b > root_age_index){
             // add wrapped branch
             treelen2 += times[b] - root_age;
 
@@ -133,56 +370,350 @@ void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
             // add basal branch
             treelen2_b = treelen2 + time_steps[root_age_index];
         }
-        matrix->norecombs[b] = exp(-max(rho * treelen2, rho));
-        matrix->D[b] = (1.0 - exp( -rho * treelen2)) / treelen2_b;
+        norecombs[b] = exp(-max(rho * treelen2, rho));
+        D[b] = (1.0 - exp( -rho * treelen2)) / treelen2_b;
     }
 
     for (int path=0; path < num_paths; path++) {
         if (! have_pop_path[path]) continue;
         for (int b=0; b < ntimes-1; b++) {
-            double path_prob = model->path_prob(path, 0, b);
-            matrix->path_prob[path][b] = path_prob;
+            double curr_path_prob = model->path_prob(path, 0, b);
+            path_prob[path][b] = curr_path_prob;
             int pop = model->get_pop(path, b);
             int ncoal = ncoals_pop[pop][b];
             int nrecomb = nrecombs[b];
             int nbranch = nbranches[b];
-            if (b < matrix->minage) {
+            if (b < minage) {
                 ncoal--;
                 nrecomb--;
                 nbranch--;
             }
+            if (smc_prime) {
+                E0_prime->set( (1.0 - exp(-Q0_prime->get(path, 2*b)
+                                          -Q0_prime->get(path, 2*b-1)))
+                               / (double)ncoal, path, b);
+                F0_prime->set( (1.0 - exp(-Q0_prime->get(path, 2*b)))
+                               / (double)ncoal, path, b);
+                B0_prime->set(b == 0 ? 0 :
+                              B0_prime->get(path, b-1), path, b);
+                B0_prime->addVal(time_steps[b] *
+                                 exp(C0_prime->get(path, 2*b-1))
+                                 * (double)nbranch / (double)nrecomb
+                                 / curr_path_prob,
+                                 path, b);
+            }
+
             for (int path2=0; path2 < num_paths; path2++) {
                 if (! have_pop_path[path2]) continue;
-                //                int pop2 = model->get_pop(path2, b);
-                double term = C[path][path2][2*b-1] + log(
-                   time_steps[b] * (nbranch + 1.0) /
-                   (nrecomb + 1.0) / path_prob);
-                if (b == 0)
-                    matrix->lnB[path][path2][b] = term;
-                else
-                    matrix->lnB[path][path2][b] = logadd(matrix->lnB[path][path2][b-1], term);
-                matrix->lnE2[path][path2][b] = -C[path][path2][2*b-2] +
-                   (b < ntimes - 2 ?
-                    log(1 - exp(-coal_rates[path][path2][2*b]-coal_rates[path][path2][2*b-1])) : 0.0);
-                assert(!isnan(exp(2.0*matrix->lnE2[path][path2][b])));
-                matrix->lnNegG1[path][path2][b] =
-                    C[path][path2][2*b-1] + log( - time_steps[b] / path_prob * (
-                     (nbranch / (nrecomb + 1.0 + int(b < root_age_index)))
-                      - (nbranch + 1.0) / (nrecomb + 1.0)));
+                if (smc_prime) {
+                    int ncoal1 = ncoal;
+                    int ncoal2 = ncoal;
+                    int pop2 = model->get_pop(path2, b);
+                    if (pop2 == pop) {
+                        ncoal1 += 2;
+                        ncoal2 += 1;
+                    }
+                    B2_prime->set(b == 0 ? 0 :
+                                  B2_prime->get(path, path2, b-1),
+                                  path, path2, b);
+                    B2_prime->addVal(time_steps[b] * ( 1.0 + nbranches[b] )
+                                     / ( 1.0 + nrecombs[b])
+                                     * exp(C1_prime->get(path, path2, 2*b-1))
+                                     / curr_path_prob,
+                                     path, path2, b);
+                    B1_prime->set(time_steps[b] * ( (double)nbranches[b] )
+                                  / ( 1.0 + nrecombs[b] + int(b < root_age_index))
+                                  * exp(C1_prime->get(path, path2, 2*b-1))
+                                  / curr_path_prob,
+                                  path, path2, b);
+                    E1_prime->set(( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
+                                              -Q0_prime->get(path, 2*b)))
+                                  / ((double)ncoal1), path, path2, b);
+                    E2_prime->set(
+                        ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
+                                    -Q1_prime->get(path, path2, 2*b)))
+                                  / ((double)ncoal2), path, path2, b);
+                    F1_prime->set(( 1.0 - exp(-Q0_prime->get(path, 2*b) ))
+                                  / ((double)ncoal1), path, path2, b);
+                    F2_prime->set(
+                        ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b)))
+                                  / ((double)ncoal2), path, path2, b);
+                } else {
+                    double term = C1_prime->get(path, path2, 2*b-1) + log(
+                        time_steps[b] * (nbranch + 1.0) /
+                        (nrecomb + 1.0) / curr_path_prob);
+                    if (b == 0)
+                        lnB[path][path2][b] = term;
+                    else
+                        lnB[path][path2][b] =
+                            logadd(lnB[path][path2][b-1], term);
+                    lnE2[path][path2][b] = -C1_prime->get(path, path2, 2*b-2) +
+                        (b < ntimes - 2 ?
+                         log(1 - exp(-Q1_prime->get(path, path2, 2*b)
+                                     -Q1_prime->get(path, path2, 2*b-1))) : 0.0);
+                    assert(!isnan(exp(2.0*lnE2[path][path2][b])));
+                    lnNegG1[path][path2][b] =
+                        C1_prime->get(path, path2, 2*b-1) +
+                        log( - time_steps[b] / curr_path_prob * (
+                         (nbranch / (nrecomb + 1.0 + int(b < root_age_index)))
+                         - (nbranch + 1.0) / (nrecomb + 1.0)));
+                }
             }
-            matrix->G2[path][b] = (b<ntimes-2 ? 1.0 - exp(-coal_rates[path][path][2*b]) : 1.0) *
-                time_steps[b] *
-                   (nbranch + 1.0) / (nrecomb + 1.0) / path_prob;
-            matrix->G3[path][b] = (b<ntimes-2 ? 1.0 - exp(-coal_rates[path][path][2*b]) : 1.0) *
-                time_steps[b] *
-                (nbranch / (nrecomb + 1.0 + int(b < root_age_index)) /
-                 path_prob);
-            matrix->E[path][b] = 1.0 / ncoal;
+            if (!smc_prime) {
+                G2[path][b] = (b<ntimes-2 ?
+                               1.0 - exp(-Q1_prime->get(path, path, 2*b))
+                               : 1.0) *
+                    time_steps[b] *
+                    (nbranch + 1.0) / (nrecomb + 1.0) / curr_path_prob;
+                G3[path][b] = (b<ntimes-2 ?
+                               1.0 - exp(-Q1_prime->get(path, path, 2*b))
+                               : 1.0) *
+                    time_steps[b] *
+                    (nbranch / (nrecomb + 1.0 + int(b < root_age_index)) /
+                     curr_path_prob);
+                E[path][b] = 1.0 / ncoal;
+            }
         }
+    }
+    if (smc_prime) {
+        for (int b=0; b < ntimes - 1; b++) {
+            G0_prime[b] = time_steps[b] * (double)nbranches[b]
+                / (double)nrecombs[b];
+            G1_prime[b] = time_steps[b] * (double) nbranches[b]
+                / ((double)nrecombs[b] + 1.0 + int(b < root_age_index));
+            G2_prime[b] = time_steps[b] + ((double) nbranches[b] + 1.0)
+                / ((double)nrecombs[b] + 1.0);
+
+        }
+        // now need to calculate self_recombs[node][time] for all nodes, times
+        // not implemented efficiently yet
+        for (unsigned int s=0; s < states.size(); s++) {
+            int path_a = states[s].pop_path;
+            int a = states[s].time;
+            int node = states[s].node;
+            double prob=0.0;
+            // first consider new branch which goes from minage to a
+            for (int d=minage; d <= a; d++) {
+                prob += self_recomb_prob(a, path_a, minage, d,
+                                         path_a);
+
+            }
+            if (internal && node == maintree_root) {
+                assert(a >= root_age_index);
+                for (int d=root_age_index; d <= a; d++)
+                    prob += self_recomb_prob(a, path_a, root_age_index, d,
+                                             tree->nodes[maintree_root].pop_path);
+            } else if ((!internal) && node == tree->root) {
+                assert(a >= root_age_index);
+                for (int d = root_age_index; d <= a; d++)
+                    prob += self_recomb_prob(a, path_a, root_age_index, d,
+                                             tree->nodes[tree->root].pop_path);
+            }
+            for (int i=0; i < tree->nnodes; i++) {
+                if (i == tree->root) continue;
+                if (internal && i == subtree_root) continue;
+                if (internal && i == maintree_root) continue;
+                int age = tree->nodes[i].age;
+                int parent_age = tree->nodes[tree->nodes[i].parent].age;
+                int path_d = tree->nodes[i].pop_path;
+                if (i == node) {
+                    for (int d=age; d <= a; d++)
+                        prob += self_recomb_prob(a, path_a, age, d, path_d);
+                    for (int d=a; d <=parent_age; d++) {
+                        prob += self_recomb_prob(a, path_a, a, d, path_d);
+                    }
+                } else {
+                    for (int d=age; d <= parent_age; d++)
+                        prob += self_recomb_prob(a, path_a, age, d, path_d);
+                }
+            }
+            self_recomb[s] = prob;
+        }
+    }
+    if (true) {
+        assert_transmat(tree, model, states, lineages, minage0);
     }
 }
 
+double TransMatrix::get_time(int a, int b, int c,
+                             int path_a, int path_b, int path_c,
+                             int minage, bool same_node, int state_a) const
+{
+    if (a < minage || b < minage)
+        return 0.0;
 
+    const int p = ( npaths == 1 ? ntimes :
+                    paths_equal_max[path_a][path_b][minage] );
+    if (p == -1) return 0.0;
+
+    if (!smc_prime) {
+        double prob;
+        double term1 = D[a] * E[path_b][b] * path_prob[path_b][b];
+        double minage_term = 0.0;
+        if (minage > 0) {
+            minage_term = exp(lnE2[path_b][path_b][b] +
+                              lnB[path_b][path_b][minage-1]);
+        }
+        if (p < a && p < b) {
+            prob = term1 * (exp(lnE2[path_b][path_b][b] +
+                                lnB[path_b][path_b][p])
+                            - minage_term);
+        } else if (a <= p && a < b) {
+            prob = term1 * (exp(lnE2[path_b][path_b][b] +
+                                lnB[path_b][path_b][a]) -
+                            exp(lnE2[path_b][path_b][b] +
+                                lnNegG1[path_b][path_b][a])
+                            - minage_term);
+        } else if (a == b) {
+            prob = term1 * ((b > 0 ? exp(lnE2[path_b][path_b][b] +
+                                         lnB[path_b][path_b][b-1]) : 0.0) +
+                            G3[path_b][b] - minage_term);
+        } else { // b < a
+            prob = term1 * ((b > 0 ? exp(lnE2[path_b][path_b][b] +
+                                         lnB[path_b][path_b][b-1]) : 0.0)
+                            + G2[path_b][b] - minage_term);
+        }
+        if (isnan(prob)) {
+            assert(false);
+        }
+        if (! same_node) return prob;
+
+        // now add same_node term
+        // norecomb case
+        if (a == b &&
+            (npaths == 1 || paths_equal[path_a][path_b][minage][a]))
+            prob += norecombs[a];
+
+        if (npaths > 1 && a < b &&
+            !(paths_equal[path_b][path_c][a][b] &&
+              paths_equal[path_a][path_b][minage][a])) {
+            if (isnan(prob))
+                assert(false);
+            return prob;
+        }
+        if (npaths > 1 && b <= a &&
+            !(paths_equal[path_a][path_c][b][a] &&
+              paths_equal[path_b][path_a][minage][b]))
+            return prob;
+
+        term1 = D[a] * E[path_c][b] * path_prob[path_c][b];
+        minage_term = 0.0;
+        if (c > 0)
+            minage_term = exp(lnE2[path_c][path_b][b]
+                              + lnB[path_c][path_b][c-1]);
+
+        if (a < b) {
+            prob += term1 * (exp(lnE2[path_c][path_b][b] +
+                                 lnB[path_c][path_b][a]) -
+                             exp(lnE2[path_c][path_b][b] +
+                                 lnNegG1[path_c][path_b][a])
+                             - minage_term);
+        } else if (a == b) {
+            prob += term1 * ((b > 0 ? exp(lnE2[path_c][path_b][b] +
+                                          lnB[path_c][path_b][b-1]) : 0.0) +
+                             G3[path_c][b] - minage_term);
+        } else { // b < a
+            prob += term1 * ((b > 0 ? exp(lnE2[path_c][path_b][b] +
+                                          lnB[path_c][path_b][b-1]) : 0.0)
+                             + G2[path_c][b] - minage_term);
+        }
+        if (isnan(prob))
+            assert(0);
+        return prob;
+    } else {  //smc prime calculations
+        double term1=0, term2=0, minage_term=0;
+        term1 = D[a]*path_prob[path_a][b];
+        if (a < b) {
+            term1 *= E0_prime->get(path_b, b)
+                * exp(-C0_prime->get(path_b, 2*b-2)
+                      + C0_prime->get(path_b, 2*a-1)
+                      - C1_prime->get(path_b, path_a, 2*a-1));
+        } else if (a == b) {
+            term1 *= E1_prime->get(path_b, path_a, b)
+                * exp(-C1_prime->get(path_b, path_a, 2*b-2));
+        } else {
+            term1 *= E2_prime->get(path_b, path_a, b)
+                * exp(-C1_prime->get(path_b, path_a, 2*b-2));
+        }
+        int k_max = b-1;
+        if (a < k_max) k_max = a;
+        if (p < k_max) k_max = p;
+        double b_term;
+        if (k_max < a) {
+            b_term = B2_prime->get(path_b, path_a, k_max);
+        } else {
+            assert(k_max == a);
+            b_term = B2_prime->get(path_b, path_a, a-1) +
+                B1_prime->get(path_b, path_a, a);
+        }
+        //            term1 *= b_term;
+        if (b == a && b <= p) {
+            term2 = D[a] * G1_prime[b] * F1_prime->get(path_b, path_a, b);
+        } else if (b < a && b <= p) {
+            term2 = D[a] * G2_prime[b] * F2_prime->get(path_b, path_a, b);
+        }
+
+        if (minage > 0) {
+            assert(minage <= b);
+            assert(minage <= a);
+            assert(minage <= p);
+            minage_term = B2_prime->get(path_b, path_a, minage-1);
+        }
+
+        double prob = term1 * (b_term - minage_term) + term2;
+        assert(prob >=0 && prob <= 1);
+
+        if (!same_node) return prob;  // must be recombination on threaded branch
+
+        if (npaths > 1 && a < b &&
+            !(paths_equal[path_b][path_c][a][b] &&
+              paths_equal[path_a][path_b][minage][a])) {
+            if (isnan(prob))
+                assert(false);
+            return prob;
+        }
+        if (npaths > 1 && b <= a &&
+            !(paths_equal[path_a][path_c][b][a] &&
+              paths_equal[path_b][path_a][minage][b]))
+            return prob;
+
+        assert(state_a >= 0);
+        // now add same_node term
+        // no recomb or self_recomb case
+        if (a < b) {
+            prob += D[a] * path_prob[path_c][b]
+                * E0_prime->get(path_c, b)
+                * exp(-C0_prime->get(path_c, 2*b-2)
+                      +C0_prime->get(path_c, 2*a-1)
+                      -C1_prime->get(path_c, path_a, 2*a-1))
+                * (B2_prime->get(path_c, path_a, a-1)
+                   + B1_prime->get(path_c, path_a, a)
+                   - B2_prime->get(path_c, path_a, c-1));
+        } else if (a == b) {
+            prob *= 2.0;
+            prob += norecombs[a] + self_recomb[state_a];
+
+            prob += 2.0 * (( D[a] * path_prob[path_c][b]
+                             * E1_prime->get(path_c, path_a, b)
+                             * exp(-C1_prime->get(path_c, path_a, 2*b-2))
+                             * ( B2_prime->get(path_c, path_a, b-1)
+                                 - B2_prime->get(path_c, path_a, c-1)))
+                           + ( D[a] * G1_prime[b] *
+                               F1_prime->get(path_c, path_a, b)));
+        } else if (a > b) {
+            prob += D[a] * path_prob[path_c][b]
+                * E2_prime->get(path_c, path_a, b)
+                * exp(-C1_prime->get(path_c, path_a, 2*b-2))
+                * ( B2_prime->get(path_c, path_a, b-1)
+                    - B2_prime->get(path_c, path_a, c-1))
+                + D[a] * G2_prime[b] * F2_prime->get(path_c, path_a, b);
+        }
+        if (isnan(prob))
+            assert(0);
+        assert(prob >=0 && prob <= 1);
+        return prob;
+    }
+}
 
 // Copies transition probability to dense probability matrix
 void get_transition_probs(const LocalTree *tree, const ArgModel *model,
@@ -206,7 +737,7 @@ void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
                            double **transprob)
 {
     TransMatrix matrix(model, states.size());
-    calc_transition_probs(tree, model, states, lineages, &matrix);
+    matrix.calc_transition_probs(tree, model, states, lineages);
     get_transition_probs(tree, model, states, lineages, &matrix, transprob);
 }
 
@@ -584,7 +1115,7 @@ double calc_recomb(
 void calc_recoal_sums(const ArgModel *model, const LineageCounts *lineages,
                       const Spr &spr, const int recomb_parent_age,
                       const int recomb_node_path,
-                      double *sums, double *sums2,
+                      double *sums, double **sums2,
                       int minage)
 {
     // get info
@@ -598,21 +1129,26 @@ void calc_recoal_sums(const ArgModel *model, const LineageCounts *lineages,
         int spr_pop = model->get_pop(spr.pop_path, (m+1)/2);
         int recomb_node_pop = model->get_pop(recomb_node_path, (m+1)/2);
         int nbranches_m = lineages->nbranches_pop[spr_pop][m] -
-            int(m/2<recomb_parent_age &&
+            int((!model->smc_prime) &&
+                m/2<recomb_parent_age &&
                 spr_pop == recomb_node_pop);
         sum += (model->coal_time_steps[m] * nbranches_m
 		/ (2.0 * model->popsizes[spr_pop][m]));
     }
     *sums = sum;
 
-    sums2[2*k] = 0.0;
-    sum = 0.0;
-    for (int m=2*k; m<2*j-1; m++) {
-        if (m >= 2*minage) {
-            int spr_pop = model->get_pop(spr.pop_path, (m+1)/2);
-            sum += model->coal_time_steps[m] / (2.0 * model->popsizes[spr_pop][m]);
+    for (int path=0; path < model->num_pop_paths(); path++) {
+        sum = 0.0;
+        sums2[path][2*k]=sum;
+        for (int m=2*k; m<2*j-1; m++) {
+            if (m >= 2*minage) {
+                int spr_pop = model->get_pop(spr.pop_path, (m+1)/2);
+                int this_pop = model->get_pop(path, (m+1)/2);
+                if (spr_pop == this_pop)
+                    sum += model->coal_time_steps[m] / (2.0 * model->popsizes[spr_pop][m]);
+            }
+            sums2[path][m+1] = sum;
         }
-        sums2[m+1] = sum;
     }
 }
 
@@ -649,8 +1185,10 @@ double calc_recoal(
         - int(j < recomb_parent_age && recomb_parent_pop == coal_pop)
         + int(j < a && a_pop == coal_pop && j >= minage);
     int ncoals_j = ncoals[j]
-        - int(j <= recomb_parent_age && recomb_parent_pop == coal_pop)
-        - int(j == recomb_parent_age && recomb_parent_pop == coal_pop)
+        - int((!model->smc_prime) &&
+              j <= recomb_parent_age && recomb_parent_pop == coal_pop)
+        - int((!model->smc_prime) &&
+              j == recomb_parent_age && recomb_parent_pop == coal_pop)
         + int(j <= a && a_pop == coal_pop && j >= minage)
         + int(j == a && a_pop == coal_pop && j >= minage);
     bool over = false;
@@ -674,7 +1212,8 @@ double calc_recoal(
         double Z = 0.0;
         if (j>k) {
             b1 = nbranches[2*j-1]
-                - int(j-1 < recomb_parent_age && recomb_parent_pop == coal_pop)
+                - int((!model->smc_prime) &&
+                      j-1 < recomb_parent_age && recomb_parent_pop == coal_pop)
                 + int(j-1 < a && a_pop == coal_pop && j-1 >= minage);
             if (over)
                 b1 = 1;
@@ -743,7 +1282,7 @@ double calc_recomb_recoal(
             recomb_node_pop = model->get_pop(recomb_node_path, t);
         }
         int nbranches_m = lineages->nbranches_pop[spr_pop][m]
-            - int(m/2<recomb_parent_age && spr_pop == recomb_node_pop)
+            - int((!model->smc_prime) && m/2<recomb_parent_age && spr_pop == recomb_node_pop)
             + int(m/2 < a && spr_pop == a_pop && m/2 >= minage);
         /*        printf("%i %i %i\n", m, lineages->nbranches_pop[spr_pop][m],
                   nbranches_m);*/
@@ -898,7 +1437,11 @@ void calc_transition_probs_switch(
     // calculate terms for deterministic probabilities
     recomb_parent_age = last_tree->nodes[
         last_tree->nodes[spr.recomb_node].parent].age;
-    double sums, sums2[model->ntimes*2+1];
+    int numpath = (int)model->num_pop_paths();
+    double sums;
+    double **sums2 = new double* [numpath];
+    for (int i=0; i < numpath; i++)
+        sums2[i] = new double[2*model->ntimes];
     calc_recoal_sums(model, lineages, spr, recomb_parent_age,
                      last_tree->nodes[spr.recomb_node].pop_path,
                      &sums, sums2, minage1);
@@ -939,7 +1482,8 @@ void calc_transition_probs_switch(
                     calc_recomb(last_tree, model, lineages, spr, states1[i],
                                 last_treelen, internal) *
                     exp(-sums
-                        -sums2[max(min(2*spr.coal_time-1, 2*states1[i].time),
+                        -sums2[states1[i].pop_path][
+                           max(min(2*spr.coal_time-1, 2*states1[i].time),
                                    2*spr.recomb_time)]) *
                     recoals[recoal_pos] *
                     model->path_prob(spr.pop_path, spr.recomb_time,
@@ -952,8 +1496,9 @@ void calc_transition_probs_switch(
             }
         }
     }
-
-
+    for (int i=0; i < numpath; i++)
+        delete [] sums2[i];
+    delete [] sums2;
 
 
     // find probabilitistic transition source states
@@ -1234,6 +1779,7 @@ void calc_state_priors_log(const States &states, const LineageCounts *lineages,
 
 //=============================================================================
 // assert transition matrices
+
 
 /*
 double calc_recomb_prob(const LocalTree *tree, const ArgModel *model)
@@ -1728,7 +2274,7 @@ bool arghmm_assert_transmat_internal(int nnodes, int *ptree, int *ages,
     lineages.count(&tree, model.pop_tree, true);
 
     TransMatrix transmat(&model, states.size());
-    calc_transition_probs(&tree, &model, states, &lineages, &transmat, true);
+    transmat.calc_transition_probs(&tree, &model, states, &lineages, true);
 
     return assert_transmat_internal(&tree, &model, &transmat);
 }

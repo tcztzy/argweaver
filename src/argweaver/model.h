@@ -155,7 +155,7 @@ class ArgModel
     sample_phase(0),
     unphased_file(""),
     pop_tree(NULL),
-    smc_prime(smc_prime) {}
+    smc_prime(true) {}
 
  // Model with constant population sizes and log-spaced time points
  ArgModel(int ntimes, double maxtime, double popsize,

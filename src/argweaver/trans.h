@@ -8,6 +8,7 @@
 #include "local_tree.h"
 #include "model.h"
 #include "states.h"
+#include "MultiArray.h"
 
 namespace argweaver {
 
@@ -21,9 +22,10 @@ class TransMatrix
 public:
     TransMatrix(const ArgModel *model, int nstates) :
         nstates(nstates),
-        internal(false)
+        internal(false),
+        smc_prime(false)
     {
-        initialize(model);
+        initialize(model, nstates);
     }
 
     ~TransMatrix()
@@ -48,90 +50,44 @@ public:
             }
             delete [] paths_equal_max;
         }
-        for (int i=0; i < npaths; i++) {
-            delete [] lnB[i];
-            delete [] lnE2[i];
-            delete [] lnNegG1[i];
+        delete C1_prime;
+        delete Q1_prime;
+        if (!smc_prime) {
+            for (int i=0; i < npaths; i++) {
+                delete [] lnB[i];
+                delete [] lnE2[i];
+                delete [] lnNegG1[i];
+            }
+            delete [] E;
+            delete [] lnB;
+            delete [] lnE2;
+            delete [] lnNegG1;
+            delete [] G2;
+            delete [] G3;
+        } else {
+            delete B0_prime;
+            delete B1_prime;
+            delete B2_prime;
+            delete C0_prime;
+            delete Q0_prime;
+            delete E0_prime;
+            delete E1_prime;
+            delete E2_prime;
+            delete F0_prime;
+            delete F1_prime;
+            delete F2_prime;
+            delete [] self_recomb;
+            delete [] G0_prime;
+            delete [] G1_prime;
+            delete [] G2_prime;
         }
-        delete [] E;
-        delete [] lnB;
-        delete [] lnE2;
-        delete [] lnNegG1;
-        delete [] G2;
-        delete [] G3;
         delete [] path_prob;
         delete [] data_alloc;
     }
 
     // allocate space for transition matrix
     // and initialize paths_equal matrix
-    void initialize(const ArgModel *model)
-    {
-        ntimes = model->ntimes;
-        npaths = model->num_pop_paths();
-        int data_len = ntimes*2 + npaths*ntimes*4 + npaths*npaths*ntimes*3;
-        data_alloc = new double [data_len];
-        E = new double* [npaths];
-        lnB = new double** [npaths];
-        lnE2 = new double** [npaths];
-        lnNegG1 = new double** [npaths];
-        G2 = new double* [npaths];
-        G3 = new double* [npaths];
-        path_prob = new double* [npaths];
-        D = &data_alloc[0];
-        norecombs = &data_alloc[ntimes];
-        int idx=ntimes*2;
-        for (int i=0; i < npaths; i++) {
-            E[i] = &data_alloc[idx]; idx += ntimes;
-            G2[i] = &data_alloc[idx]; idx += ntimes;
-            G3[i] = &data_alloc[idx]; idx += ntimes;
-            path_prob[i] = &data_alloc[idx]; idx += ntimes;
-            lnB[i] = new double* [npaths];
-            lnE2[i] = new double* [npaths];
-            lnNegG1[i] = new double* [npaths];
-            for (int j=0; j < npaths; j++) {
-                lnB[i][j] = &data_alloc[idx]; idx += ntimes;
-                lnE2[i][j] = &data_alloc[idx]; idx += ntimes;
-                lnNegG1[i][j] = &data_alloc[idx]; idx += ntimes;
-            }
-        }
-        assert(idx == data_len);
-
-        if (npaths > 1) {
-            paths_equal = new bool*** [npaths];
-            for (int i=0; i < npaths; i++) {
-                paths_equal[i] = new bool** [npaths];
-                for (int j=0; j < npaths; j++) {
-                    paths_equal[i][j] = new bool *[ntimes];
-                    for (int k=0; k < ntimes; k++) {
-                        paths_equal[i][j][k] = new bool[ntimes];
-                        for (int l=k; l < ntimes; l++) {
-                            paths_equal[i][j][k][l] =
-                                model->paths_equal(i,j,k,l);
-                        }
-                    }
-                }
-            }
-            paths_equal_max = new int** [npaths];
-            for (int i=0; i < npaths; i++) {
-                paths_equal_max[i] = new int* [npaths];
-                for (int j=0; j < npaths; j++) {
-                    paths_equal_max[i][j] = new int[ntimes];
-                    for (int k=0; k < ntimes; k++) {
-                        paths_equal_max[i][j][k] = -1;
-                        for (int l=k; l < ntimes; l++) {
-                            if (paths_equal[i][j][k][l])
-                                paths_equal_max[i][j][k] = l;
-                            else break;
-                        }
-                    }
-                }
-            }
-        } else {
-            paths_equal = NULL;
-            paths_equal_max = NULL;
-        }
-    }
+    void initialize(const ArgModel *model, int nstates);
 
     // Probability of transition from state i to state j.
     inline double get(
@@ -156,89 +112,19 @@ public:
         const int c_path = tree->nodes[node2].pop_path;
 
         return get_time(a, b, c, a_path, b_path, c_path,
-                        minage, node1 == node2);
+                        minage, node1 == node2, i);
     }
 
     // Returns the probability of transition from state1 with time 'a'
     // to state2 with time 'b'.  The probability also depends on whether
     // the node changes between states ('same_node') or whether there is
     // a minimum age ('minage') allowed for the state.
-    inline double get_time(int a, int b, int c,
-                           int path_a, int path_b, int path_c,
-                           int minage, bool same_node) const
-    {
-        if (a < minage || b < minage)
-            return 0.0;
-
-        const int p = ( npaths == 1 ? ntimes :
-                        paths_equal_max[path_a][path_b][minage] );
-        if (p == -1) return 0.0;
-
-        double term1 = D[a] * E[path_b][b] * path_prob[path_b][b];
-        double minage_term = 0.0;
-        double prob;
-        if (minage > 0) {
-            minage_term = exp(lnE2[path_b][path_b][b] +
-                              lnB[path_b][path_b][minage-1]);
-        }
-        if (p < a && p < b) {
-            prob = term1 * (exp(lnE2[path_b][path_b][b] + lnB[path_b][path_b][p])
-                            - minage_term);
-        } else if (a <= p && a < b) {
-            prob = term1 * (exp(lnE2[path_b][path_b][b] + lnB[path_b][path_b][a]) -
-                            exp(lnE2[path_b][path_b][b] + lnNegG1[path_b][path_b][a])
-                            - minage_term);
-        } else if (a == b) {
-            prob = term1 * ((b > 0 ? exp(lnE2[path_b][path_b][b] +
-                                         lnB[path_b][path_b][b-1]) : 0.0) +
-                            G3[path_b][b] - minage_term);
-        } else { // b < a
-            prob = term1 * ((b > 0 ? exp(lnE2[path_b][path_b][b] +
-                                         lnB[path_b][path_b][b-1]) : 0.0)
-                            + G2[path_b][b] - minage_term);
-        }
-        if (isnan(prob)) {
-            assert(false);
-        }
-        if (! same_node) return prob;
-
-        // now add same_node term
-        // norecomb case
-        if (a == b && (npaths == 1 || paths_equal[path_a][path_b][minage][a]))
-            prob += norecombs[a];
-
-        if (npaths > 1 && a < b && !(paths_equal[path_b][path_c][a][b] &&
-                                     paths_equal[path_a][path_b][minage][a])) {
-            if (isnan(prob))
-                assert(false);
-            return prob;
-        }
-        if (npaths > 1 && b <= a && !(paths_equal[path_a][path_c][b][a] &&
-                                      paths_equal[path_b][path_a][minage][b]))
-            return prob;
-
-        term1 = D[a] * E[path_c][b] * path_prob[path_c][b];
-        minage_term = 0.0;
-        if (c > 0)
-            minage_term = exp(lnE2[path_c][path_b][b] + lnB[path_c][path_b][c-1]);
-
-        if (a < b) {
-            prob += term1 * (exp(lnE2[path_c][path_b][b] + lnB[path_c][path_b][a]) -
-                            exp(lnE2[path_c][path_b][b] + lnNegG1[path_c][path_b][a])
-                            - minage_term);
-        } else if (a == b) {
-            prob += term1 * ((b > 0 ? exp(lnE2[path_c][path_b][b] +
-                                         lnB[path_c][path_b][b-1]) : 0.0) +
-                            G3[path_c][b] - minage_term);
-        } else { // b < a
-            prob += term1 * ((b > 0 ? exp(lnE2[path_c][path_b][b] +
-                                         lnB[path_c][path_b][b-1]) : 0.0)
-                            + G2[path_c][b] - minage_term);
-        }
-        if (isnan(prob))
-            assert(0);
-        return prob;
-    }
+    // last argument "state_a" is only used in same_node case when smc_prime
+    // is turned on- it is necessary for calculating probability of an
+    // invisible recomb on the tree
+    double get_time(int a, int b, int c,
+                    int path_a, int path_b, int path_c,
+                    int minage, bool same_node, int state_a=-1) const;
 
     // Log probability of transition from state i to state j.
     inline double get_log(
@@ -246,29 +132,70 @@ public:
     {
         return log(get(tree, states, i, j));
     }
+    void assert_transmat(const LocalTree *tree,
+                         const ArgModel *model,
+                         const States &states,
+                         bool internal, int minage) const;
 
 
-    int ntimes;     // Number of time steps in model.
-    int nstates;    // Number of states in HMM.
+    void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
+                               const States &states,
+                               const LineageCounts *lineages,
+                               bool internal0=false,
+                               int minage0=0);
+
+
+    int ntimes;
+    int nstates;
     int npaths;
+    bool internal;  // If true, this matrix is for threading an internal branch.
+    int minage;     // Minimum age of a state we can consider (due to threading
+                    // an internal branch).
+
+    bool smc_prime;
 
     double *data_alloc;
 
-    double *D;       // Intermediate terms in calculating entries in the full
-    double **E;      // transition matrix.
-    double ***lnB;
-    double ***lnE2;
-    double ***lnNegG1;
-    double **G2;
-    double **G3;
+    // Intermediate terms in calculating entries in the full transition matrix
+
+    // these are used only for SMC' model
+    MultiArray *C0_prime;
+    MultiArray *Q0_prime;
+    MultiArray *C1_prime;
+    MultiArray *Q1_prime;
+
+    MultiArray *B0_prime;
+    MultiArray *B1_prime;
+    MultiArray *B2_prime;
+    double *G0_prime;
+    double *G1_prime;
+    double *G2_prime;
+    MultiArray *E0_prime;
+    MultiArray *E1_prime;
+    MultiArray *E2_prime;
+    MultiArray *F0_prime;
+    MultiArray *F1_prime;
+    MultiArray *F2_prime;
+    double *self_recomb;
+
+    // these are used for both SMC and SMC'
+    double *D;
     double **path_prob;
     double *norecombs;
     bool ****paths_equal;
     int ***paths_equal_max;
 
-    bool internal;  // If true, this matrix is for threading an internal branch.
-    int minage;     // Minimum age of a state we can consider (due to threading
-                    // an internal branch).
+    // these used for SMC only
+    double **E;
+    double ***lnB;
+    double ***lnE2;
+    double ***lnNegG1;
+    double **G2;
+    double **G3;
+
+ private:
+    double self_recomb_prob(int a, int path_a, int minage, int d, int path_d);
+
 };
 
 
@@ -378,9 +305,9 @@ public:
 
 //=============================================================================
 
-void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
+/*void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
     const States &states, const LineageCounts *lineages, TransMatrix *matrix,
-    bool internal=false, int minage=0);
+    bool internal=false, int minage=0);*/
 void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
                           const States &states, const LineageCounts *lineages,
                           double **transprob);

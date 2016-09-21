@@ -245,7 +245,7 @@ void calc_coal_rates_spr(const ArgModel *model, const LocalTree *tree,
         int recomb_parent_pop =
             model->get_pop(tree->nodes[spr.recomb_node].pop_path, pop_time);
         int nbranches = lineages.nbranches_pop[spr_pop][i]
-            - int(i/2 < broken_age && spr_pop == recomb_parent_pop);
+            - int((!model->smc_prime) && i/2 < broken_age && spr_pop == recomb_parent_pop);
         coal_rates[i] = model->coal_time_steps[i] * nbranches /
             (2.0 * model->popsizes[spr_pop][i]);
 	if (coal_rates[i] < 0) {
@@ -298,8 +298,8 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
                                            spr.coal_time);
     int spr_pop = model->get_pop(spr.pop_path, spr.coal_time);
     int ncoals_j = lineages.ncoals_pop[spr_pop][j]
-        - int(j <= broken_age && spr_pop == recomb_parent_pop)
-        - int(j == broken_age && spr_pop == recomb_parent_pop);
+        - int((!model->smc_prime) && j <= broken_age && spr_pop == recomb_parent_pop)
+        - int((!model->smc_prime) && j == broken_age && spr_pop == recomb_parent_pop);
     lnl -= log(ncoals_j);
     //printf("     ncoals_j = %i\n", ncoals_j);
 

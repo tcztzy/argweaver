@@ -366,6 +366,14 @@ public:
         return all_sites[pos];
     }
 
+    vector<int> uncompress(const vector<int> pos,
+                           vector<int> &newpos) const {
+        newpos.clear();
+        for (unsigned int i=0; i < pos.size(); i++)
+            newpos.push_back(all_sites[pos[i]]);
+        return newpos;
+    }
+
     // compress a series of block lengths
     void compress_blocks(const vector<int> &blocks, vector<int> &blocks2) const
     {

@@ -288,7 +288,7 @@ public:
         // note the following two are ConfigSwitch with default value=true,
         // so that providing the switch makes the variable false
         config.add(new ConfigSwitch
-                   ("", "--smc-orig", &smc_prime,
+                   ("", "--smc-orig", &model.smc_prime,
                     "Use non-prime SMC model consistent with original ARGweaver"
                     " release (otherwise use SMC')", DEBUG_OPT, true));
         config.add(new ConfigSwitch
@@ -392,7 +392,6 @@ public:
     string popsize_config_file;
     int sample_popsize_num;
     bool sample_popsize_const;
-    bool smc_prime;
     bool invisible_recombs;
     double epsilon;
     double pseudocount;
@@ -706,7 +705,7 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
                  const Sequences *sequences, LocalTrees *trees,
                  const SitesMapping* sites_mapping, const Config *config,
                  const TrackNullValue *maskmap_uncompressed,
-                 int num_invisible_recombs)
+                 double num_invisible_recombs)
 {
     // calculate number of recombinations
     int nrecombs = trees->get_num_trees() - 1;
@@ -747,7 +746,7 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
     if (config->invisible_recombs)
-        fprintf(stats_file, "\t%d", num_invisible_recombs);
+        fprintf(stats_file, "\t%f", num_invisible_recombs);
     if (model->popsize_config.sample) {
         list<PopsizeConfigParam> l=model->popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
@@ -830,15 +829,22 @@ bool log_sequences(string chrom, const Sequences *sequences,
 
 bool log_local_trees(const ArgModel *model, const Sequences *sequences,
                      LocalTrees *trees, const SitesMapping* sites_mapping,
-                     const Config *config, int iter)
+                     const Config *config, int iter,
+                     const vector<int> &self_recomb_pos0=vector<int>(),
+                     const vector<Spr> &self_recombs=vector<Spr>())
 {
     string out_arg_file = get_out_arg_file(*config, iter);
+    const vector<int> *self_recomb_ptr;
     if (!config->no_compress_output)
         out_arg_file += ".gz";
 
     // write local trees uncompressed
-    if (sites_mapping)
+    vector<int> self_recomb_pos1;
+    if (sites_mapping) {
         uncompress_local_trees(trees, sites_mapping);
+        sites_mapping->uncompress(self_recomb_pos0, self_recomb_pos1);
+        self_recomb_ptr = &self_recomb_pos1;
+    } else self_recomb_ptr = &self_recomb_pos0;
 
     // setup output stream
     CompressStream stream(out_arg_file.c_str(), "w");
@@ -849,7 +855,8 @@ bool log_local_trees(const ArgModel *model, const Sequences *sequences,
 
 
     write_local_trees(stream.stream, trees, sequences, model->times,
-                      model->pop_tree != NULL);
+                      model->pop_tree != NULL,
+                      *self_recomb_ptr, self_recombs);
 
     // testing for now; output coal records version
     string out_cr_file = get_out_cr_file(*config, iter);
@@ -1079,7 +1086,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         // save first ARG (iter=0)
         print_stats(config->stats_file, "resample", 0, model, sequences, trees,
                     sites_mapping, config, maskmap_orig, 0);
-        log_local_trees(model, sequences, trees, sites_mapping, config, 0);
+        log_local_trees(model, sequences, trees, sites_mapping, config, 0,
+                        invisible_recomb_pos, invisible_recombs);
     }
 
 
@@ -1126,7 +1134,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         mcmcmc_swap(config, model, sequences, trees, sites_mapping);
 
-        if ( config->invisible_recombs) {
+        if (model->smc_prime && config->invisible_recombs) {
             sample_invisible_recombinations(model, trees,
                                             invisible_recomb_pos,
                                             invisible_recombs);
@@ -1139,7 +1147,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         // sample saving
         if (i % config->sample_step == 0 && ! config->no_sample_arg)
-            log_local_trees(model, sequences, trees, sites_mapping, config, i);
+            log_local_trees(model, sequences, trees, sites_mapping, config, i,
+                            invisible_recomb_pos, invisible_recombs);
 
         if (config->sample_phase > 0 && i%config->sample_phase == 0)
             log_sequences(trees->chrom, sequences, config, sites_mapping, i);

@@ -41,7 +41,7 @@ void print_usage() {
 
 int main(int argc, char *argv[]) {
     char c;
-    int region[2]={-1,-1}, orig_start, orig_end, start, end;
+    int region[2]={-1,-1}, orig_start, orig_end, start, end, spr_pos;
     vector<string> names;
     string currstr;
     char *line = NULL;
@@ -130,14 +130,20 @@ int main(int argc, char *argv[]) {
                 break;
             if (region[0] >= 0 && end <= region[0]) {
                 delete [] line;
-                line = fgetline(instream.stream);
-                if (line==NULL) break;
-                if (strncmp(line, "SPR", 3)==0) {
-                    delete [] line;
-                    continue;
+                while (1) {
+                    line = fgetline(instream.stream);
+                    if (line==NULL) break;
+                    if (strncmp(line, "SPR-INVIS", 9)==0) {
+                        delete [] line;
+                        continue;
+                    } else if (strncmp(line, "SPR", 3)==0) {
+                        delete [] line;
+                        break;
+                    }
+                    fprintf(stderr, "error: expected SPR or SPR-INVIS after TREE line\n");
+                    return 1;
                 }
-                fprintf(stderr, "error: expected SPR after TREE line\n");
-                return 1;
+                continue;
             }
 
             char *newick_end = line + strlen(line);
@@ -161,67 +167,80 @@ int main(int argc, char *argv[]) {
 	    }
             delete [] line;
 
-            line=fgetline(instream.stream);
-            if (line == NULL) {
-	      spr->recomb_node = NULL;
-	      spr->coal_node = NULL;
-            } else if (strncmp(line, "SPR", 3)==0) {
-	      int tempend;
-	      if (5 != sscanf(&line[4], "%d\t%d\t%lf\t%d\t%lf",
-			      &tempend, &recomb_node, &(spr->recomb_time),
-			      &coal_node, &(spr->coal_time))) {
-		fprintf(stderr, "error parsing SPR line\n");
-		return 1;
-	      }
-	      if (tempend != end) {
-		fprintf(stderr, "error: SPR pos does not equal TREE end\n");
-		return 1;
-	      }
-	      if (region[1] >= 0 && tempend >= region[1]) {
-		coal_node = -1;
-		recomb_node = -1;
-	      }
-            } else {
-	      fprintf(stderr, "error: expected SPR after TREE line\n");
-	      return 1;
+            while (1) {
+                line=fgetline(instream.stream);
+                if (line == NULL) {
+                    spr->recomb_node = NULL;
+                    spr->coal_node = NULL;
+                    recomb_node = -1;
+                    coal_node = -1;
+                } else if (strncmp(line, "SPR", 3)==0) {
+                    int idx=4;
+                    bool invisible=false;
+                    if (strncmp(line, "SPR-INVIS", 9)==0) {
+                        idx = 10;
+                        invisible=true;
+                    }
+                    if (5 != sscanf(&line[idx], "%d\t%d\t%lf\t%d\t%lf",
+                                    &spr_pos, &recomb_node, &(spr->recomb_time),
+                                    &coal_node, &(spr->coal_time))) {
+                        fprintf(stderr, "error parsing SPR line\n");
+                        return 1;
+                    }
+                    if (spr_pos != end && !invisible) {
+                        fprintf(stderr, "error: SPR pos does not equal TREE end\n");
+                        return 1;
+                    }
+                    if (region[1] >= 0 && spr_pos >= region[1]) {
+                        coal_node = -1;
+                        recomb_node = -1;
+                    }
+                } else {
+                    fprintf(stderr, "error: expected SPR after TREE line\n");
+                    return 1;
+                }
+
+                //now have to rename all leaf nodes and remove all NHX comments
+                char tmpStr[1000];
+                if (recomb_node >= 0) {
+                    sprintf(tmpStr, "%i", recomb_node);
+                    //	    char *tmpStr = itoa(recomb_node);
+                    spr->recomb_node =
+                        tree->nodes[tree->nodename_map[string(tmpStr)]];
+                    sprintf(tmpStr, "%i", coal_node);
+                    spr->coal_node = tree->nodes[tree->nodename_map[string(tmpStr)]];
+
+                    if (spr->recomb_node->age-1 > spr->recomb_time)
+                        assert(0);
+                    if (spr->recomb_node != tree->root) {
+                        if (spr->recomb_node->parent->age+1 < spr->recomb_time)
+                            assert(0);
+                    }
+                    if (spr->coal_node->age-1 > spr->coal_time)
+                        assert(0);
+                    if (spr->coal_node != tree->root) {
+                        if (spr->coal_node->parent->age+1 < spr->coal_time) {
+                            assert(0);
+                        }
+                    }
+                    if (times.size() > 0) spr->correct_recomb_times(times);
+                }
+                if (region[0] >= 0 && start < region[0])
+                    start = region[0];
+                if (region[1] >= 0 && spr_pos >= region[1]) {
+                    spr_pos = region[1];
+                    spr->recomb_node = spr->coal_node = NULL;
+                }
+                if (line == NULL) spr_pos = end;
+                printf("%s\t%i\t%i\t%i\t", chrom, start, spr_pos, sample);
+                tree->write_newick(stdout, false, true, 1, spr);
+                start = spr_pos;
+                printf("\n");
+                if (line == NULL) break;
+                bool done=(strncmp(line, "SPR\t", 4)==0);
+                delete [] line;
+                if (done) break;
             }
-
-            //now have to rename all leaf nodes and remove all NHX comments
-	    char tmpStr[1000];
-	    if (recomb_node >= 0) {
-	      sprintf(tmpStr, "%i", recomb_node);
-	      //	    char *tmpStr = itoa(recomb_node);
-	      spr->recomb_node =
-                  tree->nodes[tree->nodename_map[string(tmpStr)]];
-	      sprintf(tmpStr, "%i", coal_node);
-	      spr->coal_node = tree->nodes[tree->nodename_map[string(tmpStr)]];
-
-	      if (spr->recomb_node->age-1 > spr->recomb_time)
-		assert(0);
-	      if (spr->recomb_node != tree->root) {
-		if (spr->recomb_node->parent->age+1 < spr->recomb_time)
-		  assert(0);
-	      }
-	      if (spr->coal_node->age-1 > spr->coal_time)
-		assert(0);
-	      if (spr->coal_node != tree->root) {
-		if (spr->coal_node->parent->age+1 < spr->coal_time) {
-		    assert(0);
-		  }
-	       }
-	      if (times.size() > 0) spr->correct_recomb_times(times);
-	    }
-            if (region[0] >= 0 && start < region[0])
-                start = region[0];
-            if (region[1] >= 0 && end >= region[1]) {
-                end = region[1];
-		spr->recomb_node = spr->coal_node = NULL;
-	    }
-            printf("%s\t%i\t%i\t%i\t", chrom, start, end, sample);
-            tree->write_newick(stdout, false, true, 1, spr);
-            printf("\n");
-            if (line == NULL) break;
-            delete [] line;
         }
     }
     instream.close();
