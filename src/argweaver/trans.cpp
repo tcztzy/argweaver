@@ -274,7 +274,7 @@ void TransMatrix::assert_transmat(const LocalTree *tree,
             }
             total_prob += p1 + p2;
         }
-        printf("total_prob %i = %e\n", s1, total_prob);
+        //        printf("total_prob %i = %e\n", s1, total_prob);
     }
 
 }
@@ -530,7 +530,7 @@ void TransMatrix::calc_transition_probs(const LocalTree *tree,
             self_recomb[s] = prob;
         }
     }
-    if (true) {
+    if (false) {
         assert_transmat(tree, model, states, lineages, minage0);
     }
 }
