@@ -11,13 +11,15 @@ show_help () {
   echo "   arg-sample -o). Creates a file called <baseout>.bed.gz."
   echo " OPTIONS:"
   echo "   -s <startnum>: start with this MCMC rep of arg-sample (default: 0)"
+  echo "   -e <endnum>  : end with this MCMC rep (default: stop when no file exists)"
   echo "   -i <interval>: sampling interval (will be auto-detected from output if not"
   echo "        specified)"
 }
 
 startnum=0
 interval=0
-while getopts "s:i:h" opt; do
+endnum=-1
+while getopts "s:i:e:h" opt; do
   case "$opt" in
   h)
 	show_help
@@ -25,6 +27,9 @@ while getopts "s:i:h" opt; do
 	;;
   s)
 	startnum=$OPTARG
+	;;
+  e)
+	endnum=$OPTARG
 	;;
   i)
 	interval=$OPTARG
@@ -66,11 +71,12 @@ echo "using sampling interval=$interval" >> /dev/stderr
 num=$startnum
 ( while [[ 1 ]]; do
   file=$baseout.$num.smc.gz
-  if [[ ! -e $file ]]; then
+  if [[ ( $endnum -ne -1 && $num -gt $endnum ) || ! -e $file ]]; then
       num=$(($num-$interval))
       echo "ended at sample=$num" >> /dev/stderr
       break
   fi
+#  echo $num $file >> /dev/stderr
   smc2bed --sample $num $file
   num=$(($num+$interval))
  done
