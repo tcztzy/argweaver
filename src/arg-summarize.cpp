@@ -138,6 +138,14 @@ public:
                     "recombination rate per generation/bp (NOTE this is not"
                     " particularly well estimated by the SMC)"));
         config.add(new ConfigSwitch
+                   ("", "--recombs-per-time", &recombs_per_time,
+                    "number of recombinations for each time interval"
+                    " (requires --time-file)"));
+        config.add(new ConfigSwitch
+                   ("", "--branchlen-per-time", &branchlen_per_time,
+                   "total branchlen existing at each time interval"
+                    " (does not count root branch; requires --time-file)"));
+        config.add(new ConfigSwitch
                    ("-K", "--breaks", &breaks,
                     "recombinations per bp (not normalized by tree size"));
         config.add(new ConfigSwitch
@@ -261,6 +269,8 @@ public:
     bool tmrca;
     bool branchlen;
     bool recomb;
+    bool recombs_per_time;
+    bool branchlen_per_time;
     bool breaks;
     bool tmrca_half;
     bool rth;
@@ -368,7 +378,16 @@ public:
 };
 
 
-    void scoreBedLine(BedLine *line, vector<string> &statname,
+int get_time_index(double t, const vector<double> &times, int start=0) {
+    for (unsigned int i=start; i < times.size(); i++) {
+        if (fabs(times[i] - t) < 1.0e-3) return i;
+    }
+    assert(0);
+    return -1;
+}
+
+
+void scoreBedLine(BedLine *line, vector<string> &statname,
                       ArgSummarizeData &data,
                       double allele_age=-1, int infsites=-1) {
     Tree * tree = (line->trees->pruned_tree != NULL ?
@@ -425,6 +444,37 @@ public:
 					    node_dist_leaf2[node_dist_idx]);
 	    }
             node_dist_idx++;
+        }
+        else if (statname[i].substr(0, 8)=="recombs.") {
+            const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
+                                      &(line->trees->pruned_spr) :
+                                      &(line->trees->orig_spr));
+            for (unsigned int j=0; j < data.times.size(); j++) {
+                assert(i+j < statname.size() &&
+                       statname[i+j].substr(0, 8)=="recombs.");
+                line->stats[i+j] = 0;
+            }
+            if (nodespr->recomb_node != NULL) {
+                int t = get_time_index(nodespr->recomb_time, data.times);
+                line->stats[i + t] = 1;
+            }
+            i += data.times.size() - 1;
+        }
+        else if (statname[i].substr(0, 10)=="branchlen.") {
+            for (unsigned int j=0; j < data.times.size(); j++) {
+                assert(i+j < statname.size() &&
+                       statname[i+j].substr(0, 10)=="branchlen.");
+                line->stats[i+j] = 0;
+            }
+            for (int j=0; j < tree->nnodes; j++) {
+                if (tree->nodes[j] == tree->root) continue;
+                int age1 = get_time_index(tree->nodes[j]->age, data.times);
+                int age2 = get_time_index(tree->nodes[j]->parent->age, data.times, age1);
+                for (int k=age1; k < age2; k++) {
+                    line->stats[i + k] += (data.times[k + 1] - data.times[k]);
+                }
+            }
+            i += data.times.size() - 1;
         }
         else if (statname[i].substr(0, 10)=="coalcount.") {
             vector<double>coal_counts = tree->coalCounts(data.times);
@@ -1272,7 +1322,7 @@ int main(int argc, char *argv[]) {
     }
     if (c.zero)
         statname.push_back(string("zero_len"));
-    
+
     vector<string> groupfiles;
     if (!c.groupfile.empty()) {
         split(c.groupfile.c_str(), ',', groupfiles);
@@ -1354,12 +1404,34 @@ int main(int argc, char *argv[]) {
     }
     if (c.coalcounts) {
         if (c.timefile.empty()) {
-            fprintf(stderr, "Error: --times required with --coalcounts\n");
+            fprintf(stderr, "Error: --time-file required with --coalcounts\n");
             return 1;
         }
         for (unsigned int i=0; i < data.times.size(); i++) {
             char tmp[1000];
             sprintf(tmp, "coalcount.%i", i);
+            statname.push_back(string(tmp));
+        }
+    }
+    if (c.recombs_per_time) {
+        if (c.timefile.empty()) {
+            fprintf(stderr, "Error: --time-file required with --recombs-per-time\n");
+            return 1;
+        }
+        for (unsigned int i=0; i < data.times.size(); i++) {
+            char tmp[1000];
+            sprintf(tmp, "recombs.%i", i);
+            statname.push_back(string(tmp));
+        }
+    }
+    if (c.branchlen_per_time) {
+        if (c.timefile.empty()) {
+            fprintf(stderr, "Error: --time-file required with --branchlen-per-time\n");
+            return 1;
+        }
+        for (unsigned int i=0; i < data.times.size(); i++) {
+            char tmp[1000];
+            sprintf(tmp, "branchlen.%i", i);
             statname.push_back(string(tmp));
         }
     }
