@@ -1726,7 +1726,9 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
                 assert_spr(last_tree, tree, &spr, mapping);
 
             last_tree = tree;
-
+        } else if (strncmp(line, "SPR-INVIS", 9) == 0) {
+            // for now just ignore these; could add argument to read them
+            // into a separate object
         } else if (strncmp(line, "SPR", 3) == 0) {
             // parse SPR
 

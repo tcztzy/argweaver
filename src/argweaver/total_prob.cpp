@@ -284,8 +284,28 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 
     // probability of recombination location in tree (from eq 5)
     int k = spr.recomb_time;
-    lnl += log(lineages.nbranches[k] * model->time_steps[k] /
+    if (model->smc_prime) {
+        int pop = model->get_pop(spr.pop_path, k);
+        int nrecomb = lineages.ncoals_pop[pop][k];
+        double blen_above=0, blen_below=0;
+        if (k == root_age) {
+            nrecomb--;
+        } else {
+            assert(k < root_age);
+            blen_above = model->coal_time_steps[2*k]
+                * (double)lineages.nbranches_pop[pop][2*k];
+        }
+        if (k > 0) {
+            blen_below = model->coal_time_steps[2*k-1]
+                * (double)lineages.nbranches_pop[pop][2*k-1];
+        }
+        lnl += log((blen_above + blen_below) /
+                   (treelen * (double)nrecomb));
+
+    } else {
+        lnl += log(lineages.nbranches[k] * model->time_steps[k] /
                    (lineages.nrecombs[k] * treelen_b));
+    }
 
     // probability of re-coalescence
     double coal_rates[2*model->ntimes];

@@ -14,10 +14,10 @@ using namespace std;
 /* relative probability of a recombination on a fully realized local tree
    ( assumes threading already completed )
  */
-double recomb_prob_smcPrime_unnormalized(const ArgModel *model,
-                                         const LocalTree *tree,
-                                         const LineageCounts &lineages,
-                                         const Spr &recomb) {
+double recomb_prob_smcPrime_unnormalized_fullTree(const ArgModel *model,
+                                                  const LocalTree *tree,
+                                                  const LineageCounts &lineages,
+                                                  const Spr &recomb) {
     const int recomb_time = recomb.recomb_time;
     const int recomb_path = recomb.pop_path;
     const int coal_time = recomb.coal_time;
@@ -40,11 +40,22 @@ double recomb_prob_smcPrime_unnormalized(const ArgModel *model,
             nocoal_rate += rate;
         else coal_rate += rate;
     }
-    return model->time_steps[recomb_time] * lineages.nbranches[recomb_time]
-        / lineages.nrecombs[recomb_time]
+    int coal_pop = pop;
+    double blen_above=0, blen_below = 0;
+    int recomb_pop = model->get_pop(recomb_path, recomb_time);
+    int nrecomb = lineages.ncoals_pop[recomb_pop][recomb_time];
+    if (recomb_time < tree->nodes[tree->root].age)
+        blen_above = model->coal_time_steps[2*recomb_time]
+            * lineages.nbranches_pop[recomb_pop][2*recomb_time];
+    else if (recomb_time == tree->nodes[tree->root].age)
+        nrecomb--;
+    if (recomb_time > 0)
+        blen_below = model->coal_time_steps[2*recomb_time-1]
+            * lineages.nbranches_pop[recomb_pop][2*recomb_time-1];
+    return (blen_above + blen_below)/(double)nrecomb
         * model->path_prob(recomb_path, recomb_time, coal_time)
         * exp(-nocoal_rate) * (1.0 - exp(-coal_rate))
-        / lineages.ncoals_pop[pop][coal_time];
+        / lineages.ncoals_pop[coal_pop][coal_time];
 }
 
 
@@ -92,14 +103,46 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         } else assert(0);
     }
 
-    int nbranches_k = lineages.nbranches[k]
-        + int(k < last_state.time && k >= minage);
-    int nrecombs_k = lineages.nrecombs[k]
-        + int(k <= last_state.time && k >= minage)
-        + int(k == last_state.time && k >= minage)
-        - int(k == root_time);
+    double precomb;
 
-    double precomb = nbranches_k * model->time_steps[k] / nrecombs_k;
+    if (model->smc_prime) {
+        int pop = model->get_pop(recomb.path, k);
+        int nbranch_above=0, nbranch_below=0;
+        double blen_above=0, blen_below=0;
+        int nrecombs = lineages.ncoals_pop[pop][k];
+        int pop2 = model->get_pop(last_state.pop_path, k);
+        if (pop == pop2) {
+            if (k == last_state.time)
+                nrecombs += 2;
+            else if (k >= minage && k < last_state.time)
+                nrecombs++;
+        }
+        if (k == root_time) nrecombs--;
+        assert(k <= root_time);
+        if (k < root_time) {
+            nbranch_above = lineages.nbranches_pop[pop][2*k];
+            if (pop == pop2 && k >= minage && k < last_state.time)
+                nbranch_above++;
+            blen_above = model->coal_time_steps[2*k]
+                * (double)nbranch_above;
+        }
+        if (k > 0) {
+            nbranch_below = lineages.nbranches_pop[pop][2*k-1];
+            if (pop == pop2 && k > minage && k <= last_state.time)
+                nbranch_below++;
+            blen_below = model->coal_time_steps[2*k-1]
+                * (double)nbranch_below;
+        }
+        precomb = (blen_above + blen_below)/(double)nrecombs;
+    } else {
+        int nbranches_k = lineages.nbranches[k]
+            + int(k < last_state.time && k >= minage);
+        int nrecombs_k = lineages.nrecombs[k]
+            + int(k <= last_state.time && k >= minage)
+            + int(k == last_state.time && k >= minage)
+            - int(k == root_time);
+        precomb = nbranches_k * model->time_steps[k] / nrecombs_k;
+    }
 
     // probability of not coalescing before time j-1
     double coal_sum=0.0;
@@ -316,7 +359,7 @@ void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
             for (int k=minage; k <= maxage; k++) {
                 for (int j=k; j <= maxage; j++) {
                     possible_recombs.push_back(Spr(node, k, node, j, pop_path));
-                    double prob = recomb_prob_smcPrime_unnormalized(model,
+                    double prob = recomb_prob_smcPrime_unnormalized_fullTree(model,
                                         tree, lineages, possible_recombs.back())
                         * d_term;
                     recomb_probs.push_back(prob);
@@ -325,7 +368,7 @@ void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
                 // can also recombine onto parent or sister at coalescence time
                 possible_recombs.push_back(Spr(node, k, parent,
                                                maxage, pop_path));
-                double prob = recomb_prob_smcPrime_unnormalized(model,
+                double prob = recomb_prob_smcPrime_unnormalized_fullTree(model,
                             tree, lineages, possible_recombs.back()) * d_term;
                 recomb_probs.push_back(prob);
                 total_prob += prob;
@@ -334,16 +377,16 @@ void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
                     sib = tree->nodes[parent].child[1];
                 possible_recombs.push_back(Spr(node, k, sib,
                                                maxage, pop_path));
-                prob = recomb_prob_smcPrime_unnormalized(model,
+                prob = recomb_prob_smcPrime_unnormalized_fullTree(model,
                             tree, lineages, possible_recombs.back()) * d_term;
                 recomb_probs.push_back(prob);
                 total_prob += prob;
             }
         }
         assert(total_prob >= 0.0 && total_prob <= 1.0);
-        for (int i=start; i < end; i++) {
+        for (int i=start; i < end - 1; i++) {
             int next_recomb = min( i + int(expovariate(total_prob)), end);
-            if (next_recomb < end) {
+            if (next_recomb < end - 1) {
                 double r = frand(total_prob);
                 total_prob = 0.0;
                 bool found=false;

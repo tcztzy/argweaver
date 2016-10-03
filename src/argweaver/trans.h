@@ -76,10 +76,10 @@ public:
             delete F0_prime;
             delete F1_prime;
             delete F2_prime;
+            delete G0_prime;
+            delete G1_prime;
+            delete G2_prime;
             delete [] self_recomb;
-            delete [] G0_prime;
-            delete [] G1_prime;
-            delete [] G2_prime;
         }
         delete [] path_prob;
         delete [] data_alloc;
@@ -138,6 +138,11 @@ public:
                          bool internal, int minage) const;
 
 
+    void calc_transition_probs_smcPrime(const LocalTree *tree, const ArgModel *model,
+                                        const States &states,
+                                        const LineageCounts *lineages,
+                                        bool internal0=false,
+                                        int minage0=0);
     void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
                                const States &states,
                                const LineageCounts *lineages,
@@ -167,9 +172,9 @@ public:
     MultiArray *B0_prime;
     MultiArray *B1_prime;
     MultiArray *B2_prime;
-    double *G0_prime;
-    double *G1_prime;
-    double *G2_prime;
+    MultiArray *G0_prime;
+    MultiArray *G1_prime;
+    MultiArray *G2_prime;
     MultiArray *E0_prime;
     MultiArray *E1_prime;
     MultiArray *E2_prime;
