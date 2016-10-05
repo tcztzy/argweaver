@@ -44,7 +44,7 @@ void rename_node(LocalTree *tree, int src_node, int dest_node)
 //   - New leaf will be named 'nleaves' (newleaf)
 //   - Node currently named 'nleaves' will be displaced to 'nnodes' (displaced)
 //   - New internal node will be named 'nnodes+1' (newcoal)
-//
+//v
 void add_tree_branch(LocalTree *tree, int node, int time, int pop_path)
 {
     // Ensure tree has capacity to add nodes.
@@ -1273,6 +1273,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     int node2 = state.node;
     int last_newcoal = last_nodes[last_subtree_root].parent;
     static int count=0;
+    bool fix_mapping=true;
     count++;
 
     // determine newcoal
@@ -1297,21 +1298,30 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     // however, if it equals newcoal, then either (1) the recomb branch is
     // renamed, (2) there is mediation, or (3) new branch escapes
     int recoal = nodes[mapping[spr->recomb_node]].parent;
-    if (recoal == newcoal) {
-        if (spr->recomb_node == spr->coal_node) {
+    if (spr->recomb_node == spr->coal_node) {
+        if (last_state.node == spr->recomb_node) {
             // (4) new branch breaks "bubble" recomb.
-            if (last_state.time > spr->recomb_time &&
-                last_state.time < spr->coal_time) {
+            if ((last_state.time > spr->recomb_time &&
+                 last_state.time < spr->coal_time) ||
+                (last_state.time == spr->recomb_time &&
+                 state.time == spr->coal_time)) {
                 assert(state.time == spr->coal_time);
-                spr->coal_node = recoal;
+                spr->coal_node = last_newcoal;
+                //                mapping[last_newcoal] = -1;
+                // COME BACK HERE!!!
             } else if (last_state.time <= spr->recomb_time) {
-                spr->recomb_node = recoal;
-                spr->coal_node = recoal;
+                spr->recomb_node = last_nodes[spr->recomb_node].parent;
+                spr->coal_node = spr->recomb_node;
+                fix_mapping=false;
             } else if (last_state.time == spr->coal_time) {
                 spr->coal_time = state.time;
                 spr->coal_node = last_tree->get_sibling(spr->recomb_node);
+                fix_mapping=false;
             }
-        } else if (mapping[last_state.node] == node2) {
+            //            fix_mapping=false;
+        }
+    } else if (recoal == newcoal) {
+        if (mapping[last_state.node] == node2) {
             // (1) recomb is above coal state, we rename spr recomb node
             spr->recomb_node = last_newcoal;
         } else {
@@ -1332,7 +1342,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
                 assert(spr->coal_time >= last_nodes[spr->coal_node].age);
             } else {
                 // (2) this is the new branch escaping
-                // no other updates are necessary
+                // no oUther updates are necessary
             }
         }
     } else {
@@ -1360,7 +1370,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
         if (spr->recomb_node != spr->coal_node) {
             mapping[last_newcoal] = -1;
             int p = last_nodes[last_newcoal].parent;
-            if (p != -1 && spr->coal_node != last_newcoal)
+            if (fix_mapping && p != -1 && spr->coal_node != last_newcoal)
                 mapping[p] = newcoal;
         }
     } else {
@@ -1737,19 +1747,23 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                                       spr->pop_path,
                                       spr->recomb_time,
                                       spr->coal_time)) {
-                assert(pop_tree->paths_equal(it2->tree->nodes[it2->mapping[spr->recomb_node]].pop_path,
+                /*                assert(pop_tree->paths_equal(it2->tree->nodes[it2->mapping[spr->recomb_node]].pop_path,
                                              tree->nodes[spr->recomb_node].pop_path,
                                              tree->nodes[spr->recomb_node].age,
                                              tree->nodes[spr->recomb_node].parent == -1 ? -1 :
-                                             tree->nodes[tree->nodes[spr->recomb_node].parent].age));
+                                             tree->nodes[tree->nodes[spr->recomb_node].parent].age));*/
                 int p = nodes[spr->recomb_node].parent;
                 assert(mapping[p] != -1 || p == tree->root);
                 for (int j=0; j < tree->nnodes; j++) {
-                    if (j != removal_node && j != tree->root)
+                    if (j != removal_node && j != tree->root) {
+                        int maxt = min(maxtime-2, tree->nodes[tree->nodes[j].parent].age);
+                        int parent2 = it2->tree->nodes[it2->mapping[j]].parent;
+                        if (parent2 != -1)
+                            maxt = min(maxt, it2->tree->nodes[parent2].age);
                         assert(pop_tree->paths_equal(tree->nodes[j].pop_path,
                                                      it2->tree->nodes[it2->mapping[j]].pop_path,
-                                                     tree->nodes[j].age,
-                                                     min(maxtime-2,tree->nodes[tree->nodes[j].parent].age)));
+                                                     tree->nodes[j].age, maxt));
+                    }
                     assert(mapping[j] != -1 || j== tree->root);
                 }
                 spr->set_null();
