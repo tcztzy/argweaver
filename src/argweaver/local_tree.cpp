@@ -1968,15 +1968,26 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                       spr->recomb_time,
                                       spr->coal_time));
         assert(spr->recomb_time != spr->coal_time);
-        assert(pop_tree->paths_equal(tree->nodes[spr->recomb_node].pop_path,
+        assert(pop_tree->paths_equal(tree->nodes[mapping[spr->recomb_node]].pop_path,
                                      spr->pop_path,
                                      spr->recomb_time,
                                      spr->coal_time));
         for (int i=0; i < last_tree->nnodes; i++) {
-            assert(last_tree->nodes[i].age == tree->nodes[i].age);
-            assert(last_tree->nodes[i].parent == tree->nodes[i].parent);
-            assert(last_tree->nodes[i].child[0] == tree->nodes[i].child[0]);
-            assert(last_tree->nodes[i].child[1] == tree->nodes[i].child[1]);
+            assert(mapping[i] >= 0 && mapping[i] < last_tree->nnodes);
+            assert(last_tree->nodes[i].age == tree->nodes[mapping[i]].age);
+            if (last_tree->nodes[i].parent == -1)
+                assert(tree->nodes[mapping[i]].parent == -1);
+            else assert(mapping[last_tree->nodes[i].parent] == tree->nodes[mapping[i]].parent);
+            if (last_tree->nodes[i].child[0] == -1) {
+                assert(last_tree->nodes[i].child[1] == -1);
+                assert(tree->nodes[mapping[i]].child[0] == -1);
+                assert(tree->nodes[mapping[i]].child[1] == -1);
+            } else {
+                assert((mapping[last_tree->nodes[i].child[0]] == tree->nodes[mapping[i]].child[0] &&
+                        mapping[last_tree->nodes[i].child[1]] == tree->nodes[mapping[i]].child[1]) ||
+                       (mapping[last_tree->nodes[i].child[1]] == tree->nodes[mapping[i]].child[0] &&
+                        mapping[last_tree->nodes[i].child[0]] == tree->nodes[mapping[i]].child[1]));
+            }
         }
         return true;
     }
@@ -2016,11 +2027,19 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                                  i2 == tree->root ? -1 :
                                                  nodes[nodes[i2].parent].age));
                 } else if (i != last_tree->nodes[last_tree->root].child[0]) {
+                    int maxt;
+                    if (i == last_tree->root && i2 == tree->root)
+                        maxt = -1;
+                    else if (i == last_tree->root)
+                        maxt = nodes[nodes[i2].parent].age;
+                    else if (i2 == tree->root)
+                        maxt = last_nodes[last_nodes[i].parent].age;
+                    else maxt = min(nodes[nodes[i2].parent].age,
+                                    last_nodes[last_nodes[i].parent].age);
                     assert(pop_tree->paths_equal(last_nodes[i].pop_path,
                                                  nodes[i2].pop_path,
                                                  last_nodes[i].age,
-                                                 i == last_tree->root ? -1 :
-                                                 last_nodes[last_nodes[i].parent].age ));
+                                                 maxt));
                 }
             }
         }

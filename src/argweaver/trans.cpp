@@ -213,6 +213,7 @@ double TransMatrix::self_recomb_prob(int a, int path_a,
         }
 
         prob = pathprob * D[a] * cterm * bterm * eterm;
+        assert(!isnan(prob));
     }
     double term2;
     if (d > a) {
@@ -225,6 +226,7 @@ double TransMatrix::self_recomb_prob(int a, int path_a,
             * F2_prime->get(path_d, path_a, d);
     }
     prob += D[a] * term2;
+    assert(!isnan(prob));
     return prob;
 }
 
@@ -398,11 +400,12 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                 + model->coal_time_steps[2*b] * nbranch_above;
             B0_prime->set(b == 0 ? 0 :
                           B0_prime->get(path, b-1), path, b);
-            B0_prime->addVal(total_blen_b / (double)nrecomb *
-                             exp(C0_prime->get(path, 2*b-1))
-                             / curr_path_prob,
-                             path, b);
-            G0_prime->set(total_blen_b / (double)nrecomb,
+            if (total_blen_b > 0.0)
+                B0_prime->addVal(total_blen_b / (double)nrecomb *
+                                 exp(C0_prime->get(path, 2*b-1))
+                                 / curr_path_prob,
+                                 path, b);
+            G0_prime->set(total_blen_b == 0.0 ? 0 : total_blen_b / (double)nrecomb,
                           path, b);
 
             for (int path2=0; path2 < num_paths; path2++) {
@@ -459,20 +462,21 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                 // B1 is not a sum since it applies to case where previous
                 // branch coalesces at time b and not to consecutive intervals
                 // of times
-                B1_prime->set(blen1 / (double)nrecomb1
+                B1_prime->set(blen1 == 0.0 ? 0 : blen1 / (double)nrecomb1
                               * exp(C1_prime->get(path, path2, 2*b-1))
                               / curr_path_prob,
                               path, path2, b);
                 B2_prime->set(b == 0 ? 0 :
                               B2_prime->get(path, path2, b-1),
                               path, path2, b);
-                B2_prime->addVal( blen2 / (double)nrecomb2
-                                 * exp(C1_prime->get(path, path2, 2*b-1))
-                                 / curr_path_prob,
-                                 path, path2, b);
-                G1_prime->set(blen1 / (double)nrecomb1,
+                if (blen2 > 0)
+                    B2_prime->addVal( blen2 / (double)nrecomb2
+                                      * exp(C1_prime->get(path, path2, 2*b-1))
+                                      / curr_path_prob,
+                                      path, path2, b);
+                G1_prime->set(blen1 == 0.0 ? 0 : blen1 / (double)nrecomb1,
                               path, path2, b);
-                G2_prime->set(blen2 / (double)nrecomb2,
+                G2_prime->set(blen2 == 0.0 ? 0 : blen2 / (double)nrecomb2,
                               path, path2, b);
             }
         }
@@ -928,6 +932,8 @@ void get_deterministic_transitions(
                 }
                 next_states[i] = state2_lookup.lookup(node1, spr.coal_time, path1);
             }
+        } else if (node1 != spr.recomb_node && spr.recomb_node == spr.coal_node) {
+            next_states[i] = state2_lookup.lookup(mapping[node1], time1, path1);
         } else if (node1 != spr.recomb_node) {
             // SPR only removes a subset of descendents, if any
             // trace up from remaining leaf to find correct new state
@@ -945,11 +951,11 @@ void get_deterministic_transitions(
                 const int child1 = node->child[0];
                 const int child2 = node->child[1];
 
-                if (spr.recomb_node == child1) {
+                if (spr.recomb_node == child1 && spr.coal_node != spr.recomb_node) {
                     // right child is not disrupted
                     node2 = mapping[child2];
                     disrupt = true;
-                } else if (spr.recomb_node == child2) {
+                } else if (spr.recomb_node == child2 && spr.coal_node != spr.recomb_node) {
                     // left child is not disrupted
                     node2 = mapping[child1];
                     disrupt = true;
@@ -1115,8 +1121,11 @@ void get_recomb_transition_switch(const ArgModel *model,
     int other = last_tree->get_sibling(spr.recomb_node);
 
     // find new state in tree
-    node2 = (other == spr.coal_node ?
-             nodes[mapping[other]].parent : mapping[other]);
+    if (spr.coal_node == spr.recomb_node) {
+        node2 = mapping[spr.coal_node];
+        time2 = spr.coal_time;
+    } else node2 = (other == spr.coal_node ?
+                    nodes[mapping[other]].parent : mapping[other]);
 
     // stay case
     next_states[0] = state2_lookup.lookup(mapping[spr.recomb_node],
@@ -1734,7 +1743,8 @@ void calc_transition_probs_switch(
 
                 bool possible=false;
                 if (time2 == time1 &&
-                    (node2 == node3 || node2 == parent) &&
+                    (node2 == node3 ||
+                     (spr.recomb_node != spr.coal_node && node2 == parent)) &&
                     model->paths_equal(states2[j].pop_path,
                                        states1[i].pop_path,
                                        max(minage1, minage2), time1)) {
