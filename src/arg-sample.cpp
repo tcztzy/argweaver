@@ -429,6 +429,7 @@ public:
     string unphased_file;
     double randomize_phase;
     int sample_phase;
+    bool all_masked;
 
     // help/information
     bool quiet;
@@ -707,6 +708,7 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
                  const TrackNullValue *maskmap_uncompressed,
                  double num_invisible_recombs)
 {
+
     // calculate number of recombinations
     int nrecombs = trees->get_num_trees() - 1;
 
@@ -729,9 +731,10 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     }
 
     double prior = calc_arg_prior(model, trees);
-    double likelihood = calc_arg_likelihood(model, sequences, trees,
-                                            sites_mapping,
-                                            maskmap_uncompressed);
+    double likelihood = config->all_masked ? 0.0 :
+        calc_arg_likelihood(model, sequences, trees,
+                            sites_mapping,
+                            maskmap_uncompressed);
     double joint = prior + likelihood;
     double arglen = get_arglen(trees, model->times);
 
@@ -1560,6 +1563,7 @@ int main(int argc, char **argv)
         }
         maskmap_orig = maskmap;
     }
+    c.all_masked=false;
 
     // compress sequences
     if (sites.get_num_sites() > 0) {
@@ -1597,6 +1601,8 @@ int main(int argc, char **argv)
         delete [] masked;
         printLog(LOG_LOW, "masked %d (%.1f%%) sites\n", nmasked,
                  100.0 * nmasked / double(sequences.length()));
+        if (nmasked == (int)sequences.length())
+            c.all_masked=true;
     }
 
 
