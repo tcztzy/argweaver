@@ -52,6 +52,7 @@ double recomb_prob_smcPrime_unnormalized_fullTree(const ArgModel *model,
     if (recomb_time > 0)
         blen_below = model->coal_time_steps[2*recomb_time-1]
             * lineages.nbranches_pop[recomb_pop][2*recomb_time-1];
+    if (blen_above + blen_below == 0.0) return 0.0;
     return (blen_above + blen_below)/(double)nrecomb
         * model->path_prob(recomb_path, recomb_time, coal_time)
         * exp(-nocoal_rate) * (1.0 - exp(-coal_rate))
@@ -386,6 +387,7 @@ void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
         assert(total_prob >= 0.0 && total_prob <= 1.0);
         for (int i=start; i < end - 1; i++) {
             int next_recomb = min( i + int(expovariate(total_prob)), end);
+            if (next_recomb < i) next_recomb=end;  //underflow due to total_prob very small
             if (next_recomb < end - 1) {
                 double r = frand(total_prob);
                 total_prob = 0.0;
