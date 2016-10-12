@@ -115,8 +115,8 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
             for ( ; time <= max_time; time++)
                 states.push_back(State(i, time));
         } else {
-            int target_path = nodes[i].pop_path;
             for ( ; time <= max_time; time++) {
+                int target_path = pop_tree->path_to_root(nodes, i, time);
                 int end_pop = pop_tree->path_pop(target_path, time);
                 // loop over all unique paths
                 for (int p=0;
@@ -131,8 +131,8 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                         // use a path that is consistent with the branch
                         // we are coalescing to
                         int path =
-                            pop_tree->consistent_path(path1, nodes[i].pop_path,
-                                                      minage, time, max_time);
+                            pop_tree->consistent_path(path1, target_path,
+                                                      minage, time, -1);
                         states.push_back(State(i, time, path));
                     }
                 }
@@ -235,14 +235,9 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                 states.push_back(State(i, time));
             }
         } else {
-            int target_path = nodes[i].pop_path;
-
             assert(time <= nodes[tree->root].age);
             for (; time<=max_time; time++) {
-                if (time == nodes[tree->root].age && parent == tree->root) {
-                    // if we are on supertree root switch to root path
-                    target_path = nodes[tree->root].pop_path;
-                }
+                int target_path = pop_tree->path_to_root(nodes, i, time);
                 int end_pop = pop_tree->path_pop(target_path, time);
                 // loop over all unique paths
                 for (int p=0;
@@ -258,7 +253,7 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                         // we are coalescing to
                         int path =
                             pop_tree->consistent_path(path1, nodes[i].pop_path,
-                                                      minage, time, max_time);
+                                                      minage, time, -1);
                         states.push_back(State(i, time, path));
                     }
                 }

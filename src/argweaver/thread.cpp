@@ -1709,6 +1709,11 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                         spr->set_null();
                     } else {
                         spr->coal_node = spr->recomb_node;
+                        spr->pop_path = pop_tree->consistent_path(spr->pop_path,
+                                                                  tree->nodes[removal_node].pop_path,
+                                                                  spr->recomb_time,
+                                                                  spr->coal_time,
+                                                                  -1);
                         spr->coal_time = coal_time;
                     }
                 } else {

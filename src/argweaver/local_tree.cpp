@@ -316,8 +316,7 @@ void apply_spr(LocalTree *tree, const Spr &spr,
         tree->nodes[spr.recomb_node].pop_path =
             pop_tree->consistent_path(path3, path1,
                                       tree->nodes[spr.recomb_node].age,
-                                      spr.coal_time,
-                                      tree->nodes[tree->nodes[spr.recomb_node].parent].age);
+                                      spr.coal_time, -1);
         return;
     }
 
@@ -329,15 +328,6 @@ void apply_spr(LocalTree *tree, const Spr &spr,
     int other = (c[0] == spr.recomb_node ? 1 : 0);
     int recomb_sib = c[other];
     int broke_parent =  nodes[recoal].parent;
-
-    if (pop_tree != NULL) {
-        nodes[recomb_sib].pop_path =
-            pop_tree->consistent_path(nodes[recomb_sib].pop_path,
-                                      nodes[recoal].pop_path,
-                                      nodes[recomb_sib].age, nodes[recoal].age,
-                                      ( broke_parent == -1 ? -1 :
-                                        nodes[broke_parent].age));
-    }
 
     // fix recomb sib pointer
     nodes[recomb_sib].parent = broke_parent;
@@ -377,12 +367,14 @@ void apply_spr(LocalTree *tree, const Spr &spr,
         }
     }
     if (pop_tree != NULL) {
+        int path1 = pop_tree->consistent_path(nodes[spr.recomb_node].pop_path,
+                                              spr.pop_path,
+                                              nodes[spr.recomb_node].age,
+                                              spr.recomb_time,
+                                              spr.coal_time);
         nodes[spr.recomb_node].pop_path =
-            pop_tree->consistent_path(nodes[spr.recomb_node].pop_path,
-                                      spr.pop_path,
-                                      nodes[spr.recomb_node].age,
-                                      spr.recomb_time,
-                                      spr.coal_time);
+            pop_tree->consistent_path(path1, nodes[spr.coal_node].pop_path,
+                                      nodes[spr.recomb_node].age, spr.coal_time, -1);
     }
     nodes[recoal].age = spr.coal_time;
 
@@ -1972,12 +1964,34 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                      spr->pop_path,
                                      spr->recomb_time,
                                      spr->coal_time));
+        assert(tree->nodes[mapping[spr->recomb_node]].age ==
+               last_tree->nodes[spr->recomb_node].age);
         for (int i=0; i < last_tree->nnodes; i++) {
             assert(mapping[i] >= 0 && mapping[i] < last_tree->nnodes);
+            int last_parent = last_tree->nodes[i].parent;
+            int parent = tree->nodes[mapping[i]].parent;
             assert(last_tree->nodes[i].age == tree->nodes[mapping[i]].age);
-            if (last_tree->nodes[i].parent == -1)
-                assert(tree->nodes[mapping[i]].parent == -1);
-            else assert(mapping[last_tree->nodes[i].parent] == tree->nodes[mapping[i]].parent);
+            if (last_parent == -1)
+                assert(parent == -1);
+            else
+                assert(mapping[last_parent] == parent);
+            if (i == spr->recomb_node) {
+                assert(pop_tree->paths_equal(last_tree->nodes[i].pop_path,
+                                             tree->nodes[mapping[i]].pop_path,
+                                             last_tree->nodes[i].age,
+                                             spr->recomb_time));
+                assert(pop_tree->paths_equal(last_tree->nodes[i].pop_path,
+                                             tree->nodes[mapping[i]].pop_path,
+                                             spr->coal_time, -1));
+            } else {
+                assert(i == last_tree->nodes[last_tree->root].child[0] ||
+                       pop_tree->paths_equal(last_tree->nodes[i].pop_path,
+                                             tree->nodes[mapping[i]].pop_path,
+                                             tree->nodes[mapping[i]].age,
+                                             parent == -1 ? -1 :
+                                             min(last_tree->nodes[last_parent].age,
+                                                 tree->nodes[parent].age)));
+            }
             if (last_tree->nodes[i].child[0] == -1) {
                 assert(last_tree->nodes[i].child[1] == -1);
                 assert(tree->nodes[mapping[i]].child[0] == -1);
@@ -2027,19 +2041,12 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                                  i2 == tree->root ? -1 :
                                                  nodes[nodes[i2].parent].age));
                 } else if (i != last_tree->nodes[last_tree->root].child[0]) {
-                    int maxt;
-                    if (i == last_tree->root && i2 == tree->root)
-                        maxt = -1;
-                    else if (i == last_tree->root)
-                        maxt = nodes[nodes[i2].parent].age;
-                    else if (i2 == tree->root)
-                        maxt = last_nodes[last_nodes[i].parent].age;
-                    else maxt = min(nodes[nodes[i2].parent].age,
-                                    last_nodes[last_nodes[i].parent].age);
+                    assert(last_nodes[i].age == nodes[i2].age);
                     assert(pop_tree->paths_equal(last_nodes[i].pop_path,
                                                  nodes[i2].pop_path,
                                                  last_nodes[i].age,
-                                                 maxt));
+                                                 i2 == tree->root ? -1 :
+                                                 nodes[nodes[i2].parent].age));
                 }
             }
         }
