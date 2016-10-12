@@ -1080,6 +1080,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
     vector<int> invisible_recomb_pos;
     vector<Spr> invisible_recombs;
+    assert_trees(trees, model->pop_tree);
 
     // set iteration counter
     int iter = 1;
