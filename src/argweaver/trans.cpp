@@ -922,14 +922,14 @@ void get_deterministic_transitions(
             // "bubble" recomb; tree topology does not change but pop path of
             // recomb branch may
             if (time1 < spr.recomb_time || time1 > spr.coal_time) {
-                next_states[i] = state2_lookup.lookup(node1, time1, path1);
+                next_states[i] = state2_lookup.lookup(mapping[node1], time1, path1);
             } else {
                 if (model->pop_tree != NULL) {
                     // this should be true because state paths are meant to be consistent with node that
                     // they coalesce to
                     assert(model->paths_equal(path1, last_tree->nodes[node1].pop_path, time1, spr.coal_time));
                 }
-                next_states[i] = state2_lookup.lookup(node1, spr.coal_time, path1);
+                next_states[i] = state2_lookup.lookup(mapping[node1], spr.coal_time, path1);
             }
         } else if (node1 != spr.recomb_node && spr.recomb_node == spr.coal_node) {
             next_states[i] = state2_lookup.lookup(mapping[node1], time1, path1);
