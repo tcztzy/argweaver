@@ -97,16 +97,16 @@ PopulationTree::~PopulationTree() {
             }
             delete [] sub_paths[i];
         }
-        delete sub_paths;
+        delete [] sub_paths;
     }
     if (max_matching_path_arr != NULL) {
         for (unsigned int i=0; i < all_paths.size(); i++) {
             for (unsigned int j=0; j < all_paths.size(); j++) {
-                delete max_matching_path_arr[i][j];
+                delete [] max_matching_path_arr[i][j];
             }
-            delete max_matching_path_arr[i];
+            delete [] max_matching_path_arr[i];
         }
-        delete max_matching_path_arr;
+        delete [] max_matching_path_arr;
     }
 }
 
@@ -351,13 +351,12 @@ int PopulationTree::consistent_path(int path1, int path2,
             exitError("No consistent path found\n");
         return -1;
     }
-    SubPath possible_paths;
-    possible_paths = sub_paths[t1][t2][p1][p2];
-    for (unsigned int i=0; i < possible_paths.size(); i++) {
-        int path = possible_paths.first_path(i);
+    SubPath *possible_paths = &sub_paths[t1][t2][p1][p2];
+    for (unsigned int i=0; i < possible_paths->size(); i++) {
+        int path = possible_paths->first_path(i);
         if (paths_equal(path, path1, t1, t2)) {
-            UniquePath u = possible_paths.unique_subs[i];
-            for (set<int>::iterator it=u.path.begin(); it != u.path.end(); it++) {
+            UniquePath *u = &possible_paths->unique_subs[i];
+            for (set<int>::iterator it=u->path.begin(); it != u->path.end(); it++) {
                 path = *it;
                 assert(paths_equal(path, path1, t1, t2));
                 if (paths_equal(path, path2, t2, t3))
