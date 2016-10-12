@@ -34,7 +34,6 @@ void TransMatrix::initialize(const ArgModel *model, int nstates)
         F0_prime = new MultiArray(2, npaths, ntimes);
         F1_prime = new MultiArray(3, npaths, npaths, ntimes);
         F2_prime = new MultiArray(3, npaths, npaths, ntimes);
-        F2_prime = new MultiArray(3, npaths, npaths, ntimes);
         C0_prime = new MultiArray(2, npaths, 2*ntimes);
         Q0_prime = new MultiArray(2, npaths, 2*ntimes);
         G0_prime = new MultiArray(2, npaths, ntimes);
