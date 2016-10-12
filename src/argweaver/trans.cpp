@@ -385,7 +385,7 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
             int nbranch_above=0, nbranch_below=0;
             if (b < root_age_index) {
                 if (b > 0) nbranch_below = nbranches_pop[pop][2*b-1];
-                nbranch_above = nbranches_pop[pop][2*b-1];
+                nbranch_above = nbranches_pop[pop][2*b];
             } else if (b == root_age_index) {
                 if (b > 0) nbranch_below = nbranches_pop[pop][2*b-1];
                 nbranch_above = 0;
