@@ -1707,15 +1707,13 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
                 mapping = new int [nnodes];
                 for (int i=0; i<nnodes; i++)
                     mapping[i] = i;
-                mapping[last_tree->nodes[spr.recomb_node].parent] = -1;
+                if (spr.recomb_node != spr.coal_node)
+                    mapping[last_tree->nodes[spr.recomb_node].parent] = -1;
             }
 
             // convert start to 0-index
             int blocklen = end - start + 1;
             trees->trees.push_back(LocalTreeSpr(tree, spr, blocklen, mapping));
-
-            if (last_tree)
-                assert_spr(last_tree, tree, &spr, mapping);
 
             last_tree = tree;
         } else if (strncmp(line, "SPR-INVIS", 9) == 0) {
