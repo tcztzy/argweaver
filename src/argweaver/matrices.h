@@ -53,7 +53,9 @@ public:
     {}
 
     ~ArgHmmMatrices()
-    {}
+    {
+        clear();
+    }
 
     // delete all matrices
     void clear()
