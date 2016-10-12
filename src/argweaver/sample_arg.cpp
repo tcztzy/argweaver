@@ -48,6 +48,7 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
                          model->pop_tree->most_likely_path(sequences->pops[seqids[0]]) );
         trees->make_trunk(start, end, seqids[0], pop_path, capacity);
     }
+    assert_trees(trees, model->pop_tree);
 
     // record which sequences are already in the tree
     bool has_sequence[nseqs];
@@ -63,6 +64,7 @@ void sample_arg_seq(const ArgModel *model, Sequences *sequences,
                      trees->get_num_leaves() + 1, nseqs,
                      sequences->names[new_chrom].c_str());
             sample_arg_thread(model, sequences, trees, new_chrom);
+            assert_trees(trees, model->pop_tree);
             printLog(LOG_LOW, "\n");
 	    for (int buildup=1; buildup < num_buildup; buildup++) {
 		printLog(LOG_LOW, "buildup rep %d of %d\n", buildup, num_buildup);
@@ -139,6 +141,7 @@ void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
 {
     const int maxtime = model->get_removed_root_time();
     int *removal_path = new int [trees->get_num_trees()];
+    assert_trees(trees, model->pop_tree);
 
     sample_arg_removal_leaf_path(trees, node, removal_path);
 
@@ -159,6 +162,7 @@ void resample_arg_random_leaf(const ArgModel *model, Sequences *sequences,
 			      LocalTrees *trees)
 {
     int node = irand(trees->get_num_leaves());
+    assert_trees(trees, model->pop_tree);
     resample_arg_leaf(model, sequences, trees, node);
 }
 

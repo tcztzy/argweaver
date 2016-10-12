@@ -1752,8 +1752,6 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
         trees->set_default_seqids();
     }
 
-    assert_trees(trees);
-
     return true;
 }
 
@@ -1871,7 +1869,8 @@ bool assert_tree_postorder(const LocalTree *tree, const int *order)
 
 
 // Asserts structure of tree
-bool assert_tree(const LocalTree *tree)
+bool assert_tree(const LocalTree *tree,
+                 const PopulationTree *pop_tree)
 {
     LocalNode *nodes = tree->nodes;
     int nnodes = tree->nnodes;
@@ -1900,6 +1899,12 @@ bool assert_tree(const LocalTree *tree)
         } else {
             if (nodes[i].parent < 0 || nodes[i].parent >= nnodes)
                 return false;
+        }
+
+        if (pop_tree != NULL && nodes[i].parent != -1) {
+            assert(pop_tree->paths_equal(nodes[i].pop_path,
+                                         nodes[nodes[i].parent].pop_path,
+                                         nodes[nodes[i].parent].age, -1));
         }
     }
 
@@ -2087,7 +2092,7 @@ bool assert_trees(const LocalTrees *trees, const PopulationTree *pop_tree)
         seqlen += it->blocklen;
 
         assert(it->blocklen >= 0);
-        assert(assert_tree(tree));
+        assert(assert_tree(tree, pop_tree));
 
         if (last_tree) {
             if (spr->is_null()) {
@@ -2096,9 +2101,36 @@ bool assert_trees(const LocalTrees *trees, const PopulationTree *pop_tree)
                 fill(mapped, mapped + tree->nnodes, false);
 
                 for (int i=0; i<tree->nnodes; i++) {
-                    assert(mapping[i] != -1);
-                    assert(!mapped[mapping[i]]);
-                    mapped[mapping[i]] = true;
+                    int i2 = mapping[i];
+                    assert(i2 != -1);
+                    assert(!mapped[i2]);
+                    mapped[i2] = true;
+                    assert((last_tree->nodes[i].parent == -1 &&
+                            tree->nodes[i2].parent == -1) ||
+                           (mapping[last_tree->nodes[i].parent] ==
+                            tree->nodes[i2].parent));
+                    if (last_tree->nodes[i].child[0] == -1) {
+                        assert(last_tree->nodes[i].child[1] == -1);
+                        assert(tree->nodes[i2].child[0] == -1);
+                        assert(tree->nodes[i2].child[1] == -1);
+                    } else {
+                        assert((mapping[last_tree->nodes[i].child[0]] ==
+                                tree->nodes[i2].child[0] &&
+                                mapping[last_tree->nodes[i].child[1]] ==
+                                tree->nodes[i2].child[1]) ||
+                               (mapping[last_tree->nodes[i].child[0]] ==
+                                tree->nodes[i2].child[1] &&
+                                mapping[last_tree->nodes[i].child[1]] ==
+                                tree->nodes[i2].child[0]));
+                    }
+                    assert(last_tree->nodes[i].age ==
+                           tree->nodes[i2].age);
+                    assert(i == last_tree->nodes[last_tree->root].child[0] ||
+                           pop_tree->paths_equal(last_tree->nodes[i].pop_path,
+                                                 tree->nodes[i2].pop_path,
+                                                 tree->nodes[i2].age,
+                                                 i2 == tree->root ? -1 :
+                                                 tree->nodes[tree->nodes[i2].parent].age));
                 }
 
             } else {

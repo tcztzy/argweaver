@@ -738,6 +738,8 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
     int *thread_path = &thread_path_alloc[-trees->start_coord];
     int start_pop = sequences->get_pop(new_chrom);
 
+    assert_trees(trees, model->pop_tree);
+
     // gives probability of current phasing for each heterozygous site;
     // will only be filled in if model->unphased==true
     PhaseProbs phase_pr(new_chrom, trees->get_num_leaves(),
@@ -777,12 +779,14 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
     vector<NodePointPath> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
                           thread_path, recomb_pos, recombs);
+    assert_trees(trees, model->pop_tree);
 
     // add thread to ARG
     //    matrix_iter.states_model.set_start_pop(start_pop);
     add_arg_thread(trees, matrix_iter.states_model,
                    model->ntimes, thread_path, new_chrom,
                    recomb_pos, recombs, model->pop_tree);
+    assert_trees(trees, model->pop_tree);
     printTimerLog(time, LOG_LOW,
                   "add thread:                         ");
 

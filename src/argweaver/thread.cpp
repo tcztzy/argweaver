@@ -316,6 +316,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
     State last_state;
     LocalTree *last_tree = NULL;
 
+    assert_trees(trees, pop_tree);
 
     // update trees info
     trees->seqids.push_back(seqid);
@@ -443,7 +444,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             last_state.node = displaced;
     }
 
-    assert_trees(trees);
+    assert_trees(trees, pop_tree);
 }
 
 
