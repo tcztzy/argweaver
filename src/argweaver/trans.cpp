@@ -1289,7 +1289,7 @@ double calc_recomb(
 // sums2[i] represents the probability of the broken branch not coalescing
 //   at (half-interval) time i within the spr path so that it can be added
 //   to the log probability of not coalescing with the rest of the tree in
-// cases where this extra branch exists and is in the same population path
+// cases where this extra branch exists and is in the same population
 // both sums only pertain to the population path taken by the Spr event
 void calc_recoal_sums(const ArgModel *model, const LineageCounts *lineages,
                       const Spr &spr, const int recomb_parent_age,
@@ -1406,11 +1406,11 @@ double calc_recoal(
     }
 
     // asserts
-    if (ncoals_j <= 0 || nbranches_j <= 0) {
+    if (ncoals_j <= 0) {
+        assert(false);
         return 0.0;
         printError("counts %d %d %e\n",
                    ncoals_j, nbranches_j, p);
-        assert(false);
     }
     assert(!isnan(p) && p>0);
     /*    printf("%i calc_recoal %e %i %i %i %i %i %i %i\n", function_count++, p, a, k, j,
@@ -1667,6 +1667,8 @@ void calc_transition_probs_switch(
                     recoals[recoal_pos] *
                     model->path_prob(spr.pop_path, spr.recomb_time,
                                      spr.coal_time);
+                assert(!isnan(transmat_switch->determprob[i]) &&
+                       transmat_switch->determprob[i] > 0);
                 /*                printf("d2: %i %i %e %e %i %i %i\n",
                        i, j, -sums, -sums2[max(min(2*spr.coal_time-1, 2*states1[i].time),
                                                2*spr.recomb_time)],
