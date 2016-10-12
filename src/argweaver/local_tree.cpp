@@ -1792,13 +1792,17 @@ void print_local_tree(const LocalTree *tree, FILE *out)
 }
 
 
+
+
 // dump raw information about a local tree
 void draw_local_tree(const LocalTree *tree, FILE *out, int depth, int inode)
 {
     const LocalNode &node = tree->nodes[inode];
+    depth = tree->nodes[tree->root].age - tree->nodes[inode].age;
     for (int i=0; i<depth; i++)
         fprintf(out, " ");
-    fprintf(out, "%d: age=%d\n", inode, node.age);
+    fprintf(out, "%d: age=%i\t(%i)%s", inode, node.age, node.pop_path,
+            node.is_leaf() ? " (leaf)\n" : "\n");
 
     // recurse
     if (!node.is_leaf()) {
