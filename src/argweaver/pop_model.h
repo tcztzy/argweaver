@@ -145,6 +145,11 @@ class SubPath {
         path_map = NULL;
         unique_subs.clear();
     }
+    ~SubPath() {
+        if (path_map != NULL) {
+            delete [] path_map;
+        }
+    }
     void set_size(unsigned int max_paths) {
         path_map = new int[max_paths];
         for (unsigned int i=0; i < max_paths; i++)
