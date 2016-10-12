@@ -47,6 +47,16 @@ public:
             recomb_node(recomb_node), recomb_time(recomb_time),
             coal_node(coal_node), coal_time(coal_time),
             pop_path(pop_path) {}
+    Spr(const Spr &other) {
+        copy(other);
+    }
+    void copy(const Spr &other) {
+        recomb_node = other.recomb_node;
+        recomb_time = other.recomb_time;
+        coal_node = other.coal_node;
+        coal_time = other.coal_time;
+        pop_path = other.pop_path;
+    }
 
     // sets the SPR to a null value
     void set_null()
