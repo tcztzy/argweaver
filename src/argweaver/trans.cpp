@@ -365,7 +365,7 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
             treelen2 += times[b] - root_age;
         }
         norecombs[b] = exp(-max(rho * treelen2, rho));
-        D[b] = treelen2 == 0 ? 0.0 : (1.0 - exp( -rho * treelen2)) / treelen2;
+        D[b] = ( treelen2 == 0 ? 0.0 : (1.0 - exp( -rho * treelen2)) / treelen2 );
     }
 
     for (int path=0; path < num_paths; path++) {
@@ -375,11 +375,16 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
             path_prob[path][b] = curr_path_prob;
             int pop = model->get_pop(path, b);
             int ncoal = ncoals_pop[pop][b];
-            E0_prime->set( (1.0 - exp(-Q0_prime->get(path, 2*b)
-                                      -Q0_prime->get(path, 2*b-1)))
-                           / (double)ncoal, path, b);
-            F0_prime->set( (1.0 - exp(-Q0_prime->get(path, 2*b)))
-                           / (double)ncoal, path, b);
+            if (b >= ntimes - 2) {
+                E0_prime->set(1.0/(double)ncoal, path, b);
+                F0_prime->set(1.0/(double)ncoal, path, b);
+            } else {
+                E0_prime->set((1.0 - exp(-Q0_prime->get(path, 2*b)
+                                         -Q0_prime->get(path, 2*b-1)))
+                              / (double)ncoal, path, b);
+                F0_prime->set((1.0 - exp(-Q0_prime->get(path, 2*b)))
+                              / (double)ncoal, path, b);
+            }
 
             int nrecomb = ncoals_pop[pop][b];
             int nbranch_above=0, nbranch_below=0;
@@ -416,18 +421,25 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                     ncoal1 += 2;
                     ncoal2 += 1;
                 }
-                E1_prime->set(( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
-                                          -Q0_prime->get(path, 2*b)))
-                              / ((double)ncoal1), path, path2, b);
-                E2_prime->set(
-                    ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
-                                -Q1_prime->get(path, path2, 2*b)))
-                    / ((double)ncoal2), path, path2, b);
-                F1_prime->set(( 1.0 - exp(-Q0_prime->get(path, 2*b) ))
-                              / ((double)ncoal1), path, path2, b);
-                F2_prime->set(
-                    ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b)))
-                    / ((double)ncoal2), path, path2, b);
+                if (b >= ntimes - 2) {
+                    E1_prime->set(1.0/(double)ncoal1, path, path2, b);
+                    E2_prime->set(1.0/(double)ncoal2, path, path2, b);
+                    F1_prime->set(1.0/(double)ncoal1, path, path2, b);
+                    F2_prime->set(1.0/(double)ncoal2, path, path2, b);
+                } else {
+                    E1_prime->set(( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
+                                              -Q0_prime->get(path, 2*b)))
+                                  / ((double)ncoal1), path, path2, b);
+                    E2_prime->set(
+                                  ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
+                                              -Q1_prime->get(path, path2, 2*b)))
+                                  / ((double)ncoal2), path, path2, b);
+                    F1_prime->set(( 1.0 - exp(-Q0_prime->get(path, 2*b) ))
+                                  / ((double)ncoal1), path, path2, b);
+                    F2_prime->set(
+                                  ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b)))
+                                  / ((double)ncoal2), path, path2, b);
+                }
                 int nrecomb1 = ncoals_pop[pop][b];
                 int nrecomb2 = nrecomb1;
                 int nbranch_below1, nbranch_below2;
