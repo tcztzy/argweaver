@@ -235,6 +235,9 @@ public:
                     "return the requested quantiles for each samples"));
 
         config.add(new ConfigParamComment("Misceallaneous"));
+        config.add(new ConfigParam<int>
+                   ("-u", "--burnin", "<num>", &burnin, 0,
+                    "Discard results from iterations < burnin before computing statistics"));
         config.add(new ConfigSwitch
                    ("-n", "--no-header", &noheader, "Do not output header"));
         config.add(new ConfigParam<string>
@@ -301,6 +304,7 @@ public:
     bool stdev;
     string quantile;
 
+    int burnin;
     bool noheader;
     string tabix_dir;
     bool quiet;
@@ -946,7 +950,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                         chrom, &start, &end, &sample)) return 0;
         assert('\t' == fgetc(infile.stream));
         newick = fgetline(infile.stream);
-        if (config->sample_num == 0 || config->sample_num == sample) break;
+        if (sample >= config->burnin && (config->sample_num == 0 || config->sample_num == sample)) break;
         delete [] newick;
     }
     chomp(newick);
@@ -1001,7 +1005,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                     delete [] newick;
                     newick = fgetline(infile.stream);
                     chomp(newick);
-                    if (config->sample_num == 0 || config->sample_num==sample)
+                    if (sample >= config->burnin && (config->sample_num == 0 || config->sample_num==sample))
                        break;
                 }
             }
@@ -1237,6 +1241,10 @@ int summarizeRegionNoSnp(Config *config, const char *region,
             continue;
         }
         chomp(newick);
+        if (sample < config->burnin) {
+            delete [] newick;
+            continue;
+        }
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
             trees[sample] = new SprPruned(newick, inds, data.times);
