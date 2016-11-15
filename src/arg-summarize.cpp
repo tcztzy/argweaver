@@ -165,6 +165,9 @@ public:
                     "return the requested quantiles for each samples"));
 
         config.add(new ConfigParamComment("Misceallaneous"));
+        config.add(new ConfigParam<int>
+                   ("-u", "--burnin", "<num>", &burnin, 0,
+                    "Discard results from iterations < burnin before computing statistics"));
         config.add(new ConfigSwitch
                    ("-n", "--no-header", &noheader, "Do not output header"));
         config.add(new ConfigParam<string>
@@ -220,6 +223,7 @@ public:
     bool stdev;
     string quantile;
 
+    int burnin;
     bool noheader;
     string tabix_dir;
     bool version;
@@ -668,10 +672,16 @@ int summarizeRegionBySnp(Config *config, const char *region,
         }
     }
     SnpStream snpStream = SnpStream(&snp_infile);
-    if (EOF==fscanf(infile.stream, "%s %i %i %i",
-                    chrom, &start, &end, &sample)) return 0;
-    assert('\t' == fgetc(infile.stream));
-    char *newick = fgetline(infile.stream);
+    char *newick;
+    while (1) {
+        if (EOF==fscanf(infile.stream, "%s %i %i %i",
+                        chrom, &start, &end, &sample)) return 0;
+        assert('\t' == fgetc(infile.stream));
+        newick = fgetline(infile.stream);
+        if (sample < config->burnin) {
+            delete [] newick;
+        } else break;
+    }
     chomp(newick);
 
     while (1) {
@@ -714,14 +724,18 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 snpStream.scoreAlleleAge(l, statname, times);
                 bedlist.push_back(l);
             }
-            if (4 != fscanf(infile.stream, "%s %i %i %i",
-                            chrom, &start, &end, &sample))
-                start = -1;
-            else {
-                assert('\t' == fgetc(infile.stream));
-                delete [] newick;
-                newick = fgetline(infile.stream);
-                chomp(newick);
+            while (1) {
+                if (4 != fscanf(infile.stream, "%s %i %i %i",
+                                chrom, &start, &end, &sample)) {
+                    start = -1;
+                    break;
+                } else {
+                    assert('\t' == fgetc(infile.stream));
+                    delete [] newick;
+                    newick = fgetline(infile.stream);
+                    chomp(newick);
+                    if (sample >= config->burnin) break;
+                }
             }
         }
         if (bedlist.size() > 0) {
@@ -922,6 +936,10 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         assert('\t'==fgetc(infile->stream));
         char* newick = fgetline(infile->stream);
         chomp(newick);
+        if (sample < config->burnin) {
+            delete [] newick;
+            continue;
+        }
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
             trees[sample] = new SprPruned(newick, inds, times);
@@ -1091,7 +1109,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	    }
 	    statname.push_back(string("ind_dist-") + tokens2[0]
-			       + string(",") + tokens2[1] + 
+			       + string(",") + tokens2[1] +
 			       string("-min"));
 	    statname.push_back(string("ind_dist-") + tokens2[0]
 			       + string(",") + tokens2[1] +
