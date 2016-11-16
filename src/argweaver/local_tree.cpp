@@ -503,7 +503,6 @@ bool remove_null_spr(LocalTrees *trees, LocalTrees::iterator it,
     int nnodes = it2->tree->nnodes;
 
     int subtree_root = it->tree->nodes[it->tree->root].child[0];
-    assert(it2->tree->nodes[it2->tree->root].child[0] == subtree_root);
     for (int i=0; i < it2->tree->nnodes; i++) {
         assert(it->tree->nodes[i].age == it2->tree->nodes[it2->mapping[i]].age);
         if (i != it->tree->root) {
