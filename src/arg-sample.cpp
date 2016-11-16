@@ -1099,9 +1099,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
              config->niters);
     printLog(LOG_LOW, "--------------------------------------\n");
 
-    // TODO: fix back!
-    //    double frac_leaf = 0.5;
-    double frac_leaf = 1.0;
+    double frac_leaf = 0.5;
     for (int i=0; i <= config->niters; i++) do_leaf[i] = (frand() < frac_leaf);
 
 #ifdef ARGWEAVER_MPI
