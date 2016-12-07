@@ -194,11 +194,19 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     const LocalNode *nodes = tree->nodes;
     const LocalNode *last_nodes = last_tree->nodes;
 
+#ifdef DEBUG
+    const LocalTree orig_tree(*tree);
+    const LocalTree orig_last_tree(*last_tree);
+    const State orig_state(state);
+    const State orig_last_state(last_state);
+    const Spr orig_spr(*spr);
+    static int count=0;
+    count++;
+#endif
+
     // determine node displacement
     int last_node2 = (last_state.node != newleaf ? last_state.node : displaced);
     int node2 = (state.node != newleaf ? state.node : displaced);
-    static int count=0;
-    count++;
 
     // update mapping due to displacement
     mapping[displaced] = mapping[newleaf];
@@ -315,6 +323,9 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
     States states;
     State last_state;
     LocalTree *last_tree = NULL;
+#ifdef DEBUG
+    static int count=0;
+#endif
 
     assert_trees(trees, pop_tree, true);
 
@@ -326,6 +337,9 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
     // loop through blocks
     int end = trees->start_coord;
     for (LocalTrees::iterator it=trees->begin(); it != trees->end(); ++it) {
+#ifdef DEBUG
+        count++;
+#endif
         LocalTree *tree = it->tree;
         //Spr *spr = &(it->spr);
         int start = end;
@@ -1277,6 +1291,13 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     bool fix_mapping=true;
     count++;
 
+#ifdef DEBUG
+    Spr orig_spr(*spr);
+    int orig_mapping[tree->nnodes];
+    for (int i=0; i < tree->nnodes; i++)
+        orig_mapping[i] = mapping[i];
+#endif
+
     // determine newcoal
     int newcoal;
     if (state.node != -1) {
@@ -1404,8 +1425,12 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
     int last_subtree_root = -1;
     unsigned int irecomb = 0;
     int end = trees->start_coord;
+#ifdef DEBUG
     static int count=0;
-    int this_count=0;
+    LocalTree orig_tree;
+    LocalTree orig_last_tree;
+    Spr orig_spr;
+#endif
 
     for (LocalTrees::iterator it=trees->begin(); it != trees->end(); ++it)
     {
@@ -1418,8 +1443,11 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
         const int subtree_root = nodes[tree->root].child[0];
         states_model.get_coal_states(tree, states);
         int nstates = states.size();
+ #ifdef DEBUG
+        orig_tree.copy(*tree);
+        orig_spr.copy(*spr);
         count++;
-        this_count++;
+ #endif
 
         // detect whether local tree is partial
         if (nodes[tree->root].age > ntimes) {
@@ -1452,8 +1480,6 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
               recomb_pos[irecomb] < end; irecomb++) {
             int pos = recomb_pos[irecomb];
             LocalNode *nodes = tree->nodes;
-            this_count++;
-
             assert(nstates > 0);
 
             state = states[thread_path[pos]];
@@ -1526,7 +1552,9 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
         }
 
         // record previous local tree information
+#ifdef DEBUG
         orig_last_tree.copy(orig_tree);
+#endif
         last_tree = tree;
         last_state = state;
         last_subtree_root = subtree_root;
@@ -1573,27 +1601,38 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
 {
     LocalTree *tree = NULL;
     State *original_states = NULL;
+#ifdef DEBUG
     static int count=0;
-
+    static int call_count=0;
+    call_count++;
     assert_trees(trees, pop_tree, false);
-
+    LocalTree orig_last_tree;
+    LocalTree orig_tree;
+    Spr orig_spr;
+    Spr last_orig_spr;
+#endif
 
     // prepare original thread array if requested
     if (original_thread) {
         original_states = new State [trees->length()];
     }
 
-
     int i = 0;
     int end = trees->start_coord;
     for (LocalTrees::iterator it=trees->begin(); it != trees->end(); ++it, i++)
     {
-        count++;
         LocalTree *last_tree = tree;
         tree = it->tree;
         LocalNode *nodes = tree->nodes;
         int start = end;
         end += it->blocklen;
+
+#ifdef DEBUG
+        count++;
+        if (tree != NULL)
+            orig_last_tree.copy(orig_tree);
+        orig_tree.copy(*tree);
+#endif
 
         int removal_node = removal_path[i];
         if (removal_node == tree->root) {
@@ -1662,16 +1701,18 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
         Spr *spr = &it2->spr;
         int *mapping = it2->mapping;
 
+#ifdef DEBUG
+        if (last_tree != NULL) last_orig_spr.copy(orig_spr);
+        orig_spr.copy(*spr);
+        int orig_mapping[tree->nnodes];
+        for (int j=0; j < tree->nnodes; j++) orig_mapping[j] = mapping[j];
+#endif
+
         // if recomb is on branch removed, prune it
         if (spr->recomb_node == removal_node) {
             int p = nodes[spr->recomb_node].parent;
             assert(mapping[p] != -1 || p == tree->root);
             spr->set_null();
-            /*            for (int j=0; j < tree->nnodes; j++) {
-                if (j != removal_node && j != tree->root)
-                    assert(tree->nodes[j].pop_path == it2->tree->nodes[j].pop_path);
-                assert(j == tree->root || mapping[j] != -1);
-                }*/
             continue;
         }
 
@@ -1731,7 +1772,6 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
             } else {
                 // removal path chooses upper path
                 // keep spr recoal where it is
-
                 // assert that upper path is the new recoal node
                 // nobody should map to the new recoal node
                 for (int j=0; j<tree->nnodes; j++)
@@ -1780,10 +1820,11 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
             int spr_broken_node = nodes[spr->recomb_node].parent;
             mapping[spr_broken_node] = -1;
         }
-
+#ifdef DEBUG
         // assert spr
-        if (last_tree && !it->spr.is_null())
+        if (last_tree)
             assert_spr(last_tree, tree, &it->spr, it->mapping, pop_tree, true);
+#endif
     }
 
     // record original thread
@@ -1821,7 +1862,9 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
         delete [] original_states;
     }
 
+#ifdef DEBUG
     assert_trees(trees, pop_tree, true);
+#endif
 
     // remove extra trees
     remove_null_sprs(trees, pop_tree);

@@ -37,7 +37,7 @@ endif
 
 # debugging
 ifdef DEBUG
-	CFLAGS := $(CFLAGS) -g
+	CFLAGS := $(CFLAGS) -g -DDEBUG
 else
 	CFLAGS := $(CFLAGS) -O3 -funroll-loops
 endif

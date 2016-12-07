@@ -510,7 +510,7 @@ void arghmm_forward_switch(const double *col1, double* col2,
     assert(!isnan(norm));
     assert(!isinf(norm));
 
-#   ifdef DEBUG
+#ifdef DEBUG
     // assert that probability is valid
     double top = max_array(col2, nstates2);
     if (top <= 0.0) {
@@ -519,7 +519,7 @@ void arghmm_forward_switch(const double *col1, double* col2,
         }
         assert(false);
     }
-#   endif
+#endif
 
     // normalize column for numerical stability
     for (int k=0; k<nstates2; k++)
@@ -540,13 +540,17 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
     States states;
     ArgModel local_model;
     int mu_idx=0, rho_idx=0;
-    //    static int count=0;
+    LocalTree *tree;
+#ifdef DEBUG
+    LocalTree *last_tree = NULL;
+#endif
+
 
     double **fw = forward->get_table();
     // forward algorithm over local trees
     for (matrix_iter->begin(); matrix_iter->more(); matrix_iter->next()) {
         // get block information
-        LocalTree *tree = matrix_iter->get_tree_spr()->tree;
+        tree = matrix_iter->get_tree_spr()->tree;
         ArgHmmMatrices &matrices = matrix_iter->ref_matrices(phase_pr);
         int pos = matrix_iter->get_block_start();
         int blocklen = matrices.blocklen;
@@ -608,6 +612,9 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
         double top2 = max_array(fw[pos + matrices.blocklen - 1], nstates);
         //        printf("%i %i top2=%f\n", count++, pos, top2);
         assert(top2 > 0.0);
+#ifdef DEBUG
+        last_tree = tree;
+#endif
     }
 }
 

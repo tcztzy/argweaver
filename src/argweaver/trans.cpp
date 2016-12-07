@@ -915,6 +915,10 @@ void get_deterministic_transitions(
 {
     // recomb_node in tree and last_tree
     // coal_node in last_tree
+#ifdef DEBUG
+    static int count=0;
+    count++;
+#endif
 
     //const int nnodes = tree->nnodes;
     const LocalNode *nodes = tree->nodes;
