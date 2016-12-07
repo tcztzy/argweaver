@@ -1899,9 +1899,10 @@ bool assert_tree(const LocalTree *tree,
         }
 
         if (pop_tree != NULL && nodes[i].parent != -1) {
-            assert(pop_tree->paths_equal(nodes[i].pop_path,
-                                         nodes[nodes[i].parent].pop_path,
-                                         nodes[nodes[i].parent].age, -1));
+            assert(pop_tree->get_pop(nodes[i].pop_path,
+                                     nodes[nodes[i].parent].age) ==
+                   pop_tree->get_pop(nodes[nodes[i].parent].pop_path,
+                                     nodes[nodes[i].parent].age));
         }
     }
 
@@ -1915,11 +1916,52 @@ bool assert_tree(const LocalTree *tree,
 
 bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                 const Spr *spr, const int *mapping,
-                const PopulationTree *pop_tree)
+                const PopulationTree *pop_tree, bool pruned_internal)
 {
     LocalNode *last_nodes = last_tree->nodes;
     LocalNode *nodes = tree->nodes;
+    static int count=0;
+    count++;
 
+    if (spr->is_null()) {
+        // just check that mapping is 1-to-1
+        bool mapped[tree->nnodes];
+        fill(mapped, mapped + tree->nnodes, false);
+
+        for (int i=0; i<tree->nnodes; i++) {
+            int i2 = mapping[i];
+            assert(i2 != -1);
+            assert(!mapped[i2]);
+            mapped[i2] = true;
+            assert((last_tree->nodes[i].parent == -1 &&
+                    tree->nodes[i2].parent == -1) ||
+                   (mapping[last_tree->nodes[i].parent] ==
+                    tree->nodes[i2].parent));
+            if (last_tree->nodes[i].child[0] == -1) {
+                assert(last_tree->nodes[i].child[1] == -1);
+                assert(tree->nodes[i2].child[0] == -1);
+                assert(tree->nodes[i2].child[1] == -1);
+            } else {
+                assert((mapping[last_tree->nodes[i].child[0]] ==
+                        tree->nodes[i2].child[0] &&
+                        mapping[last_tree->nodes[i].child[1]] ==
+                        tree->nodes[i2].child[1]) ||
+                       (mapping[last_tree->nodes[i].child[0]] ==
+                        tree->nodes[i2].child[1] &&
+                        mapping[last_tree->nodes[i].child[1]] ==
+                        tree->nodes[i2].child[0]));
+            }
+            assert(last_tree->nodes[i].age ==
+                   tree->nodes[i2].age);
+            assert(i == last_tree->nodes[last_tree->root].child[0] ||
+                   pop_tree->paths_equal(last_tree->nodes[i].pop_path,
+                                         tree->nodes[i2].pop_path,
+                                         tree->nodes[i2].age,
+                                         i2 == tree->root ? -1 :
+                                         tree->nodes[tree->nodes[i2].parent].age));
+        }
+        return true;
+    }
 
     if (pop_tree != NULL) {
         assert(pop_tree->get_pop(last_tree->nodes[spr->recomb_node].pop_path,
@@ -1977,10 +2019,15 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
             int last_parent = last_tree->nodes[i].parent;
             int parent = tree->nodes[mapping[i]].parent;
             assert(last_tree->nodes[i].age == tree->nodes[mapping[i]].age);
-            if (last_parent == -1)
+            int parent_age;
+            if (last_parent == -1) {
                 assert(parent == -1);
-            else
+                parent_age = -1;
+            } else {
                 assert(mapping[last_parent] == parent);
+                parent_age = tree->nodes[parent].age;
+                assert(parent_age == last_tree->nodes[last_parent].age);
+            }
             if (i == spr->recomb_node) {
                 assert(pop_tree->paths_equal(last_tree->nodes[i].pop_path,
                                              tree->nodes[mapping[i]].pop_path,
@@ -1988,7 +2035,7 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                                              spr->recomb_time));
                 assert(pop_tree->paths_equal(last_tree->nodes[i].pop_path,
                                              tree->nodes[mapping[i]].pop_path,
-                                             spr->coal_time, -1));
+                                             spr->coal_time, parent_age));
             } else {
                 assert((i == last_tree->nodes[last_tree->root].child[0] && pruned_internal) ||
                        pop_tree->paths_equal(last_tree->nodes[i].pop_path,
@@ -2133,50 +2180,8 @@ bool assert_trees(const LocalTrees *trees, const PopulationTree *pop_tree,
         assert(it->blocklen >= 0);
         assert(assert_tree(tree, pop_tree));
 
-        if (last_tree) {
-            if (spr->is_null()) {
-                // just check that mapping is 1-to-1
-                bool mapped[tree->nnodes];
-                fill(mapped, mapped + tree->nnodes, false);
-
-                for (int i=0; i<tree->nnodes; i++) {
-                    int i2 = mapping[i];
-                    assert(i2 != -1);
-                    assert(!mapped[i2]);
-                    mapped[i2] = true;
-                    assert((last_tree->nodes[i].parent == -1 &&
-                            tree->nodes[i2].parent == -1) ||
-                           (mapping[last_tree->nodes[i].parent] ==
-                            tree->nodes[i2].parent));
-                    if (last_tree->nodes[i].child[0] == -1) {
-                        assert(last_tree->nodes[i].child[1] == -1);
-                        assert(tree->nodes[i2].child[0] == -1);
-                        assert(tree->nodes[i2].child[1] == -1);
-                    } else {
-                        assert((mapping[last_tree->nodes[i].child[0]] ==
-                                tree->nodes[i2].child[0] &&
-                                mapping[last_tree->nodes[i].child[1]] ==
-                                tree->nodes[i2].child[1]) ||
-                               (mapping[last_tree->nodes[i].child[0]] ==
-                                tree->nodes[i2].child[1] &&
-                                mapping[last_tree->nodes[i].child[1]] ==
-                                tree->nodes[i2].child[0]));
-                    }
-                    assert(last_tree->nodes[i].age ==
-                           tree->nodes[i2].age);
-                    assert(i == last_tree->nodes[last_tree->root].child[0] ||
-                           pop_tree->paths_equal(last_tree->nodes[i].pop_path,
-                                                 tree->nodes[i2].pop_path,
-                                                 tree->nodes[i2].age,
-                                                 i2 == tree->root ? -1 :
-                                                 tree->nodes[tree->nodes[i2].parent].age));
-                }
-
-            } else {
-                assert(assert_spr(last_tree, tree, spr, mapping, pop_tree, pruned_internal));
-            }
-        }
-
+        if (last_tree)
+            assert(assert_spr(last_tree, tree, spr, mapping, pop_tree, pruned_internal));
         last_tree = tree;
     }
 
