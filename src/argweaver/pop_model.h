@@ -276,9 +276,7 @@ class PopulationTree {
       return &(sub_paths[t1][t2][p1][p2].unique_subs[idx].path);
   }
 
-  int get_pop(int path, int time) const {
-      return all_paths[path].get(time);
-  }
+  int get_pop(int path, int time) const;
 
   int final_pop() const;
 

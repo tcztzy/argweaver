@@ -327,6 +327,11 @@ void PopulationTree::set_up_population_paths() {
     update_population_probs();
 }
 
+ int PopulationTree::get_pop(int path, int time) const {
+     if (time >= model->ntimes) return final_pop();
+     return all_paths[path].get(time);
+ }
+
  int PopulationTree::final_pop() const {
      return all_paths[0].get(model->ntimes - 1);
  }
