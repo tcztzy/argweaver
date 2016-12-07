@@ -682,9 +682,14 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
     const int nnodes = tree1->nnodes;
 
     if (spr2.coal_node == spr2.recomb_node) {
-        assert(mapping2[node] == node);
-        prev_nodes[0] = node;
-        prev_nodes[1] = -1;
+        prev_nodes[0] = prev_nodes[1] = -1;
+        for (int i=0; i < nnodes; i++)
+            if (mapping2[i] == node) {
+                prev_nodes[0] = i;
+                break;
+            }
+        assert(prev_nodes[0] != -1);
+        return;
     }
 
     // make inverse mapping
@@ -1322,25 +1327,33 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     int recoal = nodes[mapping[spr->recomb_node]].parent;
     if (spr->recomb_node == spr->coal_node) {
         if (last_state.node == spr->recomb_node) {
-            // (4) new branch breaks "bubble" recomb.
-            if ((last_state.time > spr->recomb_time &&
-                 last_state.time < spr->coal_time) ||
+            if (last_state.time < spr->recomb_time ||
                 (last_state.time == spr->recomb_time &&
-                 state.time == spr->coal_time)) {
-                assert(state.time == spr->coal_time);
-                spr->coal_node = last_newcoal;
-                //                mapping[last_newcoal] = -1;
-                // COME BACK HERE!!!
-            } else if (last_state.time <= spr->recomb_time) {
+                 state.time == spr->recomb_time)) {
                 spr->recomb_node = last_nodes[spr->recomb_node].parent;
                 spr->coal_node = spr->recomb_node;
-                fix_mapping=false;
+                fix_mapping = false;
+            } else if (last_state.time >= spr->recomb_time &&
+                       last_state.time < spr->coal_time) {
+                if (state.time <= last_state.time) {
+                    assert(state.time >= spr->recomb_time);
+                    spr->coal_node = last_tree->get_sibling(spr->recomb_node);
+                    spr->coal_time = state.time;
+                    mapping[last_newcoal] = -1;
+                    fix_mapping = false;
+                } else {
+                    assert(state.time == spr->coal_time);
+                    spr->coal_node = last_newcoal;
+                    mapping[last_newcoal] = -1;
+                    fix_mapping = false;
+                }
             } else if (last_state.time == spr->coal_time) {
                 spr->coal_time = state.time;
                 spr->coal_node = last_tree->get_sibling(spr->recomb_node);
-                fix_mapping=false;
-            }
-            //            fix_mapping=false;
+                mapping[last_newcoal] = -1;
+                fix_mapping = false;
+            } // if last_state.time > spr->coal_time do nothing
+
         }
     } else if (recoal == newcoal) {
         if (mapping[last_state.node] == node2) {
@@ -1388,25 +1401,27 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
 
     // determine if mapping of new node needs to be changed
     // newcoal was parent of recomb, it is broken
-    if (last_nodes[spr->recomb_node].parent == last_newcoal) {
-        if (spr->recomb_node != spr->coal_node) {
-            mapping[last_newcoal] = -1;
-            int p = last_nodes[last_newcoal].parent;
-            if (fix_mapping && p != -1 && spr->coal_node != last_newcoal)
-                mapping[p] = newcoal;
+    if (fix_mapping) {
+        if (last_nodes[spr->recomb_node].parent == last_newcoal) {
+            if (spr->recomb_node != spr->coal_node) {
+                mapping[last_newcoal] = -1;
+                int p = last_nodes[last_newcoal].parent;
+                if (fix_mapping && p != -1 && spr->coal_node != last_newcoal)
+                    mapping[p] = newcoal;
+            }
+        } else {
+            // newcoal was not broken
+            // find child without recomb or coal on it
+            int x = last_newcoal;
+            int y = last_nodes[x].child[0];
+            if (y == spr->coal_node)
+                y = last_nodes[x].child[1];
+            if (mapping[y] == -1)
+                y = last_tree->get_sibling(spr->recomb_node);
+            if (y == spr->coal_node)
+                y = last_nodes[x].child[1];
+            mapping[last_newcoal] = nodes[mapping[y]].parent;
         }
-    } else {
-        // newcoal was not broken
-        // find child without recomb or coal on it
-        int x = last_newcoal;
-        int y = last_nodes[x].child[0];
-        if (y == spr->coal_node)
-            y = last_nodes[x].child[1];
-        if (mapping[y] == -1)
-            y = last_tree->get_sibling(spr->recomb_node);
-        if (y == spr->coal_node)
-            y = last_nodes[x].child[1];
-        mapping[last_newcoal] = nodes[mapping[y]].parent;
     }
     assert(assert_spr(last_tree, tree, spr, mapping, pop_tree, false));
 }
@@ -1734,28 +1749,21 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                 if (spr->recomb_node == broken_child) {
                     // spr is now bubble, prune it
                     if (pop_tree == NULL ||
-                        pop_tree->paths_equal(tree->nodes[spr->recomb_node].pop_path,
-                                              spr->pop_path,
-                                              spr->recomb_time,
-                                              coal_time)) {
+                        (pop_tree->paths_equal(tree->nodes[spr->recomb_node].pop_path,
+                                               spr->pop_path,
+                                               spr->recomb_time,
+                                               spr->coal_time) &&
+                         pop_tree->paths_equal(tree->nodes[spr->coal_node].pop_path,
+                                               tree->nodes[spr->recomb_node].pop_path,
+                                               spr->coal_time, coal_time))) {
                         int p = nodes[spr->recomb_node].parent;
                         assert(mapping[p] != -1 || p == tree->root);
-                        for (int j=0; j < tree->nnodes; j++) {
-                            if (j != removal_node && j != tree->root && mapping[j] != -1)
-                                assert(pop_tree->paths_equal(tree->nodes[j].pop_path,
-                                                             it2->tree->nodes[mapping[j]].pop_path,
-                                                             tree->nodes[j].age,
-                                                             min(maxtime-2,tree->nodes[tree->nodes[j].parent].age)));
-                            assert(mapping[j] != -1 || j == tree->root);
-                        }
                         spr->set_null();
                     } else {
                         spr->coal_node = spr->recomb_node;
                         spr->pop_path = pop_tree->consistent_path(spr->pop_path,
-                                                                  tree->nodes[removal_node].pop_path,
-                                                                  spr->recomb_time,
-                                                                  spr->coal_time,
-                                                                  -1);
+                            tree->nodes[removal_node].pop_path,
+                            spr->recomb_time, spr->coal_time, -1);
                         spr->coal_time = coal_time;
                     }
                 } else {
@@ -1786,18 +1794,10 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
         if (spr->is_null()) {
         } else if (spr->recomb_node == spr->coal_node) {
             if (pop_tree == NULL ||
-                /*                spr->recomb_node == subtree_root ||
-                spr->recomb_node == maintree_root ||
-                spr->recomb_node == tree->root ||*/
                 pop_tree->paths_equal(tree->nodes[spr->recomb_node].pop_path,
                                       spr->pop_path,
                                       spr->recomb_time,
                                       spr->coal_time)) {
-                /*                assert(pop_tree->paths_equal(it2->tree->nodes[it2->mapping[spr->recomb_node]].pop_path,
-                                             tree->nodes[spr->recomb_node].pop_path,
-                                             tree->nodes[spr->recomb_node].age,
-                                             tree->nodes[spr->recomb_node].parent == -1 ? -1 :
-                                             tree->nodes[tree->nodes[spr->recomb_node].parent].age));*/
                 int p = nodes[spr->recomb_node].parent;
                 assert(mapping[p] != -1 || p == tree->root);
                 for (int j=0; j < tree->nnodes; j++) {
