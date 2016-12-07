@@ -505,7 +505,7 @@ double resample_arg_region(
         double npaths = sample_arg_removal_path_uniform(trees2, removal_path);
         remove_arg_thread_path(trees2, removal_path, maxtime, model->pop_tree);
         delete [] removal_path;
-        assert_trees(trees2, model->pop_tree);
+        assert_trees(trees2, model->pop_tree, true);
 
         // determine start and end states from start and end trees
         LocalTree *start_tree_partial = trees2->front().tree;
