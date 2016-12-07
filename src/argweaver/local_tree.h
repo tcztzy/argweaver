@@ -891,8 +891,10 @@ bool assert_tree_postorder(const LocalTree *tree, const int *order);
 bool assert_tree(const LocalTree *tree, const PopulationTree *pop_tree=NULL);
 bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
                 const Spr *spr, const int *mapping,
-                const PopulationTree *pop_tree=NULL);
-bool assert_trees(const LocalTrees *trees, const PopulationTree *pop_tree=NULL);
+                const PopulationTree *pop_tree=NULL,
+                bool pruned_internal=false);
+ bool assert_trees(const LocalTrees *trees, const PopulationTree *pop_tree=NULL,
+                   bool pruned_internal=false);
 
 
 

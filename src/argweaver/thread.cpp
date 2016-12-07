@@ -316,7 +316,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
     State last_state;
     LocalTree *last_tree = NULL;
 
-    assert_trees(trees, pop_tree);
+    assert_trees(trees, pop_tree, true);
 
     // update trees info
     trees->seqids.push_back(seqid);
@@ -429,7 +429,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             // assert tree and SPR
             //assert(assert_tree(new_tree));
             //assert(new_tree->nodes[newcoal].age == state.time);
-            assert(assert_spr(tree, new_tree, &spr2, mapping2, pop_tree));
+            assert(assert_spr(tree, new_tree, &spr2, mapping2, pop_tree, false));
 
             // remember the previous tree for next iteration of loop
             tree = new_tree;
@@ -444,7 +444,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             last_state.node = displaced;
     }
 
-    assert_trees(trees, pop_tree);
+    assert_trees(trees, pop_tree, false);
 }
 
 
@@ -597,7 +597,7 @@ void remove_arg_thread(LocalTrees *trees, int remove_seqid,
     // remove extra trees
     remove_null_sprs(trees, model->pop_tree);
 
-    assert_trees(trees);
+    assert_trees(trees, model->pop_tree, true);
 }
 
 
@@ -1387,8 +1387,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
             y = last_nodes[x].child[1];
         mapping[last_newcoal] = nodes[mapping[y]].parent;
     }
-
-    assert(assert_spr(last_tree, tree, spr, mapping, pop_tree));
+    assert(assert_spr(last_tree, tree, spr, mapping, pop_tree, false));
 }
 
 
@@ -1527,12 +1526,13 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
         }
 
         // record previous local tree information
+        orig_last_tree.copy(orig_tree);
         last_tree = tree;
         last_state = state;
         last_subtree_root = subtree_root;
     }
 
-    assert_trees(trees, pop_tree);
+    assert_trees(trees, pop_tree, false);
 }
 
 
@@ -1575,7 +1575,7 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
     State *original_states = NULL;
     static int count=0;
 
-    assert_trees(trees, pop_tree);
+    assert_trees(trees, pop_tree, false);
 
 
     // prepare original thread array if requested
@@ -1783,7 +1783,7 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
 
         // assert spr
         if (last_tree && !it->spr.is_null())
-            assert_spr(last_tree, tree, &it->spr, it->mapping, pop_tree);
+            assert_spr(last_tree, tree, &it->spr, it->mapping, pop_tree, true);
     }
 
     // record original thread
@@ -1821,12 +1821,12 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
         delete [] original_states;
     }
 
-    assert_trees(trees, pop_tree);
+    assert_trees(trees, pop_tree, true);
 
     // remove extra trees
     remove_null_sprs(trees, pop_tree);
 
-    assert_trees(trees, pop_tree);
+    assert_trees(trees, pop_tree, true);
 }
 
 

@@ -948,7 +948,7 @@ void cond_sample_arg_thread_internal(
            start_state.node, start_state.time,
            end_state.node, end_state.time);*/
 
-    assert_trees(trees, model->pop_tree);
+    assert_trees(trees, model->pop_tree, true);
 
     // build matrices
     ArgHmmMatrixIter matrix_iter(model, sequences, trees);
@@ -1033,7 +1033,7 @@ void cond_sample_arg_thread_internal(
                           thread_path, recomb_pos, recombs, internal);
 
     // add thread to ARG
-    assert_trees(trees, model->pop_tree);
+    assert_trees(trees, model->pop_tree, true);
     add_arg_thread_path(trees, matrix_iter.states_model,
                         model->ntimes, thread_path,
                         recomb_pos, recombs, model->pop_tree);
