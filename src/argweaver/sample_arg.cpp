@@ -423,12 +423,8 @@ State find_state_sub_tree_internal(const ArgModel *model,
     int coal_time = full_tree->nodes[parent].age;
     int pop_path = 0;
     if (model->pop_tree != NULL) {
-        pop_path = model->consistent_path(full_tree->nodes[ptr].pop_path,
-                                          full_tree->nodes[parent].pop_path,
-                                          full_tree->nodes[ptr].age,
-                                          full_tree->nodes[parent].age,
-                                          full_tree->nodes[parent].parent == -1 ? model->ntimes-1 :
-                                          full_tree->nodes[full_tree->nodes[parent].parent].age);
+        pop_path = model->pop_tree->path_to_root(full_tree->nodes,
+                                                 ptr);
     }
 
     // identify sibling by leaf and path length
