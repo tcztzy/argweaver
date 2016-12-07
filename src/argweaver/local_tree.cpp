@@ -1831,9 +1831,9 @@ void print_local_trees(const LocalTrees *trees, FILE *out)
         ++it2;
         if (it2 != trees->end()) {
             const Spr &spr = it2->spr;
-            fprintf(out, "spr: r=(%d, %d), c=(%d, %d)\n\n",
+            fprintf(out, "spr: r=(%d, %d), c=(%d, %d) path=%i\n\n",
                     spr.recomb_node, spr.recomb_time,
-                    spr.coal_node, spr.coal_time);
+                    spr.coal_node, spr.coal_time, spr.pop_path);
         }
     }
 }
