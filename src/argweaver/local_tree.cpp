@@ -328,6 +328,8 @@ void apply_spr(LocalTree *tree, const Spr &spr,
     int other = (c[0] == spr.recomb_node ? 1 : 0);
     int recomb_sib = c[other];
     int broke_parent =  nodes[recoal].parent;
+    if (pop_tree != NULL)
+        nodes[recomb_sib].pop_path = pop_tree->path_to_root(nodes, recomb_sib);
 
     // fix recomb sib pointer
     nodes[recomb_sib].parent = broke_parent;
