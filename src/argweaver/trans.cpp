@@ -1009,17 +1009,63 @@ void get_deterministic_transitions(
             }
             int path2 = path1;
             if (internal && model->pop_tree != NULL) {
-                int subtree_root = last_tree->nodes[last_tree->root].child[0];
-                if (spr.coal_node == subtree_root) {
+                int last_subtree_root = last_tree->nodes[last_tree->root].child[0];
+                if (spr.coal_node == last_subtree_root) {
+                    /* just check that the populations meet at new node*/
                     if (model->get_pop(spr.pop_path, spr.coal_time) !=
                         model->get_pop(path1, spr.coal_time)) {
                         next_states[i] = -1;
                         continue;
                     }
+                    int subtree_root = tree->nodes[tree->root].child[0];
+                    if (mapping[last_subtree_root] != subtree_root && mapping[last_subtree_root] != -1) {
+                        int tmp = mapping[last_subtree_root];
+                        if (!model->pop_tree->paths_equal(tree->nodes[tmp].pop_path,
+                                                          path1, tree->nodes[tmp].age,
+                                                          tree->nodes[tmp].parent == -1 ? -1 :
+                                                          tree->nodes[tree->nodes[tmp].parent].age)) {
+                            next_states[i] = -1;
+                            continue;
+                        }
+                    } else if (mapping[last_subtree_root] == -1) {
+                        // this means recomb is below subtree root
+                        // first assert that last_subtree_root and subtree_root have the same children
+                        assert((mapping[last_nodes[last_subtree_root].child[0]] ==
+                                nodes[subtree_root].child[0] &&
+                                mapping[last_nodes[last_subtree_root].child[1]] ==
+                                nodes[subtree_root].child[1]) ||
+                               (mapping[last_nodes[last_subtree_root].child[0]] ==
+                                nodes[subtree_root].child[1] &&
+                                mapping[last_nodes[last_subtree_root].child[1]] ==
+                                nodes[subtree_root].child[0]));
+                        // now check that paths of unbroken child are consistent
+                        int other;
+                        if (spr.recomb_node == last_nodes[last_subtree_root].child[0])
+                            other = last_nodes[last_subtree_root].child[1];
+                        else {
+                            assert(spr.recomb_node == last_nodes[last_subtree_root].child[1]);
+                            other = last_nodes[last_subtree_root].child[0];
+                        }
+                        int other_path = model->consistent_path(last_nodes[other].pop_path,
+                                                                path1,
+                                                                last_nodes[other].age,
+                                                                last_nodes[last_subtree_root].age,
+                                                                spr.coal_time);
+                        assert(spr.coal_time == nodes[subtree_root].age);
+                        assert(mapping[other] != -1);
+                        assert(last_nodes[other].age == nodes[mapping[other]].age);
+                        if (!model->paths_equal(nodes[mapping[other]].pop_path,
+                                                other_path, last_nodes[other].age,
+                                                nodes[subtree_root].age)) {
+                            next_states[i] = -1;
+                            continue;
+                        }
+                    }
+
                 } else {
                     int c[2];
                     for (int j=0; j <= 1; j++)
-                        c[j] = last_tree->nodes[subtree_root].child[j];
+                        c[j] = last_tree->nodes[last_subtree_root].child[j];
                     for (int c1=0; c1 <= 1; c1++) {
                         int c2 = (c1 == 0 ? 1 : 0);
                         if (c[c1] == spr.recomb_node) {
@@ -1029,13 +1075,13 @@ void get_deterministic_transitions(
                                         last_tree->nodes[c[c2]].pop_path,
                                         path1,
                                         spr.coal_time,
-                                        last_tree->nodes[subtree_root].age,
+                                        last_tree->nodes[last_subtree_root].age,
                                         time1);
                             } else {
                                 path2 = model->consistent_path(
                                     last_tree->nodes[c[c2]].pop_path, path1,
                                     last_tree->nodes[c[c2]].age,
-                                    last_tree->nodes[subtree_root].age,
+                                    last_tree->nodes[last_subtree_root].age,
                                     time1);
                             }
                             break;
@@ -1050,19 +1096,11 @@ void get_deterministic_transitions(
             // SPR is on same branch as new chromosome
             if (spr.recomb_time > time1) {
                 // we move with SPR subtree
-                next_states[i] = state2_lookup.lookup(
-                                 mapping[spr.recomb_node], time1, path1);
-            } else {
-                // SPR should not be able to coal back onto same branch
-                // this would be a self cycle
-                // But it is possible under population model if the recomb
-                // changes the population path of the branch
-                if (spr.coal_node == node1) {
-                    assert(model->pop_tree != NULL &&
-                           !model->paths_equal(last_nodes[spr.recomb_node].pop_path,
-                                               spr.pop_path,
-                                               spr.recomb_time, spr.coal_time));
-                }
+                next_states[i] =
+                    state2_lookup.lookup(mapping[spr.recomb_node], time1, path1);
+                //                else next_states[i] = -1;
+            } else {  // new coal is on broken branch
+
 
                 // SPR subtree moves out from underneath us
                 // therefore the new chromosome coalesces with
@@ -1079,17 +1117,57 @@ void get_deterministic_transitions(
                 // find new state in tree
                 const int node2 = (other == spr.coal_node ?
                     nodes[mapping[other]].parent : mapping[other]);
-                const int minage = (internal ?
-                            tree->nodes[tree->nodes[tree->root].child[0]].age :
-                                    0);
-                if (minage > time2) next_states[i] = -1;
-                else {
-                    int path2 = (time2 < time1 ? path1 :
-                                 model->consistent_path(path1,
-                                     last_tree->nodes[spr.recomb_node].pop_path,
-                                     minage, max(minage, time1), time2) );
-                    next_states[i] = state2_lookup.lookup(node2, time2, path2);
+
+                //bubbles on coal node were dealt with previously
+                assert(spr.coal_node != node1);
+                if (!internal) {
+                    next_states[i] = state2_lookup.lookup(node2, time2, path1);
+                    continue;
                 }
+
+                const int subtree_root = tree->nodes[tree->root].child[0];
+                const int last_subtree_root = last_tree->nodes[last_tree->root].child[0];
+                const int minage = tree->nodes[subtree_root].age;
+                const int last_minage = last_tree->nodes[last_subtree_root].age;
+                                                          // state1 is on recomb node; spr is not bubble
+
+                if (minage > time2) {
+                    next_states[i] = -1;
+                    continue;
+                }
+                int path2;
+                if (spr.coal_node == last_subtree_root) {
+                    int node = mapping[last_subtree_root];
+                    assert(node != -1);
+                    int nodeparent = nodes[node].parent;
+                    assert(nodeparent != -1);
+                    if (! model->paths_equal(path1, nodes[node].pop_path,
+                                             last_nodes[last_subtree_root].age,
+                                             min(time1, spr.coal_time))) {
+                        next_states[i] = -1;
+                        continue;
+                    }
+                    if (nodeparent == subtree_root) {
+                        if (time1 >= spr.coal_time) {
+                            path2 = model->path_to_root(last_nodes, node1, time1);
+                            path2 = model->consistent_path(path1, path2, spr.coal_time, time1, -1);
+                        } else if (time1 < spr.coal_time) {
+                            assert(minage == spr.coal_time);
+                            path2 = path1;
+                        }
+                    } else {
+                        assert(mapping[last_subtree_root] == subtree_root);
+                        assert(minage == last_minage);
+                        path2 = model->path_to_root(last_nodes, node1, time1);
+                        path2 = model->consistent_path(path1, path2, minage, time1, -1);
+                    }
+                    //                    else next_states[i] = state2_lookup.lookup(node2, time2, nodes[node].pop_path);
+                } else {
+                    assert(minage == last_minage);
+                    assert(mapping[last_subtree_root] == subtree_root);
+                    path2 = path1;
+                }
+                next_states[i] = state2_lookup.lookup(node2, time2, path2);
             }
         }
     }
@@ -1376,9 +1454,12 @@ double calc_recoal(
     }
 
     // probability of coalescing on chosen branch
-    int nbranches_j = nbranches[2*j]
-        - int(j < recomb_parent_age && recomb_parent_pop == coal_pop)
-        + int(j < a && a_pop == coal_pop && j >= minage);
+    int nbranches_j = nbranches[2*j];
+    if (!model->smc_prime) {
+        nbranches_j -= int(j < recomb_parent_age && recomb_parent_pop == coal_pop);
+        nbranches_j += int(j < a && a_pop == coal_pop && j >= minage);
+    }
+    nbranches_j += int(j <= a && a_pop == coal_pop && j >= minage);
     int ncoals_j = ncoals[j]
         - int((!model->smc_prime) &&
               j <= recomb_parent_age && recomb_parent_pop == coal_pop)
@@ -1399,6 +1480,7 @@ double calc_recoal(
             }
         }
     }
+    if (nbranches_j == 0) return 0.0;
     double p = 1.0 / ncoals_j;
 
     // probability of coalescing in time interval j
@@ -1618,10 +1700,18 @@ void calc_transition_probs_switch(
                     recomb_parent_age = last_nodes[recomb_parent].age;
                     recomb_parent_path = last_nodes[spr.recomb_node].pop_path;
                 }
-                transmat_switch->determprob[i] = calc_recomb_recoal(
-                    last_tree, model, lineages, spr,
-                    states1[i], recomb_parent_age, recomb_parent_path,
-                    last_treelen, internal);
+                assert(mapping[last_subtree_root] != -1);
+                if (model->paths_equal(states1[i].pop_path,
+                                       nodes[mapping[last_subtree_root]].pop_path,
+                                       last_nodes[last_subtree_root].age,
+                                       nodes[mapping[last_subtree_root]].parent == -1 ?
+                                       -1 :
+                                       nodes[nodes[mapping[last_subtree_root]].parent].age))
+                    transmat_switch->determprob[i] =
+                        calc_recomb_recoal(last_tree, model, lineages, spr,
+                                           states1[i], recomb_parent_age, recomb_parent_path,
+                                           last_treelen, internal);
+                else transmat_switch->determprob[i] = 0.0;
             }
             return;
         }
@@ -1712,6 +1802,21 @@ void calc_transition_probs_switch(
             get_recomb_transition_switch(model, tree, last_tree, spr, mapping,
                                          state2_lookup, recomb_next_states,
                                          states1[i].pop_path, minage1);
+            int need_path = -1;
+            if (internal) {
+                int last_subroot = last_tree->nodes[last_tree->root].child[0];
+                int subroot = tree->nodes[tree->root].child[0];
+                int inv_mapping = mapping[last_subroot];
+                if (inv_mapping != subroot) {
+                    need_path = tree->nodes[inv_mapping].pop_path;
+                    if (!model->paths_equal(need_path, states1[i].pop_path,
+                                            last_tree->nodes[last_subroot].age,
+                                            min(states1[i].time,
+                                                nodes[inv_mapping].parent == -1 ? model->ntimes :
+                                                nodes[nodes[inv_mapping].parent].age)))
+                        continue;
+                }
+            }
 
             // stay case (recomb above)
             int j = recomb_next_states[0];
