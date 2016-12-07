@@ -5,7 +5,7 @@
 
 #include "model.h"
 #include "pop_model.h"
-
+#include "local_tree.h"
 
 namespace argweaver {
 
@@ -459,5 +459,9 @@ int ArgModel::max_matching_path(int path1, int path2, int t) const {
     return pop_tree->max_matching_path(path1, path2, t);
 }
 
+int ArgModel::path_to_root(const LocalNode *nodes, int node, int time) const {
+    if (pop_tree == NULL) return 0;
+    return pop_tree->path_to_root(nodes, node, time);
+}
 
 } // namespace argweaver

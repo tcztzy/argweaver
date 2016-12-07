@@ -22,7 +22,7 @@
 namespace argweaver {
 
 class PopulationTree;
-
+class LocalNode;
 
 // Returns a discretized time point
 inline double get_time_point(int i, int ntimes, double maxtime, double delta=10)
@@ -519,6 +519,7 @@ class ArgModel
     double path_prob(int path, int t1, int t2) const;
     bool paths_equal(int path1, int path2, int t1, int t2) const;
     int max_matching_path(int path1, int path2, int t) const;
+    int path_to_root(const LocalNode *nodes, int node, int time) const;
 
 
 protected:
