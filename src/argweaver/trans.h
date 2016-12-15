@@ -13,6 +13,8 @@
 namespace argweaver {
 
 
+class PopulationTree;
+
 // A compressed representation of the transition matrix.
 //
 // This transition matrix is used in the chromosome threading HMM within
@@ -30,26 +32,6 @@ public:
 
     ~TransMatrix()
     {
-        if (npaths > 1) {
-            for (int i=0; i < npaths; i++) {
-                for (int j=0; j < npaths; j++) {
-                    for (int k=0; k < ntimes; k++) {
-                        delete [] paths_equal[i][j][k];
-                    }
-                    delete [] paths_equal[i][j];
-                }
-                delete [] paths_equal[i];
-            }
-            delete [] paths_equal;
-
-            for (int i=0; i < npaths; i++) {
-                for (int j=0; j < npaths; j++) {
-                    delete [] paths_equal_max[i][j];
-                }
-                delete [] paths_equal_max[i];
-            }
-            delete [] paths_equal_max;
-        }
         delete C1_prime;
         delete Q1_prime;
         if (!smc_prime) {
@@ -187,8 +169,7 @@ public:
     double *D;
     double **path_prob;
     double *norecombs;
-    bool ****paths_equal;
-    int ***paths_equal_max;
+    PopulationTree *pop_tree;
 
     // these used for SMC only
     double **E;

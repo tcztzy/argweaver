@@ -14,6 +14,7 @@ void TransMatrix::initialize(const ArgModel *model, int nstates)
     ntimes = model->ntimes;
     npaths = model->num_pop_paths();
     smc_prime = model->smc_prime;
+    pop_tree = model->pop_tree;
     int data_len=0;
     if (smc_prime) {
         data_len = npaths * ntimes + 2 * ntimes;
@@ -69,41 +70,6 @@ void TransMatrix::initialize(const ArgModel *model, int nstates)
         path_prob[i] = &data_alloc[idx]; idx += ntimes;
     }
     assert(idx == data_len);
-
-    if (npaths > 1) {
-        paths_equal = new bool*** [npaths];
-        for (int i=0; i < npaths; i++) {
-            paths_equal[i] = new bool** [npaths];
-            for (int j=0; j < npaths; j++) {
-                paths_equal[i][j] = new bool *[ntimes];
-                for (int k=0; k < ntimes; k++) {
-                    paths_equal[i][j][k] = new bool[ntimes];
-                    for (int l=k; l < ntimes; l++) {
-                        paths_equal[i][j][k][l] =
-                            model->paths_equal(i,j,k,l);
-                    }
-                }
-            }
-        }
-        paths_equal_max = new int** [npaths];
-        for (int i=0; i < npaths; i++) {
-            paths_equal_max[i] = new int* [npaths];
-            for (int j=0; j < npaths; j++) {
-                paths_equal_max[i][j] = new int[ntimes];
-                for (int k=0; k < ntimes; k++) {
-                    paths_equal_max[i][j][k] = -1;
-                    for (int l=k; l < ntimes; l++) {
-                        if (paths_equal[i][j][k][l])
-                            paths_equal_max[i][j][k] = l;
-                        else break;
-                    }
-                }
-            }
-        }
-    } else {
-        paths_equal = NULL;
-        paths_equal_max = NULL;
-    }
 }
 
 void calc_coal_rates_partial_tree(const ArgModel *model, const LocalTree *tree,
@@ -694,7 +660,7 @@ double TransMatrix::get_time(int a, int b, int c,
         return 0.0;
 
     const int p = ( npaths == 1 ? ntimes :
-                    paths_equal_max[path_a][path_b][minage] );
+                    pop_tree->max_matching_path(path_a, path_b, minage));
     if (p == -1) return 0.0;
 
     if (!smc_prime) {
@@ -732,19 +698,19 @@ double TransMatrix::get_time(int a, int b, int c,
         // now add same_node term
         // norecomb case
         if (a == b &&
-            (npaths == 1 || paths_equal[path_a][path_b][minage][a]))
+            (npaths == 1 || pop_tree->paths_equal(path_a, path_b, minage, a)))
             prob += norecombs[a];
 
         if (npaths > 1 && a < b &&
-            !(paths_equal[path_b][path_c][a][b] &&
-              paths_equal[path_a][path_b][minage][a])) {
+            !(pop_tree->paths_equal(path_b, path_c, a, b) &&
+              pop_tree->paths_equal(path_a, path_b, minage, a))) {
             if (isnan(prob))
                 assert(false);
             return prob;
         }
         if (npaths > 1 && b <= a &&
-            !(paths_equal[path_a][path_c][b][a] &&
-              paths_equal[path_b][path_a][minage][b]))
+            !(pop_tree->paths_equal(path_a, path_c, b, a) &&
+              pop_tree->paths_equal(path_b, path_a, minage, b)))
             return prob;
 
         term1 = D[a] * E[path_c][b] * path_prob[path_c][b];
@@ -819,15 +785,15 @@ double TransMatrix::get_time(int a, int b, int c,
         if (!same_node) return prob;  // must be recombination on threaded branch
 
         if (npaths > 1 && a < b &&
-            !(paths_equal[path_b][path_c][a][b] &&
-              paths_equal[path_a][path_b][minage][a])) {
+            !(pop_tree->paths_equal(path_b, path_c, a, b) &&
+              pop_tree->paths_equal(path_a, path_b, minage, a))) {
             if (isnan(prob))
                 assert(false);
             return prob;
         }
         if (npaths > 1 && b <= a &&
-            !(paths_equal[path_a][path_c][b][a] &&
-              paths_equal[path_b][path_a][minage][b]))
+            !(pop_tree->paths_equal(path_a, path_c, b, a) &&
+              pop_tree->paths_equal(path_b, path_a, minage, b)))
             return prob;
 
         assert(state_a >= 0);
