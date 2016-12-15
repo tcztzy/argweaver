@@ -458,19 +458,41 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
             }
         }
     }
+
+    MultiArray selfProbs(2, npaths, ntimes);
+    for (int i=0; i < npaths; i++)
+        for (int j=0; j < ntimes; j++)
+            selfProbs.set(-1, i, j);
+
     // now need to calculate self_recombs[node][time] for all nodes, times
     // not implemented efficiently yet
     for (unsigned int s=0; s < states.size(); s++) {
         int path_a = states[s].pop_path;
         int a = states[s].time;
         int node = states[s].node;
-        double prob=0.0;
-        // first consider new branch which goes from minage to a
-        for (int d=minage; d <= a; d++) {
-            prob += self_recomb_prob(a, path_a, minage, d,
-                                     path_a);
+        double prob=selfProbs.get(path_a, a);
 
+        if (prob < 0) {
+            // first consider new branch which goes from minage to a
+            prob = 0.0;
+            for (int d=minage; d <= a; d++) {
+                prob += self_recomb_prob(a, path_a, minage, d,
+                                         path_a);
+            }
+            for (int i=0; i < tree->nnodes; i++) {
+                if (i == tree->root) continue;
+                if (internal && i == subtree_root) continue;
+                if (internal && i == maintree_root) continue;
+                int age = tree->nodes[i].age;
+                int parent_age = tree->nodes[tree->nodes[i].parent].age;
+                int path_d = tree->nodes[i].pop_path;
+                for (int d=age; d <= parent_age; d++)
+                    prob += self_recomb_prob(a, path_a, age, d, path_d);
+            }
+            selfProbs.set(prob, path_a, a);
+            assert(!isnan(prob) && prob > 0.0);
         }
+
         if (internal && node == maintree_root) {
             assert(a >= root_age_index);
             for (int d=root_age_index; d <= a; d++)
@@ -482,22 +504,16 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                 prob += self_recomb_prob(a, path_a, root_age_index, d,
                                          tree->nodes[tree->root].pop_path);
         }
-        for (int i=0; i < tree->nnodes; i++) {
-            if (i == tree->root) continue;
-            if (internal && i == subtree_root) continue;
-            if (internal && i == maintree_root) continue;
-            int age = tree->nodes[i].age;
-            int parent_age = tree->nodes[tree->nodes[i].parent].age;
-            int path_d = tree->nodes[i].pop_path;
-            if (i == node) {
-                for (int d=age; d <= a; d++)
-                    prob += self_recomb_prob(a, path_a, age, d, path_d);
-                for (int d=a; d <=parent_age; d++) {
-                    prob += self_recomb_prob(a, path_a, a, d, path_d);
-                }
-            } else {
-                for (int d=age; d <= parent_age; d++)
-                    prob += self_recomb_prob(a, path_a, age, d, path_d);
+        if (node != tree->root &&
+            ((!internal) || (node != subtree_root &&
+                             node != maintree_root))) {
+            int age = tree->nodes[node].age;
+            int parent_age = tree->nodes[tree->nodes[node].parent].age;
+            int path_d = tree->nodes[node].pop_path;
+            for (int d=a+1; d <= parent_age; d++)
+                prob -= self_recomb_prob(a, path_a, age, d, path_d);
+            for (int d=a; d <=parent_age; d++) {
+                prob += self_recomb_prob(a, path_a, a, d, path_d);
             }
         }
         self_recomb[s] = prob;
