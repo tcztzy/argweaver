@@ -47,6 +47,11 @@ namespace argweaver {
          va_end(ap);
          mat[idx] = val;
          }*/
+     void set_all(double val) {
+         for (int i=0; i < matSize; i++)
+             mat[i] = val;
+     }
+
      void set(double val, int pos0, int pos1) {
          assert(ndim == 2);
          int idx = pos0 * multipliers[0] + pos1 * multipliers[1];
