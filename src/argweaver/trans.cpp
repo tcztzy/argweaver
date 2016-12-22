@@ -40,6 +40,16 @@ void TransMatrix::initialize(const ArgModel *model, int nstates)
         G0_prime = new MultiArray(2, npaths, ntimes);
         G1_prime = new MultiArray(3, npaths, npaths, ntimes);
         G2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        L0_prime = new MultiArray(2, npaths, ntimes);
+        L1_prime = new MultiArray(3, npaths, npaths, ntimes);
+        L2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        K0_prime = new MultiArray(2, npaths, ntimes);
+        K1_prime = new MultiArray(3, npaths, npaths, ntimes);
+        K2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        R0_prime = new MultiArray(2, npaths, ntimes);
+        R2_prime = new MultiArray(3, npaths, npaths, ntimes);
+        RK0_prime = new MultiArray(2, npaths, ntimes);
+        RK2_prime = new MultiArray(3, npaths, npaths, ntimes);
         self_recomb = new double[nstates];
     } else {
         E = new double* [npaths];
@@ -127,12 +137,102 @@ void calc_coal_rates_partial_tree(const ArgModel *model, const LocalTree *tree,
     }
 }
 
+double TransMatrix::get_k_term(int d, int path_d, int a, int path_a) {
+    if (d < a) {
+        return K2_prime->get(path_d, path_a, d);
+    }
+    double val = K2_prime->get(path_d, path_a, a-1)
+        + K1_prime->get(path_d, path_a, a);
+    if (d == a) return val;
+    return val + (exp(-C1_prime->get(path_d, path_a, 2*a-1)
+                      +C0_prime->get(path_d, 2*a-1))
+                  * (K0_prime->get(path_d, d)
+                     -K0_prime->get(path_d, a)));
+}
+
+
+double TransMatrix::get_b_term(int d, int path_d, int a, int path_a) {
+    if (d < a) {
+        return B2_prime->get(path_d, path_a, d);
+    }
+    double val = B2_prime->get(path_d, path_a, a-1)
+        + B1_prime->get(path_d, path_a, a);
+    if (d == a) return val;
+    return val + B0_prime->get(path_d, d)
+        - B0_prime->get(path_d, a);
+}
+
+
+double TransMatrix::get_l_term(int d, int path_d, int a, int path_a) {
+    if (d < 0) return 0.0;
+    if (d > a)
+        return L0_prime->get(path_d, d)
+            - L0_prime->get(path_d, a)
+            + L1_prime->get(path_d, path_a, a)
+            + L2_prime->get(path_d, path_a, a-1);
+    else if (d == a)
+        return L1_prime->get(path_d, path_a, a)
+            + L2_prime->get(path_d, path_a, a-1);
+    return L2_prime->get(path_d, path_a, d);
+}
+
+
+double TransMatrix::get_rk_term(int d, int path_d, int a, int path_a) {
+    if (d < a) {
+        return RK2_prime->get(path_d, path_a, d);
+    }
+    double val = (RK2_prime->get(path_d, path_a, a-1)
+                  + B1_prime->get(path_d, path_a, a)
+                  * (K1_prime->get(path_d, path_a, a) + K2_prime->get(path_d, path_a, a-1)));
+    if (d == a) return val;
+    double f = exp(-C1_prime->get(path_d, path_a, 2*a-1)
+                     +C0_prime->get(path_d, 2*a-1));
+    return val + f * (RK0_prime->get(path_d, d)
+                      - RK0_prime->get(path_d, a))
+        + (B0_prime->get(path_d, d)
+           -B0_prime->get(path_d, a))
+        * (- f * K0_prime->get(path_d, a)
+           + K1_prime->get(path_d, path_a, a)
+           + K2_prime->get(path_d, path_a, a-1));
+    /*    return val + (exp(-C1_prime->get(path_d, path_a, 2*a-1)
+                      +C0_prime->get(path_d, 2*a-1))
+                  * (RK0_prime->get(path_d, d)
+                  - RK0_prime->get(path_d, a)));*/
+}
+
+double TransMatrix::self_recomb_prob(int a, int path_a,
+                                     int min_d, int max_d,
+                                     int path_d) {
+    double term1 = get_l_term(max_d, path_d, a, path_a)
+        - get_l_term(min_d - 1, path_d, a, path_a);
+    double term2 = get_k_term(max_d, path_d, a, path_a)
+        * (get_b_term(max_d, path_d, a, path_a)
+           - get_b_term(min_d-1, path_d, a, path_a));
+    double term3 = get_rk_term(max_d, path_d, a, path_a)
+        - get_rk_term(min_d-1, path_d, a, path_a);
+    assert(term2 - term3 > -1e-5);
+    double rv = D[a] * (term1 + term2 - term3);
+#ifdef DEBUG
+    double oldprob=0;
+    for (int d=min_d; d <= max_d; d++)
+        oldprob += self_recomb_prob_old(a, path_a, min_d, d, path_d);
+    if (fabs(oldprob - rv) > 1.0e-5) {
+        printf("self_recomb_prob %e %e %i %i %i\n",
+               rv, oldprob, a, min_d, max_d);
+    }
+#endif
+    return rv;
+}
+
+
 // self recombination probability
 // recomb along a branch that starts at time "minage"
 // and coalesces at time d (d <= end time of branch)
 // given that the branch being threaded coalesces at time a
-double TransMatrix::self_recomb_prob(int a, int path_a,
-                                     int minage, int d, int path_d) {
+double TransMatrix::self_recomb_prob_old(int a, int path_a,
+                                         int minage, int d, int path_d) {
+
+    // note minage is the age of the recombining branch, not branch being threaded
     double prob = 0.0;
     if (minage < d) {
         double pathprob = path_prob[path_d][d];
@@ -143,6 +243,28 @@ double TransMatrix::self_recomb_prob(int a, int path_a,
             cterm = exp(-C0_prime->get(path_d, 2*d-2)
                         +C0_prime->get(path_d, 2*a-1)
                         -C1_prime->get(path_d, path_a, 2*a-1));
+        /*
+    double c_term[max_d+1];
+    double b_term[max_d+1];
+    if (minage < max_d) {
+        int d=min_d;
+        if (min_d <= a) {
+            for ( ; d <= min(a, max_d); d++) {
+                cterm[d] = exp(-C1_prime->get(path_d, path_a, 2*d-2)) * path_prob[path_d][d];
+            }
+        }
+        if (max_d > a) {
+            double val = C0_prime->get(path_d, 2*a-1)
+                -C1_prime->get(path_d, path_a, 2*a-1);
+            for ( ; d <= max_d; d++) {
+                cterm[d] = exp(-C0_prime->get(path_d, 2*d-2) + val) * path_prob[path_d][d];
+            }
+        }
+        // COME BACK HERE AND SEE IF WE CAN SPEED THIS FUNCTION UP
+        // WORKING IN DIRECTORY ~/arghmm/multipop/speed_debug
+        // actually I don't think we can make this faster but I think
+        // we can call it less often
+        */
         double bterm;
         if (d-1 > a) {
             bterm = B0_prime->get(path_d, d-1)
@@ -248,6 +370,69 @@ void TransMatrix::assert_transmat(const LocalTree *tree,
 
 }
 
+
+void TransMatrix::calc_self_recomb_probs_smcPrime(const LocalTree *tree,
+                                                  const States &states) {
+    MultiArray selfProbs(2, npaths, ntimes);
+    selfProbs.set_all(-1.0);
+    const int subtree_root = internal ? tree->nodes[tree->root].child[0] : -1;
+    const int maintree_root = internal  ? tree->nodes[tree->root].child[1] : -1;
+    int root_age_index = internal ? tree->nodes[maintree_root].age : tree->nodes[tree->root].age;
+
+    // now need to calculate self_recombs[node][time] for all nodes, times
+    // not implemented efficiently yet
+    for (unsigned int s=0; s < states.size(); s++) {
+        int path_a = states[s].pop_path;
+        int a = states[s].time;
+        int node = states[s].node;
+
+        // first consider new branch which goes from minage to a
+        // want selfProbs.get(path_a, a, path_a, a, a)
+        //  - selfProbs.get(path_a, a, path_a, a, minage-1)
+        //  - selfProbs.get(path_a, a, path_a, minage - 1, a)
+        //  + selfProbs.get(path_a, a, path_a, minage - 1, minage - 1);
+        double prob=selfProbs.get(path_a, a);
+
+        if (prob < 0) {
+            // first consider new branch which goes from minage to a
+            prob = self_recomb_prob(a, path_a, minage, a, path_a);
+            for (int i=0; i < tree->nnodes; i++) {
+                if (i == tree->root) continue;
+                if (internal && i == subtree_root) continue;
+                if (internal && i == maintree_root) continue;
+                int age = tree->nodes[i].age;
+                int parent_age = tree->nodes[tree->nodes[i].parent].age;
+                int path_d = tree->nodes[i].pop_path;
+                prob += self_recomb_prob(a, path_a, age, parent_age, path_d);
+            }
+            selfProbs.set(prob, path_a, a);
+            assert(!isnan(prob) && prob > 0.0);
+        }
+        if (internal && node == maintree_root) {
+            assert(a >= root_age_index);
+            prob += self_recomb_prob(a, path_a, root_age_index, a,
+                                     tree->nodes[maintree_root].pop_path);
+        } else if ((!internal) && node == tree->root) {
+            assert(a >= root_age_index);
+            prob += self_recomb_prob(a, path_a, root_age_index, a,
+                                     tree->nodes[tree->root].pop_path);
+        }
+        // todo: think about eliminating someof these loops
+        // were these values already computed?
+        if (node != tree->root &&
+            ((!internal) || (node != subtree_root &&
+                             node != maintree_root))) {
+            int age = tree->nodes[node].age;
+            int parent_age = tree->nodes[tree->nodes[node].parent].age;
+            int path_d = tree->nodes[node].pop_path;
+            prob += (self_recomb_prob(a, path_a, age, a, path_d)
+                     +self_recomb_prob(a, path_a, a, parent_age, path_d)
+                     -self_recomb_prob(a, path_a, age, parent_age, path_d));
+        }
+        self_recomb[s] = prob;
+    }
+    }
+
 // Calculate transition probability within a local block
 void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                                                  const ArgModel *model,
@@ -345,10 +530,12 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                 E0_prime->set(1.0/(double)ncoal, path, b);
                 F0_prime->set(1.0/(double)ncoal, path, b);
             } else {
-                E0_prime->set((1.0 - exp(-Q0_prime->get(path, 2*b)
+                E0_prime->set(ncoal == 0 ? 0.0 :
+                              (1.0 - exp(-Q0_prime->get(path, 2*b)
                                          -Q0_prime->get(path, 2*b-1)))
                               / (double)ncoal, path, b);
-                F0_prime->set((1.0 - exp(-Q0_prime->get(path, 2*b)))
+                F0_prime->set(ncoal == 0 ? 0.0 :
+                              (1.0 - exp(-Q0_prime->get(path, 2*b)))
                               / (double)ncoal, path, b);
             }
 
@@ -370,13 +557,30 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                 + model->coal_time_steps[2*b] * nbranch_above;
             B0_prime->set(b == 0 ? 0 :
                           B0_prime->get(path, b-1), path, b);
-            if (total_blen_b > 0.0)
-                B0_prime->addVal(total_blen_b / (double)nrecomb *
-                                 exp(C0_prime->get(path, 2*b-1))
-                                 / curr_path_prob,
-                                 path, b);
+            L0_prime->set( b == 0 ? 0 :
+                           L0_prime->get(path, b-1), path, b);
+            if (total_blen_b > 0.0) {
+                double weight = total_blen_b / (double)nrecomb;
+                double val = weight *
+                     exp(C0_prime->get(path, 2*b-1))
+                     / curr_path_prob;
+                R0_prime->set(val, path, b);
+                B0_prime->addVal(val, path, b);
+                L0_prime->addVal(weight * F0_prime->get(path, b), path, b);
+            } else R0_prime->set(0, path, b);
+
             G0_prime->set(total_blen_b == 0.0 ? 0 : total_blen_b / (double)nrecomb,
                           path, b);
+            K0_prime->set(b == 0 ? 0 :
+                          K0_prime->get(path, b-1), path, b);
+            K0_prime->addVal(E0_prime->get(path, b)
+                             * curr_path_prob * exp(-C0_prime->get(path, 2*b-2)),
+                             path, b);
+            RK0_prime->set(b == 0 ? 0 :
+                           RK0_prime->get(path, b-1),
+                           path, b);
+            RK0_prime->addVal(K0_prime->get(path, b) * R0_prime->get(path, b),
+                              path, b);
 
             for (int path2=0; path2 < num_paths; path2++) {
                 if (! have_pop_path[path2]) continue;
@@ -393,16 +597,18 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                     F1_prime->set(1.0/(double)ncoal1, path, path2, b);
                     F2_prime->set(1.0/(double)ncoal2, path, path2, b);
                 } else {
-                    E1_prime->set(( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
+                    E1_prime->set(ncoal1 == 0 ? 0.0 :
+                                  ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
                                               -Q0_prime->get(path, 2*b)))
                                   / ((double)ncoal1), path, path2, b);
-                    E2_prime->set(
+                    E2_prime->set(ncoal2 == 0 ? 0.0 :
                                   ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b-1)
                                               -Q1_prime->get(path, path2, 2*b)))
                                   / ((double)ncoal2), path, path2, b);
-                    F1_prime->set(( 1.0 - exp(-Q0_prime->get(path, 2*b) ))
+                    F1_prime->set(ncoal1 == 0 ? 0.0 :
+                                  ( 1.0 - exp(-Q0_prime->get(path, 2*b) ))
                                   / ((double)ncoal1), path, path2, b);
-                    F2_prime->set(
+                    F2_prime->set(ncoal2 == 0 ? 0.0 :
                                   ( 1.0 - exp(-Q1_prime->get(path, path2, 2*b)))
                                   / ((double)ncoal2), path, path2, b);
                 }
@@ -443,81 +649,54 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
                               * exp(C1_prime->get(path, path2, 2*b-1))
                               / curr_path_prob,
                               path, path2, b);
+                L1_prime->set(blen1 == 0.0 ? 0 : blen1 / (double)nrecomb1
+                              * F1_prime->get(path, path2, b),
+                              path, path2, b);
                 B2_prime->set(b == 0 ? 0 :
                               B2_prime->get(path, path2, b-1),
                               path, path2, b);
-                if (blen2 > 0)
-                    B2_prime->addVal( blen2 / (double)nrecomb2
-                                      * exp(C1_prime->get(path, path2, 2*b-1))
-                                      / curr_path_prob,
-                                      path, path2, b);
+                L2_prime->set(b == 0 ? 0 :
+                              L2_prime->get(path, path2, b-1),
+                              path, path2, b);
+                if (blen2 > 0) {
+                    double val =  ( blen2 / (double)nrecomb2
+                                    * exp(C1_prime->get(path, path2, 2*b-1))
+                                    / curr_path_prob );
+                    R2_prime->set(val, path, path2, b);
+                    B2_prime->addVal(val, path, path2, b);
+                    L2_prime->addVal(blen2 / (double)nrecomb2 *
+                                     F2_prime->get(path, path2, b),
+                                     path, path2, b);
+                } else R2_prime->set(0, path, path2, b);
                 G1_prime->set(blen1 == 0.0 ? 0 : blen1 / (double)nrecomb1,
                               path, path2, b);
                 G2_prime->set(blen2 == 0.0 ? 0 : blen2 / (double)nrecomb2,
                               path, path2, b);
+
+                double tmp_pr = exp(-C1_prime->get(path, path2, 2*b - 2))
+                    * curr_path_prob;
+                K1_prime->set(E1_prime->get(path, path2, b)
+                              * tmp_pr,
+                              path, path2, b);
+                assert(!isnan(K1_prime->get(path, path2, b)));
+                K2_prime->set(b == 0 ? 0.0 :
+                              K2_prime->get(path, path2, b-1),
+                              path, path2, b);
+                K2_prime->addVal(E2_prime->get(path, path2, b)
+                                 * tmp_pr,
+                                 path, path2, b);
+                RK2_prime->set(b == 0 ? 0.0 :
+                               RK2_prime->get(path, path2, b-1),
+                               path, path2, b);
+                RK2_prime->addVal(K2_prime->get(path, path2, b) *
+                                  R2_prime->get(path, path2, b),
+                                  path, path2, b);
             }
         }
     }
 
-    MultiArray selfProbs(2, npaths, ntimes);
-    for (int i=0; i < npaths; i++)
-        for (int j=0; j < ntimes; j++)
-            selfProbs.set(-1, i, j);
+    calc_self_recomb_probs_smcPrime(tree, states);
 
-    // now need to calculate self_recombs[node][time] for all nodes, times
-    // not implemented efficiently yet
-    for (unsigned int s=0; s < states.size(); s++) {
-        int path_a = states[s].pop_path;
-        int a = states[s].time;
-        int node = states[s].node;
-        double prob=selfProbs.get(path_a, a);
-
-        if (prob < 0) {
-            // first consider new branch which goes from minage to a
-            prob = 0.0;
-            for (int d=minage; d <= a; d++) {
-                prob += self_recomb_prob(a, path_a, minage, d,
-                                         path_a);
-            }
-            for (int i=0; i < tree->nnodes; i++) {
-                if (i == tree->root) continue;
-                if (internal && i == subtree_root) continue;
-                if (internal && i == maintree_root) continue;
-                int age = tree->nodes[i].age;
-                int parent_age = tree->nodes[tree->nodes[i].parent].age;
-                int path_d = tree->nodes[i].pop_path;
-                for (int d=age; d <= parent_age; d++)
-                    prob += self_recomb_prob(a, path_a, age, d, path_d);
-            }
-            selfProbs.set(prob, path_a, a);
-            assert(!isnan(prob) && prob > 0.0);
-        }
-
-        if (internal && node == maintree_root) {
-            assert(a >= root_age_index);
-            for (int d=root_age_index; d <= a; d++)
-                prob += self_recomb_prob(a, path_a, root_age_index, d,
-                                         tree->nodes[maintree_root].pop_path);
-        } else if ((!internal) && node == tree->root) {
-            assert(a >= root_age_index);
-            for (int d = root_age_index; d <= a; d++)
-                prob += self_recomb_prob(a, path_a, root_age_index, d,
-                                         tree->nodes[tree->root].pop_path);
-        }
-        if (node != tree->root &&
-            ((!internal) || (node != subtree_root &&
-                             node != maintree_root))) {
-            int age = tree->nodes[node].age;
-            int parent_age = tree->nodes[tree->nodes[node].parent].age;
-            int path_d = tree->nodes[node].pop_path;
-            for (int d=a+1; d <= parent_age; d++)
-                prob -= self_recomb_prob(a, path_a, age, d, path_d);
-            for (int d=a; d <=parent_age; d++) {
-                prob += self_recomb_prob(a, path_a, a, d, path_d);
-            }
-        }
-        self_recomb[s] = prob;
-    }
     if (false) {
         assert_transmat(tree, model, states, lineages, minage0);
     }
