@@ -11,7 +11,7 @@ namespace argweaver {
  struct MultiArray {
 
  public:
-     MultiArray(int ndim, ...) : ndim(ndim) {
+     MultiArray(int ndim, ...) : ndim(ndim), defaultVal(0) {
          va_list ap;
          va_start(ap, ndim);
          dimSize = new int[ndim];
@@ -32,6 +32,10 @@ namespace argweaver {
          delete [] multipliers;
          delete [] mat;
      }
+     void setDefault(double val) {
+         defaultVal = val;
+     }
+
      /*     void set(int *idxArr, double val) {
          int idx=0;
          for (int i=0; i < ndim; i++)
@@ -92,6 +96,22 @@ namespace argweaver {
          mat[idx] += val;
      }
 
+     void logAddVal(double lnVal, int pos0, int pos1) {
+         int idx=0;
+         assert(ndim == 2);
+         idx = pos0 * multipliers[0] + pos1 * multipliers[1];
+         assert(idx >= 0 && idx < matSize);
+         mat[idx] = logadd(mat[idx], lnVal);
+     }
+     void logAddVal(double lnVal, int pos0, int pos1, int pos2) {
+         int idx=0;
+         assert(ndim == 3);
+         idx = pos0 * multipliers[0] + pos1 * multipliers[1]
+             + pos2 * multipliers[2];
+         assert(idx >= 0 && idx < matSize);
+         mat[idx] = logadd(mat[idx], lnVal);
+     }
+
 
      /*     double get(int *idxArr) const {
          int idx=0;
@@ -104,14 +124,14 @@ namespace argweaver {
 
      double get(int pos0, int pos1) {
          assert(ndim ==2);
-         if (pos0 < 0 || pos1 < 0) return 0.0;
+         if (pos0 < 0 || pos1 < 0) return defaultVal;
          int idx = pos0 * multipliers[0] + pos1 * multipliers[1];
          return mat[idx];
      }
 
      double get(int pos0, int pos1, int pos2) {
          assert(ndim == 3);
-         if (pos0 < 0 || pos1 < 0 || pos2 < 0) return 0.0;
+         if (pos0 < 0 || pos1 < 0 || pos2 < 0) return defaultVal;
          int idx = pos0*multipliers[0] + pos1 * multipliers[1] + pos2 * multipliers[2];
          return mat[idx];
      }
@@ -140,6 +160,7 @@ namespace argweaver {
      int *multipliers;
      double *mat;
      int matSize;
+     double defaultVal;
  };
 }
 #endif
