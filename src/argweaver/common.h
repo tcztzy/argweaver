@@ -261,12 +261,19 @@ inline double logadd(double lna, double lnb) {
 inline double logsub(double lna, double lnb)
 {
     double diff = lna - lnb;
+    if (diff < 0) {
+        if (fabs(diff)/lna < 1.0e-10)
+            return -INFINITY;
+        assert(0);
+    }
+    if (fabs(diff) < 1e-10) {
+        if (diff == 0.0) return -INFINITY;
+        // use approximation exp(diff) = 1 + diff
+        return log(diff) + lnb;
+    }
     if (diff < 500) {
         diff = exp(diff) - 1.0;
-        if (diff == 0.0)
-            return -INFINITY;
-        else
-            return log(diff) + lnb;
+        return log(diff) + lnb;
     } else
         return lna;
 }
