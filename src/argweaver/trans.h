@@ -67,8 +67,6 @@ public:
             delete K0_prime;
             delete K1_prime;
             delete K2_prime;
-            delete R0_prime;
-            delete R2_prime;
             delete RK0_prime;
             delete RK2_prime;
             delete [] self_recomb;
@@ -179,9 +177,6 @@ public:
     MultiArray *K0_prime;
     MultiArray *K1_prime;
     MultiArray *K2_prime;
-    MultiArray *R0_prime;
-    // R1_prime is the same as B1_prime
-    MultiArray *R2_prime;
     MultiArray *RK0_prime;
     MultiArray *RK2_prime;
     double *self_recomb;
@@ -202,10 +197,11 @@ public:
 
  private:
     double get_l_term(int d, int path_d, int a, int path_a);
-    double get_s_term(int d, int path_d, int a, int path_a);
     double get_k_term(int d, int path_d, int a, int path_a);
     double get_b_term(int d, int path_d, int a, int path_a);
     double get_rk_term(int d, int path_d, int a, int path_a);
+    double selfRecombDiffTimeProb(int min_k, int max_k, int max_d,
+                                  int path_d, int a, int path_a);
     double self_recomb_prob_old(int a, int path_a, int minage, int d, int path_d);
     double self_recomb_prob(int a, int path_a, int min_d, int max_d,
                             int path_d);
