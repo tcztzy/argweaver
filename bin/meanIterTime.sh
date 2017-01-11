@@ -6,7 +6,6 @@ if [[ $# == 1 && -d $1 ]]; then
 else
     files=$@
 fi
-echo "files=$files"
 
 grep -B 1 "sample time" $files |
     awk '$0 ~ /resample_arg_regions/ {subtree=1};
