@@ -69,6 +69,8 @@ public:
             delete K2_prime;
             delete RK0_prime;
             delete RK2_prime;
+            /*            delete RK0diff;
+                          delete RK2diff;*/
             delete [] self_recomb;
         }
         delete [] path_prob;
@@ -179,6 +181,8 @@ public:
     MultiArray *K2_prime;
     MultiArray *RK0_prime;
     MultiArray *RK2_prime;
+    /*    MultiArray *RK0diff;
+          MultiArray *RK2diff;*/
     double *self_recomb;
 
     // these are used for both SMC and SMC'
@@ -196,15 +200,19 @@ public:
     double **G3;
 
  private:
-    double get_l_term(int d, int path_d, int a, int path_a);
-    double get_k_term(int d, int path_d, int a, int path_a);
-    double get_b_term(int d, int path_d, int a, int path_a);
-    double get_rk_term(int d, int path_d, int a, int path_a);
+    double get_l_term(int d, int path_d, int a, int path_a) const;
+    double get_k_term(int d, int path_d, int a, int path_a) const;
+    double get_b_term(int d, int path_d, int a, int path_a) const;
+    double get_b_term_old(int d, int path_d, int a, int path_a) const;
+    double get_rk_term(int d, int path_d, int a, int path_a) const;
     double selfRecombDiffTimeProb(int min_k, int max_k, int max_d,
-                                  int path_d, int a, int path_a);
-    double self_recomb_prob_old(int a, int path_a, int minage, int d, int path_d);
+                                  int path_d, int a, int path_a) const;
+    double self_recomb_prob_slow(int a, int path_a, int minage,
+                                 int d, int path_d) const;
+    double self_recomb_prob_slow_sum(int a, int path_a, int min_d,
+                                     int max_d, int path_d) const;
     double self_recomb_prob(int a, int path_a, int min_d, int max_d,
-                            int path_d);
+                            int path_d) const;
     void calc_self_recomb_probs_smcPrime(const LocalTree *tree,
                                          const States &states);
 
