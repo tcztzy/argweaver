@@ -115,8 +115,8 @@ class MigMatrix {
 
 class UniquePath {
  public:
-    UniquePath(int start_time, int end_time, int path_idx) :
-      start_time(start_time), end_time(end_time), prob(1.0) {
+   UniquePath(int start_time, int end_time, int path_idx) :
+     start_time(start_time), end_time(end_time), prob(1.0), num_mig(-1) {
         assert(start_time <= end_time);
         path.clear();
         path.insert(path_idx);
@@ -136,6 +136,7 @@ class UniquePath {
    int start_time, end_time;
    set<int> path;
    double prob;
+   int num_mig;
 };
 
 
@@ -171,6 +172,10 @@ class SubPath {
     double prob(int i) const {
         assert(i <(int)unique_subs.size());
         return unique_subs[i].prob;
+    }
+    double num_mig(int i) const {
+        assert(i <(int)unique_subs.size());
+        return unique_subs[i].num_mig;
     }
     int first_path(int idx) const {
         assert(idx < (int)unique_subs.size());
@@ -226,6 +231,10 @@ class PopulationTree {
       assert(rv >= 0.0 && rv <= 1.0);
       return sub_paths[t1][t2][p1][p2].prob(i);
   }
+  int subpath_num_mig(int t1, int p1, int t2, int p2, unsigned int i) const {
+      return sub_paths[t1][t2][p1][p2].num_mig(i);
+  }
+
   /* This one returns the sum of the probability of all paths which are
      consistent with the given path from time t1 to time t2. The given path
      should have an index between 0 and all_paths.size()
@@ -315,6 +324,10 @@ class PopulationTree {
   int max_matching_path(int p1, int p2, int t) const;
   int ***max_matching_path_arr;
 
+  // if this is >= 0, then do not allow threading into paths
+  // which allow more than this many migrations
+  int max_migrations;
+  int num_migrations(int path1, int t1, int t2);
 
 
  private:

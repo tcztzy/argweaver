@@ -70,6 +70,7 @@ PopulationTree::PopulationTree(int npop, const ArgModel *model) :
         mig_matrix[i].resize(npop);
     sub_paths = NULL;
     max_matching_path_arr = NULL;
+    max_migrations = -1;
 }
 
 
@@ -83,6 +84,7 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     max_matching_path_arr = NULL;
     if (npop > 0) set_up_population_paths();
     update_population_probs();
+    max_migrations = -1;
 }
 
 
@@ -158,9 +160,13 @@ void UniquePath::update_prob(const vector<PopulationPath> &all_paths,
     int p=first_path();
     assert(p >= 0 && p < (int)all_paths.size());
     prob = 1.0;
+    num_mig=0;
     for (int t=start_time+1; t <= end_time; t++) {
-        prob *= mig_matrix[2*t-1].get(all_paths[p].pop[t-1],
-                                      all_paths[p].pop[t]);
+        double thisprob = mig_matrix[2*t-1].get(all_paths[p].pop[t-1],
+                                                all_paths[p].pop[t]);
+        if (thisprob > 0 && thisprob < 0.5)
+            num_mig++;
+        prob *= thisprob;
     }
     assert(prob >= 0 && prob <= 1.0);
 }

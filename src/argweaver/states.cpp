@@ -124,7 +124,10 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                      p++) {
                     double path_prob =
                         pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
-                    if (path_prob > 0.0) {
+                    if (path_prob > 0.0 &&
+                        (pop_tree->max_migrations < 0 ||
+                         (pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
+                          <= pop_tree->max_migrations))) {
                         int path1 =
                             pop_tree->unique_path(minage, start_pop, time,
                                                   end_pop, p);
@@ -245,12 +248,15 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                      p++) {
                     double path_prob =
                         pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
-                    if (path_prob > 0.0) {
+                    if (path_prob > 0.0 &&
+                        (pop_tree->max_migrations < 0 ||
+                         (pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
+                          <= pop_tree->max_migrations))) {
                         int path1 =
                             pop_tree->unique_path(minage, start_pop, time,
                                                   end_pop, p);
-                        // use a path that is consistent with the branch
-                        // we are coalescing to
+                       // use a path that is consistent with the branch
+                       // we are coalescing to
                         int path =
                             pop_tree->consistent_path(path1, nodes[i].pop_path,
                                                       minage, time, -1);

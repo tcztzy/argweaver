@@ -115,6 +115,11 @@ public:
         config.add(new ConfigParam<string>
                    ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
                     "", "File describing population tree (for multiple populations)"));
+        config.add(new ConfigParam<int>
+                   ("", "--max-migs", "<max_migs>", &max_migrations,
+                    -1, "For use with --pop-tree-file, do not thread lineages with more"
+                    " than this many migrations. The default of -1 implies no maximum."
+                    " Setting this value may reduce runtime significantly."));
 	config.add(new ConfigParam<int>
 		   ("", "--popsize-em", "<n>", &popsize_em, 0,
 		    "Do EM update of popsizes after every n threading operations"));
@@ -371,6 +376,7 @@ public:
     double popsize;
     string popsize_str;
     string pop_tree_file;
+    int max_migrations;
     string pop_file;
     double mu;
     double rho;
@@ -395,6 +401,7 @@ public:
     bool invisible_recombs;
     double epsilon;
     double pseudocount;
+
 #ifdef ARGWEAVER_MPI
     double mcmcmc_heat;
     int mcmcmc_group;
@@ -525,6 +532,7 @@ void log_model(const ArgModel &model)
                 printLog(LOG_LOW, ", %d", model.get_pop(i, j));
             printLog(LOG_LOW, "]\n");
         }
+        printLog(LOG_LOW, " max_migrations = %i\n", model.pop_tree->max_migrations);
     }
     if (isLogLevel(LOG_HIGH)) {
         printLog(LOG_HIGH, "mutmap = [\n");
@@ -1614,6 +1622,7 @@ int main(int argc, char **argv)
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     if (c.pop_tree_file != "") {
         c.model.read_population_tree(c.pop_tree_file);
+        c.model.pop_tree->max_migrations = c.max_migrations;
         if (c.pop_file != "") {
             sequences.set_pops_from_file(c.pop_file);
         }
