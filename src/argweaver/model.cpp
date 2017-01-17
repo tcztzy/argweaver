@@ -4,6 +4,7 @@
 #endif
 
 #include "model.h"
+#include "logging.h"
 #include "pop_model.h"
 #include "local_tree.h"
 
@@ -462,6 +463,59 @@ int ArgModel::max_matching_path(int path1, int path2, int t) const {
 int ArgModel::path_to_root(const LocalNode *nodes, int node, int time) const {
     if (pop_tree == NULL) return 0;
     return pop_tree->path_to_root(nodes, node, time);
+}
+
+void ArgModel::log_model() const {
+    printLog(LOG_LOW, "\n");
+    printLog(LOG_LOW, "model: \n");
+    printLog(LOG_LOW, "  mu = %e\n", mu);
+    printLog(LOG_LOW, "  rho = %e\n", rho);
+    printLog(LOG_LOW, "  ntimes = %d\n", ntimes);
+    printLog(LOG_LOW, "  times = [");
+    for (int i=0; i<ntimes-1; i++)
+        printLog(LOG_LOW, "%f,", times[i]);
+    printLog(LOG_LOW, "%f]\n", times[ntimes-1]);
+    printLog(LOG_LOW, "  npop = %d\n", num_pops());
+    printLog(LOG_LOW, "  popsizes = [");
+    for (int i=0; i < 2*ntimes-1; i++) {
+        if (i != 0) printLog(LOG_LOW, "              ");
+        for (int pop = 0; pop < num_pops(); pop++) {
+            if (pop != 0) printLog(LOG_LOW, ",\t");
+            printLog(LOG_LOW, "%.1f", popsizes[pop][i]);
+        }
+        printLog(LOG_LOW, "%c", i == 2*ntimes-2 ? ']' : ',');
+        printLog(LOG_LOW, "\n");
+    }
+    if (pop_tree != NULL) {
+        printLog(LOG_LOW, "    numpath = %d\n", num_pop_paths());
+        for (int i=0; i < num_pop_paths(); i++) {
+            printLog(LOG_LOW, "    path%d = [%d", i,
+                   get_pop(i, 0));
+            for (int j=1; j < ntimes; j++)
+                printLog(LOG_LOW, ", %d", get_pop(i, j));
+            printLog(LOG_LOW, "]\n");
+        }
+        printLog(LOG_LOW, " max_migrations = %i\n", pop_tree->max_migrations);
+    }
+    if (isLogLevel(LOG_HIGH)) {
+        printLog(LOG_HIGH, "mutmap = [\n");
+        for (unsigned int i=0; i<mutmap.size(); i++) {
+            printLog(LOG_HIGH, "%d\t%d\t%e\n",
+                     mutmap[i].start, mutmap[i].end,
+                     mutmap[i].value);
+        }
+        printLog(LOG_HIGH, "]\n");
+
+        printLog(LOG_HIGH, "recombmap = [\n");
+        for (unsigned int i=0; i<recombmap.size(); i++) {
+            printLog(LOG_HIGH, "%d\t%d\t%e\n",
+                     recombmap[i].start, recombmap[i].end,
+                     recombmap[i].value);
+        }
+        printLog(LOG_HIGH, "]\n");
+    }
+
+    printLog(LOG_LOW, "\n");
 }
 
 } // namespace argweaver
