@@ -29,11 +29,11 @@ void print_usage() {
            "   Process only these coordinates (1-based)\n"
            " --sample <sample>\n"
            "   Give the sample number for this file; this is important\n"
-           "   when combining multiple smc files.\n"
-	   " --times <times.txt>\n"
-	   "   File giving the discrete times used; will help avoid"
-           "   rounding error\n"
-	   "   in branch lengths/ages\n");
+           "   when combining multiple smc files."
+           " --log-file <file.log>\n"
+           "   Log file from arg-sample run; this is used as input to read model"
+           "   parameters. If not provided, smc2bed will look for log file"
+           "   in directory with smc file.");
 }
 
 
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     struct option long_opts[] = {
         {"region", 1, 0, 'r'},
         {"sample", 1, 0, 's'},
-        {"log file", 1, 0, 'l'},
+        {"log-file", 1, 0, 'l'},
         {"help", 0, 0, 'h'},
         {0,0,0,0}};
     while ((c = (char)getopt_long(argc, argv, "r:s:l:h", long_opts, &opt_idx))
