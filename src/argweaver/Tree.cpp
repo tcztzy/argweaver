@@ -1553,6 +1553,22 @@ set<Node*> Tree::lca(set<Node*> derived) {
     return rv;
 }
 
+bool Tree::haveMig(int p[2], int t[2], const ArgModel *model) {
+    assert(t[0] < t[1]);
+    double dt[2];
+    dt[0] = model->times[t[0]];
+    dt[1] = model->times[t[1]];
+    for (int i=0; i < nnodes; i++) {
+        if (nodes[i]->age <= dt[0] &&
+            (nodes[i]->parent == NULL ||
+             nodes[i]->parent->age >= dt[1])) {
+            if (model->get_pop(nodes[i]->pop_path, t[0]) == p[0] &&
+                model->get_pop(nodes[i]->pop_path, t[1]) == p[1])
+                return true;
+        }
+    }
+    return false;
+}
 
 //=============================================================================
 // primitive tree format conversion functions

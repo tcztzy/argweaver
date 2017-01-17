@@ -317,6 +317,7 @@ public:
                              int ngroup);
     bool isGroup(set<string> group);
     set<Node*> lca(set<Node*> derived);
+    bool haveMig(int p[2], int t[2], const ArgModel *model);
 
 protected:
     //returns age1-age2 and asserts it is positive,
