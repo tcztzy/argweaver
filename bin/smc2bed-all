@@ -14,12 +14,15 @@ show_help () {
   echo "   -e <endnum>  : end with this MCMC rep (default: stop when no file exists)"
   echo "   -i <interval>: sampling interval (will be auto-detected from output if not"
   echo "        specified)"
+  echo "   -r <region>  : region (in format START-END, 1-based, inclusive) to"
+  echo "        pass to smc2bed (default: run on all coordinates)"
 }
 
 startnum=0
 interval=0
 endnum=-1
-while getopts "s:i:e:h" opt; do
+region=""
+while getopts "s:i:e:r:h" opt; do
   case "$opt" in
   h)
 	show_help
@@ -34,6 +37,9 @@ while getopts "s:i:e:h" opt; do
   i)
 	interval=$OPTARG
 	;;
+  r)
+        region=$OPTARG
+        ;;
   esac
 done
 
@@ -69,6 +75,10 @@ echo "starting at rep startnum=$startnum" >> /dev/stderr
 echo "using sampling interval=$interval" >> /dev/stderr
 
 num=$startnum
+regionarg=""
+if [[ -n $region ]]; then
+    regionarg="--region $region"
+fi
 ( while [[ 1 ]]; do
   file=$baseout.$num.smc.gz
   if [[ ( $endnum -ne -1 && $num -gt $endnum ) || ! -e $file ]]; then
@@ -76,8 +86,8 @@ num=$startnum
       echo "ended at sample=$num" >> /dev/stderr
       break
   fi
-#  echo $num $file >> /dev/stderr
-  smc2bed --sample $num $file
+  echo $num $file >> /dev/stderr
+  smc2bed --sample $num $regionarg $file
   num=$(($num+$interval))
  done
 ) | sort-bed - | bgzip > $baseout.bed.gz
