@@ -4,12 +4,12 @@
 #include <assert.h>
 
 // argweaver includes
-#include "argweaver/Tree.h"
+#include "argweaver/local_tree.h"
 #include "argweaver/compress.h"
 #include "argweaver/parsing.h"
+#include "argweaver/model.h"
 
-
-using namespace spidir;
+//using namespace spidir;
 using namespace argweaver;
 
 void print_usage() {
@@ -37,28 +37,35 @@ void print_usage() {
 }
 
 
+bool guess_log_file(char *smc_file, char *log_file) {
+    int len = strlen(smc_file);
+    strcpy(log_file, smc_file);
+    if (strcmp(&smc_file[len-7], ".smc.gz")==0) {
+        int pos=len-8;
+        while (pos >= 0 && smc_file[pos] != '.') pos--;
+        if (pos < 0) return false;
+        log_file[pos]='\0';
+        sprintf(log_file, "%s%s", log_file, ".log");
+        return true;
+    }
+    return false;
+}
 
 
 int main(int argc, char *argv[]) {
     char c;
-    int region[2]={-1,-1}, orig_start, orig_end, start, end, spr_pos;
-    vector<string> names;
-    string currstr;
-    char *line = NULL;
-    char chrom[1000];
-    char *newick=NULL;
-    Tree *tree=NULL;
-    NodeSpr *spr=NULL;
-    char *timesfile=NULL;
-    int recomb_node, coal_node, sample=0, opt_idx;
-    vector<double> times;
+    int region[2]={-1,-1};
+    LocalTrees *trees=NULL;
+    char *log_file = NULL;
+    ArgModel *model;
+    int sample=0, opt_idx;
     struct option long_opts[] = {
         {"region", 1, 0, 'r'},
         {"sample", 1, 0, 's'},
-	{"times", 1, 0, 't'},
+        {"log file", 1, 0, 'l'},
         {"help", 0, 0, 'h'},
         {0,0,0,0}};
-    while ((c = (char)getopt_long(argc, argv, "r:s:t:h", long_opts, &opt_idx))
+    while ((c = (char)getopt_long(argc, argv, "r:s:l:h", long_opts, &opt_idx))
            != -1) {
         switch (c) {
         case 'r':
@@ -71,9 +78,9 @@ int main(int argc, char *argv[]) {
         case 's':
             sample = atoi(optarg);
             break;
-	case 't':
-	    timesfile = optarg;
-	    break;
+        case 'l':
+            log_file = optarg;
+            break;
         case 'h':
             print_usage();
             return 0;
@@ -86,163 +93,40 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Bad arguments. Try --help\n");
         return 1;
     }
+    Logger *logger = new Logger(stderr, LOG_HIGH);
+    g_logger.setChain(logger);
 
-    if (timesfile != NULL) {
-	FILE *infile = fopen(timesfile, "r");
-	double t;
-	if (infile == NULL) {
-	    fprintf(stderr, "Error opening %s.\n", timesfile);
-	    return 1;
-	}
-	while (EOF != fscanf(infile, "%lf", &t))
-	    times.push_back(t);
-	std::sort(times.begin(), times.end());
-	fclose(infile);
-	//      fprintf(stderr, "read %i times\n", (int)times.size());
-    }
-    CompressStream instream(argv[optind], "r");
-    //    fprintf(stderr, "opening %s\n", argv[optind]);
-    line = fgetline(instream.stream);
-    chomp(line);
-    if (strncmp(line, "NAMES", 5) != 0) {
-        fprintf(stderr, "error: Expected first line of input to be NAMES");
-        return 1;
-    }
-    split(&line[6], "\t", names);
-    line= fgetline(instream.stream);
-    chomp(line);
-    if (strncmp(line, "REGION", 6) != 0) {
-        fprintf(stderr, "error: Expected second line of input to be REGION");
-    }
-    if (sscanf(&line[7], "%1000s\t%d\t%d", chrom, &orig_start, &orig_end) != 3) {
-        fprintf(stderr, "error parsing REGION string in second line\n");
-        return 1;
-    }
-    while ((line = fgetline(instream.stream))) {
-        chomp(line);
-        if (strncmp(line, "TREE", 4)==0) {
-            if (2 != sscanf(&line[5], "%d\t%d", &start, &end)) {
-                fprintf(stderr, "error processing TREE line\n");
-                return 1;
-            }
-            start--;  //0-based
-            if (region[1] >= 0 && start >= region[1])
-                break;
-            if (region[0] >= 0 && end <= region[0]) {
-                delete [] line;
-                while (1) {
-                    line = fgetline(instream.stream);
-                    if (line==NULL) break;
-                    if (strncmp(line, "SPR-INVIS", 9)==0) {
-                        delete [] line;
-                        continue;
-                    } else if (strncmp(line, "SPR", 3)==0) {
-                        delete [] line;
-                        break;
-                    }
-                    fprintf(stderr, "error: expected SPR or SPR-INVIS after TREE line\n");
-                    return 1;
-                }
-                continue;
-            }
-
-            char *newick_end = line + strlen(line);
-            newick = find(line+5, newick_end, '\t')+1;
-            newick = find(newick, newick_end, '\t')+1;
-	    if (tree == NULL || spr->recomb_node == NULL) {
-	      if (tree != NULL) delete tree;
-	      tree = new Tree(string(newick), times);
-              spr = new NodeSpr(tree, newick, times);
-
-	      //have to rename all leaf nodes and remove NHX comments
-	      for (int i=0; i < tree->nnodes; i++) {
-                int nodenum = atoi(tree->nodes[i]->longname.c_str());
-                if (tree->nodes[i]->nchildren == 0) {
-		  assert(nodenum >= 0 && (unsigned int)nodenum < names.size());
-		  tree->nodes[i]->longname = names[nodenum];
-                }
-	      }
-	    } else {
-	      tree->apply_spr(spr);
-	    }
-            delete [] line;
-
-            while (1) {
-                line=fgetline(instream.stream);
-                if (line == NULL) {
-                    spr->recomb_node = NULL;
-                    spr->coal_node = NULL;
-                    recomb_node = -1;
-                    coal_node = -1;
-                } else if (strncmp(line, "SPR", 3)==0) {
-                    int idx=4;
-                    bool invisible=false;
-                    if (strncmp(line, "SPR-INVIS", 9)==0) {
-                        idx = 10;
-                        invisible=true;
-                    }
-                    if (5 != sscanf(&line[idx], "%d\t%d\t%lf\t%d\t%lf",
-                                    &spr_pos, &recomb_node, &(spr->recomb_time),
-                                    &coal_node, &(spr->coal_time))) {
-                        fprintf(stderr, "error parsing SPR line\n");
-                        return 1;
-                    }
-                    if (spr_pos != end && !invisible) {
-                        fprintf(stderr, "error: SPR pos does not equal TREE end\n");
-                        return 1;
-                    }
-                    if (region[1] >= 0 && spr_pos >= region[1]) {
-                        coal_node = -1;
-                        recomb_node = -1;
-                    }
-                } else {
-                    fprintf(stderr, "error: expected SPR after TREE line\n");
-                    return 1;
-                }
-
-                //now have to rename all leaf nodes and remove all NHX comments
-                char tmpStr[1000];
-                if (recomb_node >= 0) {
-                    sprintf(tmpStr, "%i", recomb_node);
-                    //	    char *tmpStr = itoa(recomb_node);
-                    spr->recomb_node =
-                        tree->nodes[tree->nodename_map[string(tmpStr)]];
-                    sprintf(tmpStr, "%i", coal_node);
-                    spr->coal_node = tree->nodes[tree->nodename_map[string(tmpStr)]];
-
-                    if (spr->recomb_node->age-1 > spr->recomb_time)
-                        assert(0);
-                    if (spr->recomb_node != tree->root) {
-                        if (spr->recomb_node->parent->age+1 < spr->recomb_time)
-                            assert(0);
-                    }
-                    if (spr->coal_node->age-1 > spr->coal_time)
-                        assert(0);
-                    if (spr->coal_node != tree->root) {
-                        if (spr->coal_node->parent->age+1 < spr->coal_time) {
-                            assert(0);
-                        }
-                    }
-                    if (times.size() > 0) spr->correct_recomb_times(times);
-                }
-                if (region[0] >= 0 && start < region[0])
-                    start = region[0];
-                if (region[1] >= 0 && spr_pos >= region[1]) {
-                    spr_pos = region[1];
-                    spr->recomb_node = spr->coal_node = NULL;
-                }
-                if (line == NULL) spr_pos = end;
-                printf("%s\t%i\t%i\t%i\t", chrom, start, spr_pos, sample);
-                tree->write_newick(stdout, false, true, 1, spr);
-                start = spr_pos;
-                printf("\n");
-                if (line == NULL) break;
-                bool done=(strncmp(line, "SPR\t", 4)==0);
-                delete [] line;
-                if (done) break;
-            }
+    if (log_file == NULL) {
+        log_file = (char*)malloc((strlen(argv[optind])+10)*sizeof(char));
+        if (!guess_log_file(argv[optind], log_file)) {
+            fprintf(stderr, "Could not guess log file name, provide with -l");
+            return 1;
         }
     }
+
+    model = NULL;
+    if (log_file != NULL) {
+        model = new ArgModel(log_file);
+    }
+
+    CompressStream instream(argv[optind], "r");
+    vector<string> seqnames;
+
+    trees = new LocalTrees();
+    if (!read_local_trees(instream.stream, model->times, model->ntimes,
+                          trees, seqnames)) {
+        fprintf(stderr, "Error parsing SMC file\n");
+        return 1;
+    }
+    if (region[0] != -1) {
+        LocalTrees *trees2 = partition_local_trees(trees, region[0], true);
+        delete trees;
+        trees = trees2;
+    }
+    if (region[1] != -1)
+        partition_local_trees(trees, region[1], true);
+    write_local_trees_as_bed(stdout, trees, seqnames,
+                             model, sample);
     instream.close();
     return 0;
 }
