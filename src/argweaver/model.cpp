@@ -151,6 +151,15 @@ int ArgModel::consistent_path(int path1, int path2,
 }
 
 
+int ArgModel::consistent_path(int path1, int path2,
+                              double t1, double t2, double t3,
+                              bool require_exists) const {
+    int t1d = discretize_time(t1);
+    int t2d = t2 < -0.1 ? -1 : discretize_time(t2, t1d);
+    int t3d = t3 < -0.1 ? -1 : discretize_time(t3, t2d);
+    return consistent_path(path1, path2, t1d, t2d, t3d, require_exists);
+}
+
 void ArgModel::copy(const ArgModel &other) {
     owned = true;
     rho = other.rho;
@@ -647,6 +656,37 @@ void ArgModel::log_model() const {
     }
 
     printLog(LOG_LOW, "\n");
+}
+
+int time_index(double t, const double *times, int ntimes, int min_idx,
+               double tol) {
+    int min_time= (min_idx < 0 ? 0 : min_idx);
+    int max_time = ntimes - 1;
+    int mid_time = (max_time+min_time)/2;
+    // check min_time first as it may often be the one
+    if (fabs(t - times[min_time]) < tol) return min_time;
+    assert(t > times[min_time]);
+    // otherwise do binary search
+    while (1) {
+        if (fabs(t - times[mid_time]) < tol) return mid_time;
+        if (times[mid_time] > t) {
+            max_time = mid_time-1;
+        } else {
+            min_time = mid_time+1;
+        }
+        mid_time = (max_time + min_time)/2;
+        if (max_time <= min_time) {
+            if (fabs(t - times[max_time]) < tol) return max_time;
+            if (fabs(t - times[min_time]) < tol) return min_time;
+            assert(0);
+        }
+    }
+    assert(0);
+}
+
+
+int ArgModel::discretize_time(double t, int min_idx, double tol) const {
+    return time_index(t, times, ntimes, tol);
 }
 
 } // namespace argweaver

@@ -43,7 +43,11 @@ void get_coal_time_steps(const double *times, int ntimes,
 			 double *coal_time_steps, bool linear,
 			 double delta);
 
-class PopTime
+// return idx such that times[i]=t within tol
+int time_index(double t, const double *times, int ntimes,
+               int min_idx=-1, double tol=1.0);
+
+ class PopTime
 {
  public:
     PopTime(int pop, int time) : pop(pop), time(time){}
@@ -516,6 +520,8 @@ class ArgModel
     int get_pop(int path, int time) const;
     int consistent_path(int path1, int path2, int t1, int t2, int t3,
                         bool require_exists=true) const;
+    int consistent_path(int path1, int path2, double t1, double t2,
+                        double t3, bool require_exists=true) const;
 
     int num_pops() const;
     int num_pop_paths() const;
@@ -524,6 +530,7 @@ class ArgModel
     int max_matching_path(int path1, int path2, int t) const;
     int path_to_root(const LocalNode *nodes, int node, int time) const;
     void log_model() const;
+    int discretize_time(double t, int min_idx=-1, double tol=1.0) const;
 
 
 protected:
