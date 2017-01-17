@@ -22,6 +22,7 @@
 #include "argweaver/tabix.h"
 #include "argweaver/compress.h"
 #include "argweaver/IntervalIterator.h"
+#include "argweaver/model.h"
 //#include "allele_age.h"
 
 
@@ -48,11 +49,33 @@ vector<string> ind_dist_leaf2;
 
 const int EXIT_ERROR = 1;
 
+class MigStat {
+public:
+    MigStat(string name, int p0[2], int t0[2]) : name(name) {
+        // ensure that t[0] < t[1]
+        if (t0[0] < t0[1]) {
+            t[0] = t0[0];
+            t[1] = t0[1];
+            p[0] = p0[0];
+            p[1] = p0[1];
+        } else {
+            t[0] = t0[1];
+            t[1] = t0[0];
+            p[0] = p0[1];
+            p[1] = p0[0];
+        }
+    }
+    string name;
+    int t[2];
+    int p[2];
+};
+
+
 /* class of miscellaenous data structures to be passed around arg-summarize
    functions */
 class ArgSummarizeData {
 public:
-    vector<double> times;
+    ArgModel *model;
     vector< set<string> > group;
     vector<string> spr_leaf;
 
@@ -66,6 +89,8 @@ public:
 
     //maps integer from coalgroups to a group name
     vector<string> coalgroup_names;
+
+    vector<MigStat> migstat;
 };
 
 
@@ -117,10 +142,16 @@ public:
                     "If provided, only process trees in argfile with given MCMC"
 			   " sample number"));
         config.add(new ConfigParam<string>
-                   ("-m", "--time-file", "<times.txt>", &timefile,
-                    "File with list of discretized times used in trees. If"
-                    " given, tree events will be set to nearest time (eliminates"
-                    " some rounding error)."));
+                   ("-l", "--log-file", "<file.log>", &logfile,
+                    "Log file from arg-sample run, used to obtain model"
+                    " parameters. Required in combination with several options."));
+        config.add(new ConfigParam<string>
+                  ("-m", "--mig-file", "<migfile.txt>", &migfile,
+                   "Report statistics on migrations listed in this file. Format is:\n"
+                   "statName t1 t2 pop1 pop2\n"
+                   "will return statistic named statName which is 1 if a tree"
+                   "contains a lineage that is in pop1 at time t1 and pop2 at"
+                   "time t2, otherwise it is 0"));
 
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
@@ -274,11 +305,12 @@ public:
     string bedfile;
     string indfile;
     string snpfile;
-    string timefile;
+    string logfile;
     string groupfile;
     string coalgroup_inds_file;
     string coalgroup_file;
     string spr_leaf_names;
+    string migfile;
     int sample_num;
 
     bool rawtrees;
@@ -398,15 +430,6 @@ public:
 };
 
 
-int get_time_index(double t, const vector<double> &times, int start=0) {
-    for (unsigned int i=start; i < times.size(); i++) {
-        if (fabs(times[i] - t) < 1.0e-3) return i;
-    }
-    assert(0);
-    return -1;
-}
-
-
 void scoreBedLine(BedLine *line, vector<string> &statname,
                       ArgSummarizeData &data,
                       double allele_age=-1, int infsites=-1) {
@@ -415,6 +438,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                    line->trees->orig_tree);
     double bl=-1.0;
     int node_dist_idx=0;
+    const ArgModel *model = data.model;
     int ind_dist_idx=0;
     if (line->stats.size() == statname.size()) return;
     line->stats.resize(statname.size());
@@ -470,47 +494,47 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
             const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
                                       &(line->trees->pruned_spr) :
                                       &(line->trees->orig_spr));
-            for (unsigned int j=0; j < data.times.size(); j++) {
+            for (int j=0; j < model->ntimes; j++) {
                 assert(i+j < statname.size() &&
                        statname[i+j].substr(0, 8)=="recombs.");
                 line->stats[i+j] = 0;
             }
             if (nodespr->recomb_node != NULL) {
-                int t = get_time_index(nodespr->recomb_time, data.times);
+                int t = model->discretize_time(nodespr->recomb_time);
                 line->stats[i + t] = 1;
             }
-            i += data.times.size() - 1;
+            i += model->ntimes - 1;
         }
         else if (statname[i].substr(0, 14)=="invis-recombs.") {
             const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
                                       &(line->trees->pruned_spr) :
                                       &(line->trees->orig_spr));
-            for (unsigned int j=0; j < data.times.size(); j++) {
+            for (int j=0; j < model->ntimes; j++) {
                 assert(i+j < statname.size() &&
                        statname[i+j].substr(0, 14)=="invis-recombs.");
                 line->stats[i+j] = 0;
             }
             if (nodespr->is_invisible()) {
-                int t = get_time_index(nodespr->recomb_time, data.times);
+                int t = model->discretize_time(nodespr->recomb_time);
                 line->stats[i + t] = 1;
             }
-            i += data.times.size() - 1;
+            i += model->ntimes - 1;
         }
         else if (statname[i].substr(0, 10)=="branchlen.") {
-            for (unsigned int j=0; j < data.times.size(); j++) {
+            for (int j=0; j < model->ntimes; j++) {
                 assert(i+j < statname.size() &&
                        statname[i+j].substr(0, 10)=="branchlen.");
                 line->stats[i+j] = 0;
             }
             for (int j=0; j < tree->nnodes; j++) {
                 if (tree->nodes[j] == tree->root) continue;
-                int age1 = get_time_index(tree->nodes[j]->age, data.times);
-                int age2 = get_time_index(tree->nodes[j]->parent->age, data.times, age1);
+                int age1 = model->discretize_time(tree->nodes[j]->age);
+                int age2 = model->discretize_time(tree->nodes[j]->age);
                 for (int k=age1; k < age2; k++) {
-                    line->stats[i + k] += (data.times[k + 1] - data.times[k]);
+                    line->stats[i + k] += (model->times[k + 1] - model->times[k]);
                 }
             }
-            i += data.times.size() - 1;
+            i += model->ntimes - 1;
         }
 	else if (statname[i].substr(0, 8)=="ind_dist") {
 	    string h1 = ind_dist_leaf1[ind_dist_idx];
@@ -530,7 +554,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
 	    ind_dist_idx++;
 	}
         else if (statname[i].substr(0, 10)=="coalcount.") {
-            vector<double>coal_counts = tree->coalCounts(data.times);
+            vector<double>coal_counts = tree->coalCounts(model->times, model->ntimes);
             for (unsigned int j=0; j < coal_counts.size(); j++) {
                 assert(i+j < statname.size() &&
                        statname[i+j].substr(0,10)=="coalcount.");
@@ -579,6 +603,15 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                 for (unsigned int j=0; j < tmpstats.size(); j++)
                     line->stats[i+j] = tmpstats[j];
                 i += tmpstats.size() - 1;
+            }
+        }
+        else if (data.migstat.size() > 0) {
+            for (unsigned int j=0; j < data.migstat.size(); j++) {
+                if (statname[i] == data.migstat[j].name) {
+                    line->stats[i] = (int)tree->haveMig(data.migstat[j].p,
+                                                        data.migstat[j].t,
+                                                        data.model);
+                }
             }
         }
         else {
@@ -933,6 +966,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
     char chrom[1000], c;
     int start, end, sample;
     BedLine *l=NULL;
+    const ArgModel *model = data.model;
 
     if (snp_infile.stream == NULL) return 1;
     if (infile.stream == NULL) return 1;
@@ -979,12 +1013,12 @@ int summarizeRegionBySnp(Config *config, const char *region,
                     delete l->trees;
                     delete &*l;
                 }
-                trees = new SprPruned(newick, inds, data.times);
+                trees = new SprPruned(newick, inds, model);
                 l = new BedLine(chrom, start, end, sample, newick, trees);
                 last_entry[sample] = l;
             } else {
                 l = it->second;
-                l->trees->update(newick, inds, data.times);
+                l->trees->update(newick, inds, model);
                 free(l->newick);
                 l->newick = (char*)malloc((strlen(newick)+1)*sizeof(char));
                 strcpy(l->newick, newick);
@@ -1145,6 +1179,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
     map<int,BedLine*> bedlineMap;
     map<int,SprPruned*> trees;
     map<int,SprPruned*>::iterator it;
+    const ArgModel *model = data.model;
     /*
       Class BedLine contains chr,start,end, newick tree, parsed tree.
       parsed tree may be NULL if not parsing trees but otherwise will
@@ -1247,8 +1282,8 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         }
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
-            trees[sample] = new SprPruned(newick, inds, data.times);
-        else trees[sample]->update(newick, inds, data.times);
+            trees[sample] = new SprPruned(newick, inds, model);
+        else trees[sample]->update(newick, inds, model);
 
         map<int,BedLine*>::iterator it3 = bedlineMap.find(sample);
         BedLine *currline;
@@ -1337,18 +1372,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (!c.timefile.empty()) {
-        FILE *infile = fopen(c.timefile.c_str(), "r");
-        double t;
-        if (infile == NULL) {
-            fprintf(stderr, "Error opening %s.\n", c.timefile.c_str());
-            return 1;
-        }
-        while (EOF != fscanf(infile, "%lf", &t))
-            data.times.push_back(t);
-        std::sort(data.times.begin(), data.times.end());
-        fclose(infile);
-    }
+    if (!c.logfile.empty())
+        data.model = new ArgModel(c.logfile.c_str());
     if (c.html) {
       html=true;
       printf("<html>\n");
@@ -1460,44 +1485,44 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.coalcounts) {
-        if (c.timefile.empty()) {
-            fprintf(stderr, "Error: --time-file required with --coalcounts\n");
+        if (c.logfile.empty()) {
+            fprintf(stderr, "Error: --log-file required with --coalcounts\n");
             return 1;
         }
-        for (unsigned int i=0; i < data.times.size(); i++) {
+        for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
             sprintf(tmp, "coalcount.%i", i);
             statname.push_back(string(tmp));
         }
     }
     if (c.recombs_per_time) {
-        if (c.timefile.empty()) {
-            fprintf(stderr, "Error: --time-file required with --recombs-per-time\n");
+        if (c.logfile.empty()) {
+            fprintf(stderr, "Error: --log-file required with --recombs-per-time\n");
             return 1;
         }
-        for (unsigned int i=0; i < data.times.size(); i++) {
+        for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
             sprintf(tmp, "recombs.%i", i);
             statname.push_back(string(tmp));
         }
     }
     if (c.recombs_per_time) {
-        if (c.timefile.empty()) {
+        if (c.logfile.empty()) {
             fprintf(stderr, "Error: --time-file required with --invis-recombs-per-time\n");
             return 1;
         }
-        for (unsigned int i=0; i < data.times.size(); i++) {
+        for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
             sprintf(tmp, "invis-recombs.%i", i);
             statname.push_back(string(tmp));
         }
     }
     if (c.branchlen_per_time) {
-        if (c.timefile.empty()) {
-            fprintf(stderr, "Error: --time-file required with --branchlen-per-time\n");
+        if (c.logfile.empty()) {
+            fprintf(stderr, "Error: --log-file required with --branchlen-per-time\n");
             return 1;
         }
-        for (unsigned int i=0; i < data.times.size(); i++) {
+        for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
             sprintf(tmp, "branchlen.%i", i);
             statname.push_back(string(tmp));
@@ -1554,6 +1579,35 @@ int main(int argc, char *argv[]) {
 	    ind_dist_leaf1.push_back(tokens2[0]);
 	    ind_dist_leaf2.push_back(tokens2[1]);
 	}
+    }
+    if (!c.migfile.empty()) {
+        if (data.model == NULL) {
+            fprintf(stderr, "--log-file required with --mig-file\n");
+            exit(1);
+        }
+        FILE *infile = fopen(c.migfile.c_str(), "r");
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening %s\n", c.migfile.c_str());
+            exit(1);
+        }
+        char migname[1000];
+        int p[2], t[2];
+        double dt[2];
+        while (EOF != fscanf(infile, "%s %i %i %lf %lf", migname, &p[0], &p[1],
+                             &dt[0], &dt[1])) {
+            for (int i=0; i < 2; i++) {
+                t[i] = data.model->discretize_time(dt[i], 2.0);
+                if (t[i] < 0) {
+                    fprintf(stderr, "time %f in %s is not one of the discretized times in model\n",
+                            dt[i], c.migfile.c_str());
+                    exit(-1);
+                }
+            }
+            data.migstat.push_back(MigStat(string(migname), p, t));
+            statname.push_back(string(migname));
+        }
+        fclose(infile);
+
     }
     if (c.rawtrees)
         statname.push_back(string("tree"));
