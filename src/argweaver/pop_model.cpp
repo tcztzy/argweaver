@@ -61,6 +61,7 @@ void PopulationTree::print() const {
 }
 
 
+
 PopulationTree::PopulationTree(int npop, const ArgModel *model) :
     npop(npop), model(model) {
     int ntime2 = 2 * model->ntimes - 1;  // number of half-time intervals
@@ -246,7 +247,6 @@ void PopulationTree::set_up_population_paths() {
         p.set(0, p1);
         getAllPopulationPathsRec(p, 0, ntime-1, p1);
     }
-    printLog(LOG_LOW, "Total number of possible paths: %i\n", all_paths.size());
 
     // check that all paths end in same population
     int lastpop=all_paths[0].pop[ntime - 1];
