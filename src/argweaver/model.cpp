@@ -686,7 +686,7 @@ int time_index(double t, const double *times, int ntimes, int min_idx,
 
 
 int ArgModel::discretize_time(double t, int min_idx, double tol) const {
-    return time_index(t, times, ntimes, tol);
+    return time_index(t, times, ntimes, min_idx, tol);
 }
 
 } // namespace argweaver
