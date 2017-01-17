@@ -148,11 +148,11 @@ public:
         config.add(new ConfigParam<string>
                   ("-m", "--mig-file", "<migfile.txt>", &migfile,
                    "Report statistics on migrations listed in this file. Format is:\n"
-                   "statName t1 t2 pop1 pop2\n"
-                   "will return statistic named statName which is 1 if a tree"
-                   "contains a lineage that is in pop1 at time t1 and pop2 at"
-                   "time t2, otherwise it is 0"));
-
+                   "statName pop1 pop2 t\n"
+                   "will return a boolean statistic named statName indicating existance"
+                   "of a lineage that is in pop1 at the time interval immediately"
+                   "after time t and pop2 at the time interval before time t2"
+                   "(indicating move from pop1 to pop2 looking backwards in time)"));
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
                    ("-E", "--tree", &rawtrees,
@@ -1592,17 +1592,20 @@ int main(int argc, char *argv[]) {
         }
         char migname[1000];
         int p[2], t[2];
-        double dt[2];
-        while (EOF != fscanf(infile, "%s %i %i %lf %lf", migname, &p[0], &p[1],
-                             &dt[0], &dt[1])) {
-            for (int i=0; i < 2; i++) {
-                t[i] = data.model->discretize_time(dt[i], 2.0);
-                if (t[i] < 0) {
-                    fprintf(stderr, "time %f in %s is not one of the discretized times in model\n",
-                            dt[i], c.migfile.c_str());
-                    exit(-1);
-                }
+        double dt;
+        while (EOF != fscanf(infile, "%s %i %i %lf", migname, &p[0], &p[1],
+                             &dt)) {
+            int i;
+            for (i=0; i < data.model->ntimes-1; i++)
+                if (data.model->times[i] <= dt &&
+                    data.model->times[i+1] > dt) break;
+            if (i == data.model->ntimes-1) {
+                fprintf(stderr, "error processing mig-file; time %f is out of the"
+                        "range of discrete times", dt);
+                exit(1);
             }
+            t[0] = data.model->times[i];
+            t[1] = data.model->times[i+1];
             data.migstat.push_back(MigStat(string(migname), p, t));
             statname.push_back(string(migname));
         }
