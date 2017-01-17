@@ -99,6 +99,8 @@ char *concat_strs(char **strs, int nstrs);
 
 string quote_arg(string text);
 
+// return
+bool str_starts_with(const char *str1, const char *str2);
 
 } // namespace argweaver
 

@@ -177,5 +177,8 @@ string quote_arg(string text)
     return string(text2);
 }
 
+bool str_starts_with(const char *str1, const char *str2) {
+    return (strncmp(str1, str2, strlen(str2))==0);
+}
 
 } // namespace argweaver
