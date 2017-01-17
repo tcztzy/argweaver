@@ -659,6 +659,7 @@ LocalTrees *partition_local_trees(LocalTrees *trees, int pos, bool trim)
     if (pos == trees->start_coord) {
         LocalTrees *trees2 = new LocalTrees(pos, trees->end_coord,
                                             trees->nnodes);
+        trees2->chrom = trees->chrom;
         trees2->seqids.insert(trees2->seqids.end(), trees->seqids.begin(),
                               trees->seqids.end());
         trees2->trees.splice(trees2->begin(), trees->trees,
@@ -670,6 +671,7 @@ LocalTrees *partition_local_trees(LocalTrees *trees, int pos, bool trim)
     // special case (pos at end of local trees)
     if (pos == trees->end_coord) {
         LocalTrees *trees2 = new LocalTrees(pos, pos, trees->nnodes);
+        trees2->chrom = trees->chrom;
         trees2->seqids.insert(trees2->seqids.end(), trees->seqids.begin(),
                               trees->seqids.end());
         trees2->seqids.insert(trees2->seqids.end(), trees->seqids.begin(),
