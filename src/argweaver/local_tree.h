@@ -13,7 +13,7 @@
 
 // arghmm includes
 #include "sequences.h"
-#include "pop_model.h"
+#include "model.h"
 
 namespace argweaver {
 
@@ -882,6 +882,14 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
                       LocalTrees *trees, vector<string> &seqnames);
 bool read_local_trees(const char *filename, const double *times, int ntimes,
                       LocalTrees *trees, vector<string> &seqnames);
+
+void write_newick_Tree_for_bedfile(FILE *out, const LocalTree *tree,
+                                   const char *const *names,
+                                   const ArgModel *model,
+                                   const Spr &spr);
+void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
+                              const vector<string> seqnames,
+                              const ArgModel *model, int sample);
 
 
 //=============================================================================

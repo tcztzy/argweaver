@@ -1103,29 +1103,50 @@ bool write_newick_tree(const char *filename, const LocalTree *tree,
 
 bool write_newick_tree_for_bedfile_recur(FILE *out, const LocalTree *tree,
                                          const char *const *names,
-                                         const double *times,
+                                         const ArgModel *model,
                                          const Spr &spr, int node) {
 
+    vector<string> nhx;
+    const double *times = model->times;
+    char tmpstr[1000];
     if (tree->nodes[node].is_leaf()) {
         fprintf(out, "%s", names[node]);
     } else {
         fprintf(out, "(");
-        write_newick_tree_for_bedfile_recur(out, tree, names, times, spr,
+        write_newick_tree_for_bedfile_recur(out, tree, names, model, spr,
                                             tree->nodes[node].child[0]);
         fprintf(out, ",");
-        write_newick_tree_for_bedfile_recur(out, tree, names, times, spr,
+        write_newick_tree_for_bedfile_recur(out, tree, names, model, spr,
                                             tree->nodes[node].child[1]);
         fprintf(out, ")");
     }
-    if (node != tree->root)
-        fprintf(out, "%.1f", times[tree->nodes[node].age]);
-    if (node == spr.recomb_node && node == spr.coal_node) {
-        fprintf(out, "[&&NHX:recomb_node=%.1f,coal_time=%.1f]",
-                times[spr.recomb_time], times[spr.coal_time]);
-    } else if (node == spr.recomb_node) {
-        fprintf(out, "[&&NHX:recomb_node=%.1f]", times[spr.recomb_time]);
-    } else if (node == spr.coal_node) {
-        fprintf(out, "[&&NHX:coal_time=%.1f]", times[spr.coal_time]);
+    if (node != tree->root) {
+        int parent = tree->nodes[node].parent;
+        fprintf(out, ":%.1f", times[tree->nodes[parent].age] -
+                times[tree->nodes[node].age]);
+    }
+
+    if (model->pop_tree != NULL && tree->nodes[node].pop_path != 0) {
+        sprintf(tmpstr, "pop_path=%i", tree->nodes[node].pop_path);
+        nhx.push_back(string(tmpstr));
+    }
+    if (node == spr.recomb_node) {
+        sprintf(tmpstr, "recomb_node=%.1f", times[spr.recomb_time]);
+        nhx.push_back(string(tmpstr));
+    }
+    if (node == spr.coal_node) {
+        sprintf(tmpstr, "coal_node=%.1f", times[spr.coal_time]);
+        nhx.push_back(string(tmpstr));
+    }
+    if (node == spr.recomb_node && model->pop_tree != NULL && spr.pop_path != 0) {
+        sprintf(tmpstr, "spr_pop_path=%i", spr.pop_path);
+        nhx.push_back(string(tmpstr));
+    }
+    if (nhx.size() > 0) {
+        fprintf(out, "[&&NHX:%s", nhx[0].c_str());
+        for (int i=1; i < (int)nhx.size(); i++)
+            fprintf(out, ",%s", nhx[i].c_str());
+        fprintf(out, "]");
     }
     return true;
 }
@@ -1134,9 +1155,9 @@ bool write_newick_tree_for_bedfile_recur(FILE *out, const LocalTree *tree,
 bool write_newick_tree_for_bedfile(FILE *out,
                                    const LocalTree *tree,
                                    const char *const *names,
-                                   const double *times,
+                                   const ArgModel *model,
                                    const Spr &spr) {
-    write_newick_tree_for_bedfile_recur(out, tree, names, times, spr,
+    write_newick_tree_for_bedfile_recur(out, tree, names, model, spr,
                                         tree->root);
     fprintf(out, ";");
     return true;
@@ -1415,16 +1436,16 @@ void write_local_tree(const LocalTree *tree) {
 
 
 void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
-                              const char *const *names,
-                              const double *times, int sample) {
+                              const vector<string> seqnames,
+                              const ArgModel *model, int sample) {
     const int nnodes = trees->nnodes;
     char **nodeids = new char* [nnodes];
     int i = 0;
     Spr spr;
 
     for (i=0; i<trees->get_num_leaves(); i++) {
-        nodeids[i] = new char [strlen(names[trees->seqids[i]])+1];
-        strcpy(nodeids[i], nodeids[trees->seqids[i]]);
+        nodeids[i] = new char [seqnames[trees->seqids[i]].length()+1];
+        strcpy(nodeids[i], seqnames[trees->seqids[i]].c_str());
     }
     for (; i<nnodes; i++) {
         nodeids[i] = new char[1];
@@ -1450,7 +1471,7 @@ void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
             spr.set_null();
         }
 
-        write_newick_tree_for_bedfile(out, tree, nodeids, times, spr);
+        write_newick_tree_for_bedfile(out, tree, nodeids, model, spr);
         fprintf(out, "\n");
     }
 
