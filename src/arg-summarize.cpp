@@ -1604,8 +1604,8 @@ int main(int argc, char *argv[]) {
                         "range of discrete times", dt);
                 exit(1);
             }
-            t[0] = data.model->times[i];
-            t[1] = data.model->times[i+1];
+            t[0] = i;
+            t[1] = i+1;
             data.migstat.push_back(MigStat(string(migname), p, t));
             statname.push_back(string(migname));
         }
