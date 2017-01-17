@@ -4,9 +4,10 @@
 #endif
 
 #include "model.h"
-#include "logging.h"
 #include "pop_model.h"
 #include "local_tree.h"
+#include "MultiArray.h"
+#include "logging.h"
 
 namespace argweaver {
 
@@ -464,6 +465,136 @@ int ArgModel::path_to_root(const LocalNode *nodes, int node, int time) const {
     if (pop_tree == NULL) return 0;
     return pop_tree->path_to_root(nodes, node, time);
 }
+
+ArgModel::ArgModel(const char *logfilename) {
+    FILE *logfile = fopen(logfilename, "r");
+    char *line = NULL;
+    bool found_model = false;
+    int npop;
+    int numpath;
+    if (logfile == NULL) {
+        printError("Could not open log file %s\n", logfilename);
+        abort();
+    }
+    times=NULL;
+    while (NULL != (line = fgetline(logfile))) {
+        chomp(line);
+        if (str_starts_with(line, "model:")) found_model = true;
+        if (found_model) {
+            if (str_starts_with(line, "----------")) break;
+            if (str_starts_with(line, "  mu = "))
+                assert(1 == sscanf(line, "  mu = %le", &mu));
+            if (str_starts_with(line, "  rho = "))
+                assert(1 == sscanf(line, "  rho = %le", &rho));
+            if (str_starts_with(line, "  ntimes = ")) {
+                assert(1 == sscanf(line, "  ntimes = %i", &ntimes));
+                assert(ntimes > 0);
+                times = new double [ntimes];
+            }
+            if (str_starts_with(line, "  times = [")) {
+                assert(times != NULL);
+                assert(ntimes > 0);
+                vector<string> splitStr;
+                assert(line[strlen(line)-1] == ']');
+                line[strlen(line)-1] = '\0';
+                split(&line[11], ',', splitStr);
+                assert((int)splitStr.size() == ntimes);
+                for (int i=0; i < ntimes; i++)
+                    times[i] = atof(splitStr[i].c_str());
+            }
+            if (str_starts_with(line, "  npop = ")) {
+                assert(1 == sscanf(line, "  npop = %i", &npop));
+                assert(npop >= 1);
+                if (npop > 1) pop_tree = new PopulationTree(npop, this);
+                alloc_popsizes();
+            }
+            if (str_starts_with(line, "  popsizes = [")) {
+                char *tmpstr;
+                int pop = 0;
+                int t = 0;
+                while (pop < npop && t < 2 * ntimes-1) {
+                    if (pop > 0 || t > 0) {
+                        assert(NULL != (line=fgetline(logfile)));
+                        chomp(line);
+                    }
+                    vector<string>splitStr;
+                    assert(line[strlen(line)-1] == ',' ||
+                           line[strlen(line)-1] == ']');
+                    line[strlen(line)-1] = '\0';
+                    if (pop==0 && t==0) tmpstr = &line[14];
+                    else tmpstr = line;
+                    tmpstr = trim(tmpstr);
+                    split(tmpstr, ',', splitStr);
+                    for (int i=0; i < (int)splitStr.size(); i++) {
+                        assert(pop < npop && t < 2*ntimes-1);
+                        popsizes[pop][t] = atof(splitStr[i].c_str());
+                        pop++;
+                        if (pop == npop) {
+                            pop = 0;
+                            t++;
+                        }
+                    }
+                }
+            }
+            if (str_starts_with(line, "    numpath = ")) {
+                assert(1 == sscanf(line, "    numpath = %i", &numpath));
+                assert(pop_tree != NULL);
+                MultiArray path(2, numpath, ntimes);
+                for (int i=0; i < numpath; i++) {
+                    char tmpstr[100];
+                    vector<string> splitStr;
+                    sprintf(tmpstr, "    path%i = [", i);
+                    assert(NULL != (line=fgetline(logfile)));
+                    chomp(line);
+                    assert(str_starts_with(line, tmpstr));
+                    assert(line[strlen(line)-1] == ']');
+                    line[strlen(line)-1] = '\0';
+                    split(&line[strlen(tmpstr)], ',', splitStr);
+                    assert((int)splitStr.size() == ntimes);
+                    for (int j=0; j < ntimes; j++) {
+                        int p = atoi(splitStr[j].c_str());
+                        assert(p >= 0 && p < npop);
+                        path.set((double)p, i, j);
+                    }
+                }
+                for (int t1=0; t1 < (ntimes-1); t1++) {
+                    int t2=t1+1;
+                    // this is not efficient but doesn't matter
+                    for (int from_pop=0; from_pop < npop; from_pop++) {
+                        set<int> to_pop;
+                        for (int p=0; p < numpath; p++) {
+                            if ((int)path.get(p, t1) == from_pop) {
+                                to_pop.insert((int)path.get(p, t2));
+                            }
+                        }
+                        double migprob = 0;
+                        bool has_self = to_pop.find(from_pop) != to_pop.end();
+                        // we don't have the actual migration/divergence
+                        // probabilities in the log file, we are really just
+                        // after the population tree structure. So set
+                        // migration probability to 0.1 and divergence
+                        // probability evenly spread across possible populations
+                        if (has_self && to_pop.size() > 1)
+                            migprob = 0.1/(to_pop.size()-1); //migration
+                        else if (!has_self)
+                            migprob = 1.0/(to_pop.size());  //divergence
+                        if (migprob > 0.0) {
+                            for (set<int>::iterator it=to_pop.begin();
+                                 it!=to_pop.end(); it++) {
+                                int p2 = *it;
+                                if (p2 != from_pop)
+                                    pop_tree->add_migration(2*t1+1, from_pop, p2, migprob);
+                            }
+                        }
+                    }
+                }
+                pop_tree->set_up_population_paths();
+                pop_tree->update_population_probs();
+            }
+        }
+    }
+}
+
 
 void ArgModel::log_model() const {
     printLog(LOG_LOW, "\n");

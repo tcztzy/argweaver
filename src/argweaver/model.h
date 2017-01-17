@@ -265,6 +265,9 @@ class ArgModel
         copy(other);
     }
 
+    // read model details from arg-sample log file
+    ArgModel(const char *logfilename);
+
 
     ~ArgModel()
     {
