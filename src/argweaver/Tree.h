@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "ExtendArray.h"
-
+#include "model.h"
 
 /*
 
@@ -48,12 +48,12 @@
 
 namespace spidir {
 
-using namespace std;
 
+using namespace std;
+using namespace argweaver;
 
 // invariant: node->child->prev == last child of node
 // invariant: [last child of node].next == NULL
-
 
 // A node in the phylogenetic tree
 class Node
@@ -64,7 +64,8 @@ public:
         parent(NULL),
         children(NULL),
         nchildren(nchildren),
-        dist(0.0)
+        dist(0.0),
+        pop_path(0)
     {
         if (nchildren != 0)
             allocChildren(nchildren);
@@ -112,6 +113,7 @@ public:
     double dist;         // branch length above node
     double age;
     string longname;    // node name (used mainly for leaves only)
+    int pop_path;
 };
 
 
@@ -174,7 +176,7 @@ public:
             nodes[i] = new Node();
     }
 
-    Tree(string newick, const vector<double>& times = vector<double>());
+    Tree(string newick, const ArgModel *model);
 
     virtual ~Tree()
     {
@@ -217,7 +219,7 @@ public:
 
     void reorderLeaves(string *names);
 
-    void apply_spr(NodeSpr *spr, NodeMap *node_map=NULL);
+    void apply_spr(NodeSpr *spr, NodeMap *node_map=NULL, const ArgModel *model=NULL);
     void update_spr(char *newick, const vector<double>& times = vector<double>());
     void update_spr_pruned(Tree *orig_tree);
     NodeMap prune(set<string> leafs, bool allBut=false);
@@ -278,7 +280,7 @@ public:
     // closest time, must be within tol)
     // NOTE: times must be sorted!
     // Also note: assumes same distance to ancestral node from all child nodes
-    void correct_times(const vector<double> &times, double tol=1);
+    void correct_times(const ArgModel *model, double tol=1);
     //void correct_times(map<string,double> times);
 
     double total_branchlength();
@@ -286,7 +288,7 @@ public:
     double tmrca_half();
     double rth();
     double popsize();
-    vector<double> coalCounts(vector<double> times);
+    vector<double> coalCounts(const double *times, int ntimes);
     double num_zero_branches();
     double branch_len(string n) {
 	return nodes[nodename_map.find(n)->second]->dist;
@@ -351,19 +353,20 @@ public:
 //like Spr in local_tree.h, but with Node pointers and real times
 class NodeSpr {
 public:
-    NodeSpr() : recomb_node(NULL), coal_node(NULL) {}
+  NodeSpr() : recomb_node(NULL), coal_node(NULL), pop_path(0) {}
     NodeSpr(Tree *tree, char *newick,
-            const vector<double> &times=vector<double>()) {
-        update_spr_from_newick(tree, newick, times);
+            const ArgModel *model) {
+        update_spr_from_newick(tree, newick, model);
     }
-    void correct_recomb_times(const vector<double> &times);
+    void correct_recomb_times(const double *times, int ntimes);
     void update_spr_from_newick(Tree *tree, char *newick_str,
-                                const vector<double> &times=vector<double>());
+                                const ArgModel *model);
     bool is_invisible() const;
     Node *recomb_node;
     Node *coal_node;
     double recomb_time;
     double coal_time;
+    int pop_path;
 };
 
 
@@ -375,13 +378,12 @@ private:
 
     //update object by parsing newick string
     void update_slow(char *newick, const set<string> inds,
-                     const vector<double> &times = vector<double>());
+                     const ArgModel *model);
 public:
     SprPruned(char *newick, const set<string> inds,
-              const vector<double> &times = vector<double>())
-        {
+              const ArgModel *model) {
             orig_tree = pruned_tree = NULL;
-            update_slow(newick, inds, times);
+            update_slow(newick, inds, model);
         }
 
     ~SprPruned() {
@@ -407,7 +409,7 @@ public:
     //apply spr on both trees and get next SPR from newick string. Don't
     //parse the newick string unless previous SPR not set
     void update(char *newick, const set<string> inds,
-                const vector<double> &times = vector<double>());
+                const ArgModel *model);
 
     Tree *orig_tree;
     Tree *pruned_tree;

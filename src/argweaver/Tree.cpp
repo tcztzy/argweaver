@@ -20,6 +20,7 @@
 #include "common.h"
 #include "parsing.h"
 #include "logging.h"
+#include "model.h"
 
 namespace spidir {
 
@@ -32,7 +33,7 @@ bool isNewickChar(char c) {
 }
 
 //create a tree from a newick string
-Tree::Tree(string newick, const vector<double>& times)
+Tree::Tree(string newick, const ArgModel *model)
 {
     int len = newick.length();
     Node *node = NULL;
@@ -85,10 +86,9 @@ Tree::Tree(string newick, const vector<double>& times)
             i=j-1;
             break;
         }
-        case '[': { // comment next; parse recomb_node or coal_node
+        case '[': { // comment next; parse pop_path
             int count=1;
             int j=i+1;
-            string tmpstr;
             while (count != 0) {
                 if (j==len) {
                     printError("bad newick: no closing bracket in NHX comment");
@@ -97,6 +97,12 @@ Tree::Tree(string newick, const vector<double>& times)
                 if (newick[j]==']') count--;
                 else if (newick[j]=='[') count++;
                 j++;
+            }
+            string tmpstr(&newick[i], j-i);
+            int path_pos = tmpstr.find("pop_path=");
+            if (path_pos >= 0) {
+                sscanf(tmpstr.substr(path_pos).c_str(), "pop_path=%i",
+                       &(node->pop_path));
             }
             i=j-1;
             break;
@@ -136,14 +142,14 @@ Tree::Tree(string newick, const vector<double>& times)
         else postnodes[i]->age = postnodes[i]->children[0]->age +
                  postnodes[i]->children[0]->dist;
     }
-    if (times.size() > 0)
-        this->correct_times(times, 1);
+    if (model != NULL)
+        this->correct_times(model, 1);
 
     for (int i=0; i < nnodes; i++) {
         if (nodes[i]->longname.length() > 0)
             nodename_map[nodes[i]->longname] = i;
     }
-}
+ }
 
 double Tree::age_diff(double age1, double age2) {
     double diff = age1 - age2;
@@ -160,31 +166,24 @@ double Tree::age_diff(double age1, double age2) {
 }
 
 //void Tree::correct_times(map<string,double> times) {
-void Tree::correct_times(const vector<double> &times, double tol) {
+void Tree::correct_times(const ArgModel *model, double tol) {
     unsigned int lasttime=0, j;
     ExtendArray<Node*> postnodes;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < postnodes.size(); i++) {
         if (postnodes[i]->nchildren == 0) {
+            j = model->discretize_time(postnodes[i]->dist, 0, tol);
             postnodes[i]->age = 0.0;
-            lasttime = 0;
-            for (j=0; j < times.size(); j++)
-                if (fabs(times[j]-postnodes[i]->dist) < tol) break;
-            if (j == times.size()) {
-                printError("No node has time %lf (leaf)", postnodes[i]->dist);
-            }
-            postnodes[i]->dist = times[j];
-            postnodes[i]->parent->age = times[j];
+            postnodes[i]->dist = model->times[j];
+            postnodes[i]->parent->age = model->times[j];
+            lasttime=0;
         }
         else {
             double newage = postnodes[i]->age + postnodes[i]->dist;
-            for (j=lasttime; j < times.size(); j++)
-                if (fabs(times[j]-newage) < tol) break;
-            if (j == times.size())
-                printError("No node has time %lf", newage);
-            postnodes[i]->dist = age_diff((double)times[j], postnodes[i]->age);
+            j = model->discretize_time(newage, lasttime, tol);
+            postnodes[i]->dist = age_diff(model->times[j], postnodes[i]->age);
             if (postnodes[i]->parent != NULL)
-                postnodes[i]->parent->age = times[j];
+                postnodes[i]->parent->age = model->times[j];
             lasttime = j;
         }
     }
@@ -228,14 +227,23 @@ string Tree::format_newick_recur(Node *node, bool internal_names,
         sprintf(tmp, branch_format_str, node->dist);
         rv.append(tmp);
     }
-    if (spr != NULL) {
-        if (node == spr->recomb_node) {
-            sprintf(tmp,"[&&NHX:recomb_time=%.1f]", spr->recomb_time);
+    if (spr != NULL && ( node == spr->recomb_node || node == spr->coal_node)) {
+        rv.append("[&&NHX");
+        /*        if (have_pops) {
+            sprintf(tmp, ":pop_path=%i", node->pop_path);
             rv.append(tmp);
-        } if (node == spr->coal_node) {
-            sprintf(tmp, "[&&NHX:coal_time=%.1f]", spr->coal_time);
-            rv.append(tmp);
+            }*/
+        if (spr != NULL) {
+            if (node == spr->recomb_node) {
+                sprintf(tmp, ":recomb_time=%.1f", spr->recomb_time);
+                rv.append(tmp);
+            }
+            if (node == spr->coal_node) {
+                sprintf(tmp, ":coal_time=%.1f", spr->coal_time);
+                rv.append(tmp);
+            }
         }
+        rv.append("]");
     }
     if (!oneline && node->nchildren > 0) rv.append("\n");
     return rv;
@@ -281,6 +289,7 @@ Tree *Tree::copy()
         nodes2[i]->dist = nodes[i]->dist;
         nodes2[i]->longname = nodes[i]->longname;
         nodes2[i]->age = nodes[i]->age;
+        nodes2[i]->pop_path = nodes[i]->pop_path;
     }
 
     for (int i=0; i<nnodes; i++) {
@@ -431,7 +440,7 @@ void NodeMap::propogate_map(Node *n, int *deleted_branch, int count,
 //apply the spr operation to the tree.
 //if node_map is not NULL, update it so that it maps to branches of
 //pruned tree after SPR opreration on both trees
-void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map) {
+void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     Node *recomb_parent, *recomb_grandparent, *recomb_sibling,
         *coal_parent=NULL;
     int x;
@@ -440,13 +449,15 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map) {
     double coal_time = spr->coal_time;
 
     if (recomb_node == NULL) return;
-    if (recomb_node == root) {
-        if (coal_node != root) {
-            assert(0);
-        }
+    if (recomb_node == root)  assert(coal_node == root);
+    if (recomb_node == coal_node) {
+        if (root->pop_path == spr->pop_path) return;
+        root->pop_path = model->consistent_path(root->pop_path,
+                                                spr->pop_path,
+                                                root->age, spr->recomb_time,
+                                                -1.0);
         return;
     }
-    if (recomb_node == coal_node) return;
 
     recomb_parent = recomb_node->parent;
     assert(recomb_parent != NULL);  //ie, recomb_node should not be root
@@ -461,9 +472,20 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map) {
     coal_parent = coal_node->parent;
 
     //special case; topology doesn't change; just adjust branch lengths/ages
-    //(this violates SMC so shouldn't be true for an ARGweaver tree
-    //   but may be for a subtree)
     if (coal_parent == recomb_parent) {
+        assert(coal_node == recomb_sibling);
+        if (model->pop_tree != NULL) {
+            recomb_parent->pop_path =
+                model->consistent_path(recomb_sibling->pop_path,
+                                       coal_parent->pop_path,
+                                       spr->coal_time,
+                                       recomb_parent->age, -1.0);
+            recomb_node->pop_path =
+                model->consistent_path(recomb_node->pop_path,
+                                       spr->pop_path,
+                                       recomb_node->age,
+                                       spr->recomb_time, -1.0);
+        }
         coal_parent->age = coal_time;
         coal_node->dist = age_diff(coal_time, coal_node->age);
         recomb_node->dist = age_diff(coal_time, recomb_node->age);
@@ -474,6 +496,13 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map) {
     }
     // similar other special case
     if (coal_node == recomb_parent) {
+        if (model->pop_tree != NULL) {
+            recomb_node->pop_path =
+                model->consistent_path(recomb_node->pop_path,
+                                       spr->pop_path,
+                                       recomb_node->age,
+                                       spr->recomb_time, -1.0);
+        }
         coal_node->age = coal_time;
         recomb_node->dist = age_diff(coal_time, recomb_node->age);
         recomb_sibling->dist = age_diff(coal_time, recomb_sibling->age);
@@ -484,6 +513,13 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map) {
     }
 
     //now apply SPR
+    if (model->pop_tree != NULL) {
+        recomb_node->pop_path =
+            model->consistent_path(recomb_node->pop_path,
+                                   spr->pop_path,
+                                   recomb_node->age, spr->recomb_time,
+                                   -1.0);
+    }
     recomb_sibling->parent = recomb_grandparent;
     if (recomb_grandparent != NULL) {
         int x1 = (recomb_grandparent->children[0]==recomb_parent ? 0 : 1);
@@ -542,43 +578,41 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map) {
 }
 
 
-void NodeSpr::correct_recomb_times(const vector<double>& times) {
-    unsigned int i;
-    for (i=0; i < times.size(); i++)
-        if (fabs(recomb_time - times[i]) < 1) {
-            recomb_time = times[i];
-            break;
-        }
-    assert(i != times.size());
-    for (; i < times.size(); i++) {
-        if (fabs(coal_time - times[i]) < 1) {
-            coal_time = times[i];
-            return;
-        }
-    }
-    assert(0);
+
+
+void NodeSpr::correct_recomb_times(const double *times, int ntimes) {
+    int recomb_idx = time_index(recomb_time, times, ntimes);
+    int coal_idx = time_index(coal_time, times, ntimes, recomb_idx);
+    recomb_time = times[recomb_idx];
+    coal_time = times[coal_idx];
 }
 
 /* get new SPR from newick string */
 void NodeSpr::update_spr_from_newick(Tree *tree, char *newick,
-                                     const vector<double>& times) {
-    char search1[100]="[&&NHX:recomb_time=";
-    char search2[100]="[&&NHX:coal_time=";
+                                     const ArgModel *model) {
+    char search1[100]="recomb_time=";
+    char search2[100]="coal_time=";
+    char search3[100]="spr_pop_path=";
     char *x = strstr(newick, search1);
     if (x == NULL) {
         recomb_node = NULL;
         coal_node = NULL;
         return;
     }
-    assert(1==sscanf(x, "[&&NHX:recomb_time=%lg", &recomb_time));
+    assert(1==sscanf(x, "recomb_time=%lg", &recomb_time));
     recomb_node = tree->nodes[tree->get_node_from_newick(newick, x)];
 
     x = strstr(newick, search2);
     assert(x != NULL);
-    assert(1 == sscanf(x, "[&&NHX:coal_time=%lg", &coal_time));
+    assert(1 == sscanf(x, "coal_time=%lg", &coal_time));
     coal_node = tree->nodes[tree->get_node_from_newick(newick, x)];
 
-    if (times.size() > 0) correct_recomb_times(times);
+    x = strstr(newick, search3);
+    if (x != NULL) {
+        assert(1 == sscanf(x, "spr_pop_path=%i", &pop_path));
+    }
+
+    if (model != NULL) correct_recomb_times(model->times, model->ntimes);
 }
 
 //update the SPR on pruned tree based on node_map in big tree
@@ -592,6 +626,7 @@ void SprPruned::update_spr_pruned() {
         pruned_spr.recomb_node = pruned_spr.coal_node = NULL;
     } else {
         assert(num>=0);
+        pruned_spr.pop_path = orig_spr.pop_path;
         pruned_spr.recomb_node = pruned_tree->nodes[num];
         pruned_spr.recomb_time = orig_spr.recomb_time;
         num = node_map.nm[orig_spr.coal_node->name];
@@ -638,22 +673,24 @@ bool NodeSpr::is_invisible() const {
           return false;
 }
 
+
 void SprPruned::update(char *newick, const set<string> inds,
-                       const vector<double> &times) {
+                       const ArgModel *model) {
     //in this first case need to parse newick tree again
     if (orig_spr.recomb_node == NULL) {
         // this should only happen at the end of regions analyzed
         // by arg-sample, there will be no SPR there, so need to
         // parse the newick. The pruned tree can have NULL recomb_node
         // though because the SPR operation may have been pruned.
-        update_slow(newick, inds, times);
+        update_slow(newick, inds, model);
     } else {
         //otherwise, apply the SPR and node map, and get next SPR
-        orig_tree->apply_spr(&orig_spr, inds.size() > 0 ? &node_map : NULL);
-        orig_spr.update_spr_from_newick(orig_tree, newick, times);
+        orig_tree->apply_spr(&orig_spr, inds.size() > 0 ? &node_map : NULL,
+                             model);
+        orig_spr.update_spr_from_newick(orig_tree, newick, model);
         if (pruned_tree != NULL) {
             if (pruned_spr.recomb_node != NULL)
-                pruned_tree->apply_spr(&pruned_spr, NULL);
+                pruned_tree->apply_spr(&pruned_spr, NULL, model);
             update_spr_pruned();
         }
     }
@@ -757,11 +794,11 @@ NodeMap Tree::prune(set<string> leafs, bool allBut) {
 }
 
 void SprPruned::update_slow(char *newick, const set<string> inds,
-                            const vector<double> &times) {
+                            const ArgModel *model) {
     if (orig_tree  != NULL) delete(orig_tree);
     if (pruned_tree != NULL) delete(pruned_tree);
-    orig_tree = new Tree(newick, times);
-    orig_spr = NodeSpr(orig_tree, newick, times);
+    orig_tree = new Tree(newick, model);
+    orig_spr = NodeSpr(orig_tree, newick, model);
     if (inds.size() > 0) {
         pruned_tree = orig_tree->copy();
         pruned_spr = orig_spr;
@@ -1244,8 +1281,8 @@ double Tree::popsize() {
 }
 
 //assume that times is sorted!
-vector<double> Tree::coalCounts(vector<double> times) {
-    vector<double> counts(times.size(), 0.0);
+vector<double> Tree::coalCounts(const double *times, int ntimes) {
+    vector<double> counts(ntimes, 0.0);
     vector<double> ages;
     unsigned int total=0;
     for (int i=0; i < nnodes; i++) {
@@ -1253,8 +1290,8 @@ vector<double> Tree::coalCounts(vector<double> times) {
             ages.push_back(nodes[i]->age);
     }
     std::sort(ages.begin(), ages.end());
-    unsigned int idx=0;
-    for (unsigned int i=0; i < ages.size(); i++) {
+    int idx=0;
+    for (int i=0; i < (int)ages.size(); i++) {
         while (1) {
             if (fabs(ages[i]-times[idx]) < 0.00001) {
                 counts[idx]++;
@@ -1262,7 +1299,7 @@ vector<double> Tree::coalCounts(vector<double> times) {
                 break;
             }
             idx++;
-            assert(idx < times.size());
+            assert(idx < ntimes);
         }
     }
     assert(total == ages.size());
