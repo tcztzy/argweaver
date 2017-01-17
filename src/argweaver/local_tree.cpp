@@ -609,6 +609,7 @@ LocalTrees *partition_local_trees(LocalTrees *trees, int pos,
 {
     // create new local trees
     LocalTrees *trees2 = new LocalTrees(pos, trees->end_coord, trees->nnodes);
+    trees2->chrom = trees->chrom;
     trees2->seqids.insert(trees2->seqids.end(), trees->seqids.begin(),
                           trees->seqids.end());
 
