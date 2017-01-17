@@ -500,62 +500,6 @@ void log_prog_commands(int level, int argc, char **argv)
 }
 
 
-// log the model used
-void log_model(const ArgModel &model)
-{
-    printLog(LOG_LOW, "\n");
-    printLog(LOG_LOW, "model: \n");
-    printLog(LOG_LOW, "  mu = %e\n", model.mu);
-    printLog(LOG_LOW, "  rho = %e\n", model.rho);
-    printLog(LOG_LOW, "  ntimes = %d\n", model.ntimes);
-    printLog(LOG_LOW, "  times = [");
-    for (int i=0; i<model.ntimes-1; i++)
-        printLog(LOG_LOW, "%f,", model.times[i]);
-    printLog(LOG_LOW, "%f]\n", model.times[model.ntimes-1]);
-    printLog(LOG_LOW, "  npop = %d\n", model.num_pops());
-    printLog(LOG_LOW, "  popsizes = [");
-    for (int i=0; i < 2*model.ntimes-1; i++) {
-        if (i != 0) printLog(LOG_LOW, "              ");
-        for (int pop = 0; pop < model.num_pops(); pop++) {
-            if (pop != 0) printLog(LOG_LOW, ",\t");
-            printLog(LOG_LOW, "%.1f", model.popsizes[pop][i]);
-        }
-        printLog(LOG_LOW, "%c", i == 2*model.ntimes-2 ? ']' : ',');
-        printLog(LOG_LOW, "\n");
-    }
-    if (model.pop_tree != NULL) {
-        printLog(LOG_LOW, "    numpath = %d\n", model.num_pop_paths());
-        for (int i=0; i < model.num_pop_paths(); i++) {
-            printLog(LOG_LOW, "    path%d = [%d", i,
-                   model.get_pop(i, 0));
-            for (int j=1; j < model.ntimes; j++)
-                printLog(LOG_LOW, ", %d", model.get_pop(i, j));
-            printLog(LOG_LOW, "]\n");
-        }
-        printLog(LOG_LOW, " max_migrations = %i\n", model.pop_tree->max_migrations);
-    }
-    if (isLogLevel(LOG_HIGH)) {
-        printLog(LOG_HIGH, "mutmap = [\n");
-        for (unsigned int i=0; i<model.mutmap.size(); i++) {
-            printLog(LOG_HIGH, "%d\t%d\t%e\n",
-                     model.mutmap[i].start, model.mutmap[i].end,
-                     model.mutmap[i].value);
-        }
-        printLog(LOG_HIGH, "]\n");
-
-        printLog(LOG_HIGH, "recombmap = [\n");
-        for (unsigned int i=0; i<model.recombmap.size(); i++) {
-            printLog(LOG_HIGH, "%d\t%d\t%e\n",
-                     model.recombmap[i].start, model.recombmap[i].end,
-                     model.recombmap[i].value);
-        }
-        printLog(LOG_HIGH, "]\n");
-    }
-
-    printLog(LOG_LOW, "\n");
-}
-
-
 //=============================================================================
 // alignment compression
 
@@ -1739,7 +1683,7 @@ int main(int argc, char **argv)
     compress_model(&model, sites_mapping, c.compress_seq);
 
     // log original model
-    log_model(model);
+    model.log_model();
 
     // setup init ARG
     LocalTrees *trees = NULL;
