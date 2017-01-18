@@ -710,6 +710,7 @@ public:
 
     string chrom;              // chromosome name of region
     int start_coord;           // start coordinate of whole tree list
+                               // 0-based coordinate system
     int end_coord;             // end coordinate of whole tree list
     int nnodes;                // number of nodes in each tree
     list<LocalTreeSpr> trees;  // linked list of local trees

@@ -619,19 +619,21 @@ LocalTrees *partition_local_trees(LocalTrees *trees, int pos,
     LocalTrees::iterator it2 = trees2->begin();
     if (trim) {
         // copy first tree back
-        LocalTree *tree = it2->tree;
-        LocalTree *last_tree = new LocalTree(tree->nnodes, tree->capacity);
-        last_tree->copy(*tree);
+        if (pos - it_start > 0) {
+            LocalTree *tree = it2->tree;
+            LocalTree *last_tree = new LocalTree(tree->nnodes, tree->capacity);
+            last_tree->copy(*tree);
 
-        int *mapping = NULL;
-        if (it2->mapping) {
-            mapping = new int[trees->nnodes];
-            for (int i=0; i<trees->nnodes; i++)
-                mapping[i] = it2->mapping[i];
+            int *mapping = NULL;
+            if (it2->mapping) {
+                mapping = new int[trees->nnodes];
+                for (int i=0; i<trees->nnodes; i++)
+                    mapping[i] = it2->mapping[i];
+            }
+
+            trees->trees.push_back(
+               LocalTreeSpr(last_tree, it2->spr, pos - it_start, mapping));
         }
-
-        trees->trees.push_back(
-            LocalTreeSpr(last_tree, it2->spr, pos - it_start, mapping));
 
         // modify first tree of trees2
         if (it2->mapping)
@@ -1461,6 +1463,7 @@ void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
     {
         int start = end;
         end += it->blocklen;
+        assert(it->blocklen > 0);
         LocalTree *tree = it->tree;
 
         fprintf(out, "%s\t%i\t%i\t%i\t",
