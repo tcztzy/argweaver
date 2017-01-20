@@ -322,9 +322,25 @@ Tree *Tree::copy()
 // parenthesis to figure out how many nodes up from the leaf to go.
 int Tree::get_node_from_newick(char *newick, char *nhx) {
     int num_paren=0;
-    /* printf("get_node_from_newick\n");
+    bool nhx_found=false;
+    /*     printf("get_node_from_newick\n");
        printf("newick=%s\n", newick);
        printf("nhx=%s\n", nhx);*/
+    // first go backward to [&&NHX
+    while (nhx != newick) {
+        if (!str_starts_with(nhx, "[&&NHX:"))
+            nhx--;
+        else {
+            nhx_found=true;
+            break;
+        }
+    }
+    if (!nhx_found) {
+        printf("Error: Did not find NHX tag in get_node_from_newick.\n"
+               "newick=%s\n"
+               "nhx=%s\n", newick, nhx);
+        assert(false);
+    }
     while (1) {
         while (':' != nhx[0] && ')' != nhx[0]) {
             assert(nhx != newick);
