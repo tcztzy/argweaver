@@ -490,7 +490,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     //special case; topology doesn't change; just adjust branch lengths/ages
     if (coal_parent == recomb_parent) {
         assert(coal_node == recomb_sibling);
-        if (model->pop_tree != NULL) {
+        if (model != NULL && model->pop_tree != NULL) {
             recomb_parent->pop_path =
                 model->consistent_path(recomb_sibling->pop_path,
                                        coal_parent->pop_path,
@@ -512,7 +512,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     }
     // similar other special case
     if (coal_node == recomb_parent) {
-        if (model->pop_tree != NULL) {
+        if (model != NULL && model->pop_tree != NULL) {
             recomb_node->pop_path =
                 model->consistent_path(recomb_node->pop_path,
                                        spr->pop_path,
@@ -529,7 +529,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     }
 
     //now apply SPR
-    if (model->pop_tree != NULL) {
+    if (model != NULL && model->pop_tree != NULL) {
         recomb_node->pop_path =
             model->consistent_path(recomb_node->pop_path,
                                    spr->pop_path,
