@@ -238,6 +238,7 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                 states.push_back(State(i, time));
             }
         } else {
+            int target_path = pop_tree->path_to_root(nodes, i);
             assert(time <= nodes[tree->root].age);
             for (; time<=max_time; time++) {
                 int target_path = pop_tree->path_to_root(nodes, i, time);
@@ -258,7 +259,7 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                        // use a path that is consistent with the branch
                        // we are coalescing to
                         int path =
-                            pop_tree->consistent_path(path1, nodes[i].pop_path,
+                            pop_tree->consistent_path(path1, target_path,
                                                       minage, time, -1);
                         states.push_back(State(i, time, path));
                     }
