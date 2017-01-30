@@ -475,6 +475,11 @@ int ArgModel::path_to_root(const LocalNode *nodes, int node, int time) const {
     return pop_tree->path_to_root(nodes, node, time);
 }
 
+int ArgModel::path_to_root(const spidir::Node *node, double time) const {
+    if (pop_tree == NULL) return 0;
+    return pop_tree->path_to_root(node, time);
+}
+
 ArgModel::ArgModel(const char *logfilename) {
     FILE *logfile = fopen(logfilename, "r");
     char *line = NULL;

@@ -18,6 +18,10 @@
 #include "common.h"
 #include "model.h"
 
+namespace spidir {
+    class Node;
+}
+
 namespace argweaver {
 
 class ArgModel;
@@ -300,6 +304,7 @@ class PopulationTree {
                       bool require_exists=true) const;
 
   int path_to_root(const LocalNode *nodes, int node, int time=-1) const;
+  int path_to_root(const spidir::Node *node, double time=-1) const;
 
   //  npop is the total number of non-ancestral populations
   int npop;

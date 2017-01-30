@@ -7,7 +7,7 @@
 #include "logging.h"
 #include "pop_model.h"
 #include "local_tree.h"
-
+#include "Tree.h"
 
 namespace argweaver {
 
@@ -403,6 +403,31 @@ int PopulationTree::consistent_path(int path1, int path2,
         node = parent;
         parent = nodes[node].parent;
         if (parent == -1) break;
+    }
+    return path;
+}
+
+
+
+int PopulationTree::path_to_root(const spidir::Node *node, double time) const {
+    assert(node != NULL);
+    int path = node->pop_path;
+    spidir::Node *parent = node->parent;
+    if (parent == NULL) return path;
+    int orig_age = (time < 0 ? node->age : time);
+    assert(orig_age >= node->age);
+    if (parent >= 0) assert(orig_age <= parent->age);
+    while (true) {
+        path = consistent_path(path,
+                               parent->pop_path,
+                               model->discretize_time(orig_age),
+                               model->discretize_time(parent->age),
+                               ( parent->parent == NULL ?
+                                 model->ntimes - 1 :
+                                 model->discretize_time(parent->parent->age)));
+        node = parent;
+        parent = node->parent;
+        if (parent == NULL) break;
     }
     return path;
 }

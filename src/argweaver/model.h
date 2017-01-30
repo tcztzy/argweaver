@@ -19,6 +19,10 @@
 #include "mcmcmc.h"
 #include "pop_model.h"
 
+namespace spidir {
+    class Node;
+}
+
 namespace argweaver {
 
 class PopulationTree;
@@ -529,6 +533,7 @@ class ArgModel
     bool paths_equal(int path1, int path2, int t1, int t2) const;
     int max_matching_path(int path1, int path2, int t) const;
     int path_to_root(const LocalNode *nodes, int node, int time) const;
+    int path_to_root(const spidir::Node *node, double time) const;
     void log_model() const;
     int discretize_time(double t, int min_idx=-1, double tol=1.0) const;
 
