@@ -1052,9 +1052,9 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     printLog(LOG_LOW, "--------------------------------------\n");
 
     double frac_leaf = 0.5;
-    for (int i=0; i <= config->niters; i++) do_leaf[i] = (frand() < frac_leaf);
 
 #ifdef ARGWEAVER_MPI
+    for (int i=0; i <= config->niters; i++) do_leaf[i] = (frand() < frac_leaf);
     MPI::COMM_WORLD.Bcast(do_leaf, config->niters+1, MPI::BOOL, 0);
 #endif
 
@@ -1062,6 +1062,10 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
         double heat = model->mc3.heat;
+
+#ifndef ARGWEAVER_MPI
+        do_leaf[i] = frand() < frac_leaf;
+#endif
 
 	if ( ! config->no_sample_arg) {
 	    if (config->gibbs)
