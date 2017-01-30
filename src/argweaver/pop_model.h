@@ -329,6 +329,12 @@ class PopulationTree {
   int max_matching_path(int p1, int p2, int t) const;
   int ***max_matching_path_arr;
 
+  // returns -1 if pops are different in paths p1 and p2 at time t
+  // otherwise returns the minimum t0 such that paths are equal
+  // from t0 to t in the two paths
+  int min_matching_path(int p1, int p2, int t) const;
+  int ***min_matching_path_arr;
+
   // if this is >= 0, then do not allow threading into paths
   // which allow more than this many migrations
   int max_migrations;

@@ -71,6 +71,7 @@ PopulationTree::PopulationTree(int npop, const ArgModel *model) :
         mig_matrix[i].resize(npop);
     sub_paths = NULL;
     max_matching_path_arr = NULL;
+    min_matching_path_arr = NULL;
     max_migrations = -1;
 }
 
@@ -83,6 +84,7 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     mig_matrix = other.mig_matrix;
     sub_paths = NULL;
     max_matching_path_arr = NULL;
+    min_matching_path_arr = NULL;
     if (npop > 0) set_up_population_paths();
     update_population_probs();
     max_migrations = -1;
@@ -110,6 +112,15 @@ PopulationTree::~PopulationTree() {
             delete [] max_matching_path_arr[i];
         }
         delete [] max_matching_path_arr;
+    }
+    if (min_matching_path_arr != NULL) {
+        for (unsigned int i=0; i < all_paths.size(); i++) {
+            for (unsigned int j=0; j < all_paths.size(); j++) {
+                delete [] min_matching_path_arr[i][j];
+            }
+            delete [] min_matching_path_arr[i];
+        }
+        delete [] min_matching_path_arr;
     }
 }
 
@@ -142,6 +153,10 @@ int PopulationTree::max_matching_path(int path1, int path2, int t) const {
     assert(t >= 0 && t < model->ntimes);
     return max_matching_path_arr[path1*mult1 + path2*mult2 + t];*/
     return max_matching_path_arr[path1][path2][t];
+}
+
+int PopulationTree::min_matching_path(int path1, int path2, int t) const {
+    return min_matching_path_arr[path1][path2][t];
 }
 
 
@@ -255,26 +270,6 @@ void PopulationTree::set_up_population_paths() {
             exitError("Error: populations do not converge by final time\n");
     }
 
-    /*    max_matching_path_arr = new int[all_paths.size() * all_paths.size() * ntime];
-    int pos=0;
-    for (unsigned int i=0; i < all_paths.size(); i++) {
-        for (unsigned int j=0; j < all_paths.size(); j++) {
-            for (int t=0; t < ntime; t++) {
-                if (all_paths[i].get(t) != all_paths[j].get(t))
-                    max_matching_path_arr[pos] = -1;
-                else {
-                    max_matching_path_arr[pos] = t;
-                    for (int t1=t+1; t1 < ntime; t1++) {
-                        if (all_paths[i].get(t1) == all_paths[j].get(t1))
-                            max_matching_path_arr[pos] = t1;
-                        else break;
-                    }
-                }
-                pos++;
-            }
-        }
-        }*/
-
     max_matching_path_arr = new int **[all_paths.size()];
     for (unsigned int i=0; i < all_paths.size(); i++) {
         max_matching_path_arr[i] = new int*[all_paths.size()];
@@ -288,6 +283,26 @@ void PopulationTree::set_up_population_paths() {
                     for (int t1=t+1; t1 < model->ntimes; t1++) {
                         if (all_paths[i].get(t1) == all_paths[j].get(t1))
                             max_matching_path_arr[i][j][t] = t1;
+                        else break;
+                    }
+                }
+            }
+        }
+    }
+
+    min_matching_path_arr = new int **[all_paths.size()];
+    for (unsigned int i=0; i < all_paths.size(); i++) {
+        min_matching_path_arr[i] = new int*[all_paths.size()];
+        for (unsigned int j=0; j < all_paths.size(); j++) {
+            min_matching_path_arr[i][j] = new int[ntime];
+            for (int t=0; t < ntime; t++) {
+                if (all_paths[i].get(t) != all_paths[j].get(t))
+                    min_matching_path_arr[i][j][t] = -1;
+                else {
+                    min_matching_path_arr[i][j][t] = t;
+                    for (int t1=t-1; t1 >= 0; t1--) {
+                        if (all_paths[i].get(t1) == all_paths[j].get(t1))
+                            min_matching_path_arr[i][j][t] = t1;
                         else break;
                     }
                 }
