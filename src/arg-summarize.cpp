@@ -51,23 +51,25 @@ const int EXIT_ERROR = 1;
 
 class MigStat {
 public:
-    MigStat(string name, int p0[2], int t0[2]) : name(name) {
+    MigStat(string name, int p0[2], double dt, const ArgModel *model) : name(name) {
+        bool found=false;
         // ensure that t[0] < t[1]
-        if (t0[0] < t0[1]) {
-            t[0] = t0[0];
-            t[1] = t0[1];
-            p[0] = p0[0];
-            p[1] = p0[1];
-        } else {
-            t[0] = t0[1];
-            t[1] = t0[0];
-            p[0] = p0[1];
-            p[1] = p0[0];
+        p[0] = p0[0];
+        p[1] = p0[1];
+        for (int i=0; i < model->ntimes-1; i++)
+            if (model->times[i] < dt && model->times[i+1] > dt) {
+                t[0] = i;
+                t[1] = i+1;
+                found=true;
+            }
+        if (!found) {
+            fprintf(stderr, "Error finding time intervals spanning mig time %f\n", dt);
+            exit(1);
         }
     }
     string name;
-    int t[2];
     int p[2];
+    int t[2];
 };
 
 
@@ -1591,22 +1593,11 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         char migname[1000];
-        int p[2], t[2];
+        int p[2];
         double dt;
         while (EOF != fscanf(infile, "%s %i %i %lf", migname, &p[0], &p[1],
                              &dt)) {
-            int i;
-            for (i=0; i < data.model->ntimes-1; i++)
-                if (data.model->times[i] <= dt &&
-                    data.model->times[i+1] > dt) break;
-            if (i == data.model->ntimes-1) {
-                fprintf(stderr, "error processing mig-file; time %f is out of the"
-                        "range of discrete times", dt);
-                exit(1);
-            }
-            t[0] = i;
-            t[1] = i+1;
-            data.migstat.push_back(MigStat(string(migname), p, t));
+            data.migstat.push_back(MigStat(string(migname), p, dt, data.model));
             statname.push_back(string(migname));
         }
         fclose(infile);
