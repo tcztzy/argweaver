@@ -569,7 +569,7 @@ double resample_arg_regions(
     decLogLevel();
     double accept_rate = 0.0;
     int nwindows = 0;
-    int currwindow = (int)rand_exp((double)window);
+    int currwindow = irand(window - window/4, window + window/4);
     int currstep = (int)currwindow/2+1;
     for (int start=trees->start_coord;
          start == trees->start_coord || start+currwindow/2 <trees->end_coord;
