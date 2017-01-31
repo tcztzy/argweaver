@@ -569,7 +569,7 @@ void TransMatrix::calc_transition_probs_smcPrime(const LocalTree *tree,
             treelen2 += times[b] - root_age;
         }
         norecombs[b] = exp(-max(rho * treelen2, rho));
-        D[b] = ( treelen2 == 0 ? 0.0 : (1.0 - exp( -rho * treelen2)) / treelen2 );
+        D[b] = (treelen2 == 0 ? 0.0 : (1.0 - norecombs[b]) / treelen2);
     }
 
     for (int path=0; path < num_paths; path++) {
