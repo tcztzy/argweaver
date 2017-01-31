@@ -69,8 +69,6 @@ public:
             delete K2_prime;
             delete RK0_prime;
             delete RK2_prime;
-            /*            delete RK0diff;
-                          delete RK2diff;*/
             delete [] self_recomb;
         }
         delete [] path_prob;
@@ -181,8 +179,6 @@ public:
     MultiArray *K2_prime;
     MultiArray *RK0_prime;
     MultiArray *RK2_prime;
-    /*    MultiArray *RK0diff;
-          MultiArray *RK2diff;*/
     double *self_recomb;
 
     // these are used for both SMC and SMC'
