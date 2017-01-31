@@ -983,7 +983,7 @@ double TransMatrix::get_time(int a, int b, int c,
         return prob;
     } else {  //smc prime calculations
         double term1=0, term2=0, minage_term=-INFINITY;
-        term1 = log(D[a]*path_prob[path_a][b]);
+        term1 = log(D[a]*path_prob[path_b][b]);
         if (a < b) {
             term1 += log(E0_prime->get(path_b, b))
                 -C0_prime->get(path_b, 2*b-2)
