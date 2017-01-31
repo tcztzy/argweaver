@@ -10,6 +10,11 @@ fi
 grep -B 1 "sample time" $files |
     awk '$0 ~ /resample_arg_regions/ {subtree=1};
          $0 ~ /resample_arg_leaf/ {subtree=0}
+         $NF=="ms" {if (subtree==1) {
+              totalSubtreeSec += $(NF-1)/1000; subtreeCount++;
+            } else {
+              totalLeafSec += $(NF-1)/1000; leafCount++;
+         }}
          $NF=="s" {if (subtree==1) {
               totalSubtreeSec += $(NF-1); subtreeCount++
             } else {
