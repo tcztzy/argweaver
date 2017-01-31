@@ -647,7 +647,7 @@ void sample_arg_thread(const ArgModel *model, Sequences *sequences,
 
     // sample recombination points
     vector<int> recomb_pos;
-    vector<NodePointPath> recombs;
+    vector<Spr> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
                           thread_path, recomb_pos, recombs);
     assert_trees(trees, model->pop_tree);
@@ -712,7 +712,7 @@ void sample_arg_thread_internal(
     // sample recombination points
     time.start();
     vector<int> recomb_pos;
-    vector<NodePointPath> recombs;
+    vector<Spr> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
                           thread_path, recomb_pos, recombs, internal);
 
@@ -783,7 +783,7 @@ void sample_arg_thread_internal(
     // sample recombination points
     time.start();
     vector<int> recomb_pos;
-    vector<NodePointPath> recombs;
+    vector<Spr> recombs;
     sample_recombinations(trees, model, &matrix_list,
                           thread_path, recomb_pos, recombs);
 
@@ -899,7 +899,7 @@ void cond_sample_arg_thread_internal(
     // sample recombination points
     time.start();
     vector<int> recomb_pos;
-    vector<NodePointPath> recombs;
+    vector<Spr> recombs;
     sample_recombinations(trees, model, &matrix_iter2,
                           thread_path, recomb_pos, recombs, internal);
 

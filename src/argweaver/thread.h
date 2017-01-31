@@ -29,7 +29,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
 // add a thread to an ARG
 void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
                     int ntimes, int *thread_path, int seqid,
-                    vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+                    vector<int> &recomb_pos, vector<Spr> &recombs,
                     const PopulationTree *pop_tree=NULL);
 
 // remove a thread from an ARG
@@ -40,7 +40,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
 // Add a branch to a partial ARG
 void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
                          int ntimes, const int *thread_path,
-                         vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+                         vector<int> &recomb_pos, vector<Spr> &recombs,
                          const PopulationTree *pop_tree=NULL);
 // Removes a thread path from an ARG and returns a partial ARG
 void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,

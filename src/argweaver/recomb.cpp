@@ -65,10 +65,10 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
                                 const LineageCounts &lineages,
                                 const State &last_state,
                                 const State &state,
-                                const NodePointPath &recomb, bool internal)
+                                const Spr &spr, bool internal)
 {
-    const int k = recomb.time;
-    const int j = state.time;
+    const int k = spr.recomb_time;
+    const int j = spr.coal_time;
 
     int root_time;
     int recomb_parent_age;
@@ -80,26 +80,26 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
         int maintree_root = tree->nodes[tree->root].child[1];
         minage = tree->nodes[subtree_root].age;
         root_time = max(tree->nodes[maintree_root].age, last_state.time);
-        recomb_parent_age = (recomb.node == subtree_root ||
-                             tree->nodes[recomb.node].parent == -1 ||
-                             recomb.node == last_state.node) ?
+        recomb_parent_age = (spr.recomb_node == subtree_root ||
+                             tree->nodes[spr.recomb_node].parent == -1 ||
+                             spr.recomb_node == last_state.node) ?
             last_state.time :
-            tree->nodes[tree->nodes[recomb.node].parent].age;
-        if (recomb.node == subtree_root) {
+            tree->nodes[tree->nodes[spr.recomb_node].parent].age;
+        if (spr.recomb_node == subtree_root) {
             recomb_node_path = last_state.pop_path;
-        } else if (recomb.node == last_state.node) {
+        } else if (spr.recomb_node == last_state.node) {
             recomb_node_path = tree->nodes[last_state.node].pop_path;
         } else assert(0);
     } else {
         root_time = max(tree->nodes[tree->root].age, last_state.time);
-        recomb_parent_age = (recomb.node == -1 ||
-                             tree->nodes[recomb.node].parent == -1 ||
-                             recomb.node == last_state.node) ?
+        recomb_parent_age = (spr.recomb_node == -1 ||
+                             tree->nodes[spr.recomb_node].parent == -1 ||
+                             spr.recomb_node == last_state.node) ?
             last_state.time :
-            tree->nodes[tree->nodes[recomb.node].parent].age;
-        if (recomb.node == -1) {
+            tree->nodes[tree->nodes[spr.recomb_node].parent].age;
+        if (spr.recomb_node == -1) {
             recomb_node_path = last_state.pop_path;
-        } else if (recomb.node == last_state.node) {
+        } else if (spr.recomb_node == last_state.node) {
             recomb_node_path = tree->nodes[last_state.node].pop_path;
         } else assert(0);
     }
@@ -107,7 +107,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     double precomb;
 
     if (model->smc_prime) {
-        int pop = model->get_pop(recomb.path, k);
+        int pop = model->get_pop(spr.pop_path, k);
         int nbranch_above=0, nbranch_below=0;
         double blen_above=0, blen_below=0;
         int nrecombs = lineages.ncoals_pop[pop][k];
@@ -150,7 +150,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     double nocoal_sum = 0.0;
     for (int m=2*k; m<=2*j; m++) {
         int pop_t = (m+1)/2;   // round up to get population assignment
-        int pop = model->get_pop(recomb.path, pop_t);
+        int pop = model->get_pop(spr.pop_path, pop_t);
         int coal_t = m/2; // round down to determine which time interval branch is in
         int nbranches_m = lineages.nbranches_pop[pop][m]
             + int( coal_t < last_state.time &&
@@ -168,8 +168,8 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
     if (coal_sum == 0.0) return 0.0;
     double pcoal = ( j >= model->ntimes - 2 ? 1.0 : (1.0 - exp(-coal_sum)));
 
-    // probability of recoalescing on a choosen branch
-    int pop = model->get_pop(recomb.path, j);
+    // probability of recoalescing on a chosen branch
+    int pop = model->get_pop(spr.pop_path, j);
     int recomb_parent_pop = model->get_pop(recomb_node_path, j);
     int last_state_pop = model->get_pop(last_state.pop_path, j);
     int ncoals_j = lineages.ncoals_pop[pop][j]
@@ -183,7 +183,7 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
           count++, pcoal, ncoals_j, precomb, exp(-nocoal_sum), model->path_prob(recomb.path, k, j));*/
 
     double p = pcoal / ncoals_j * precomb * exp(- nocoal_sum)
-        * model->path_prob(recomb.path, k, j);
+        * model->path_prob(spr.pop_path, k, j);
     return p;
 }
 
@@ -192,11 +192,19 @@ double recomb_prob_unnormalized(const ArgModel *model, const LocalTree *tree,
 // the transition (last_state -> state).
 void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
                          const State last_state, const State state,
-                         bool internal, vector<NodePointPath> &candidates)
+                         bool internal, vector<Spr> &candidates)
 {
     // represents the branch above the new node in the tree.
     const int new_node = -1;
+    int minage=0;
+    int subtree_root = ( internal ? tree->nodes[tree->root].child[0] : new_node );
+    if (internal) minage = tree->nodes[subtree_root].age;
     int end_time = min(state.time, last_state.time);
+    if (model->pop_tree != NULL)
+        end_time = min(end_time,
+                       model->pop_tree->max_matching_path(state.pop_path,
+                                                          last_state.pop_path,
+                                                          minage));
 
     // note: cannot normally compare pop_paths directly but OK in following
     // line because get_coal_states() assures that the paths are consistent
@@ -206,25 +214,25 @@ void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
         // y = v, k in [0, min(timei, last_timei)]
         // y = node, k in Sr(node)
         for (int k=tree->nodes[state.node].age; k<=end_time; k++)
-            candidates.push_back(NodePointPath(state.node, k,
-                                               tree->nodes[state.node].pop_path));
+            candidates.push_back(Spr(state.node, k, subtree_root, state.time,
+                                     tree->nodes[state.node].pop_path));
+    }
+    if (state.node == last_state.node && state.time == last_state.time) {
+        assert(state.pop_path != last_state.pop_path);
+        assert(model->pop_tree != NULL);
+        int min_coal = model->pop_tree->min_matching_path(state.pop_path,
+                                                          last_state.pop_path,
+                                                          state.time);
+        assert(end_time < min_coal);  // otherwise paths would be the same
+        for (int k=minage; k <= end_time; k++)
+            for (int coal=min_coal; coal <= state.time; coal++)
+                candidates.push_back(Spr(subtree_root, k,
+                                         subtree_root, coal,
+                                         state.pop_path));
     }
 
-    if (internal) {
-        const int subtree_root = tree->nodes[tree->root].child[0];
-        const int subtree_root_age = tree->nodes[subtree_root].age;
-        for (int k=subtree_root_age; k<=end_time; k++) {
-            if (model->get_pop(state.pop_path, k) !=
-                model->get_pop(last_state.pop_path, k)) break;
-            candidates.push_back(NodePointPath(subtree_root, k, state.pop_path));
-        }
-    } else {
-        for (int k=0; k<=end_time; k++) {
-            if (model->get_pop(state.pop_path, k) !=
-                model->get_pop(last_state.pop_path, k)) break;
-            candidates.push_back(NodePointPath(new_node, k, state.pop_path));
-        }
-    }
+    for (int k=minage; k<=end_time; k++)
+        candidates.push_back(Spr(subtree_root, k, state.node, state.time, state.pop_path));
 }
 
 
@@ -233,12 +241,12 @@ void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
 void sample_recombinations(
     const LocalTrees *trees, const ArgModel *model,
     ArgHmmMatrixIter *matrix_iter,
-    int *thread_path, vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+    int *thread_path, vector<int> &recomb_pos, vector<Spr> &recombs,
     bool internal)
 {
     States states;
     LineageCounts lineages(model->ntimes, model->num_pops());
-    vector <NodePointPath> candidates;
+    vector <Spr> candidates;
     vector <double> probs;
 
     // loop through local blocks
@@ -303,7 +311,7 @@ void sample_recombinations(
 
             // compute probability of each candidate
             probs.clear();
-            for (vector<NodePointPath>::iterator it=candidates.begin();
+            for (vector<Spr>::iterator it=candidates.begin();
                  it != candidates.end(); ++it) {
                 probs.push_back(recomb_prob_unnormalized(
                     model, tree, lineages, last_state, state, *it, internal));
@@ -315,8 +323,8 @@ void sample_recombinations(
             recombs.push_back(candidates[r]);
             /*            printf("%i\t%i\n", recomb_pos[recomb_pos.size()-1],
                           recombs[recombs.size()-1].time);*/
-            assert(recombs[recombs.size()-1].time <= min(state.time,
-                                                         last_state.time));
+            assert(recombs[recombs.size()-1].recomb_time <= min(state.time,
+                                                                last_state.time));
         }
     }
 }

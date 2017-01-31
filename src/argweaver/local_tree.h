@@ -87,19 +87,6 @@ public:
 
 
 
-// A node point can be either a recombination point or a coalescing point
-class NodePointPath
-{
-public:
-    NodePointPath(int node, int time, int path=0) :
-        node(node), time(time), path(path) {}
-
-    int node;
-    int time;
-    int path;
-};
-
-
 // A node in a local tree
 class LocalNode
 {

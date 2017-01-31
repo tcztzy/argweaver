@@ -307,7 +307,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
 // add a leaf thread to an ARG
 void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
                     int ntimes, int *thread_path, int seqid,
-                    vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+                    vector<int> &recomb_pos, vector<Spr> &recombs,
 		    const PopulationTree *pop_tree)
 {
     unsigned int irecomb = 0;
@@ -376,20 +376,20 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
 
             // determine real name of recomb node
             // it may be different due to adding a new branch
-            Spr spr2;
-            spr2.recomb_node = recombs[irecomb].node;
-            spr2.recomb_time = recombs[irecomb].time;
-            spr2.pop_path = recombs[irecomb].path;
+            Spr spr2(recombs[irecomb]);
             if (spr2.recomb_node == newleaf)
                 spr2.recomb_node = displaced;
+            if (spr2.coal_node == newleaf)
+                spr2.coal_node = displaced;
             assert(spr2.recomb_time <= tree->nodes[newcoal].age);
 
             // determine coal node and time
             //int istate = thread_path[pos];
-            if (spr2.recomb_node == -1) {
+            if (spr2.recomb_node == -1 && spr2.coal_node == -1) {
+                spr2.recomb_node = spr2.coal_node = newleaf;
+            } else if (spr2.recomb_node == -1) {
                 // recomb on new branch, coal given thread
                 spr2.recomb_node = newleaf;
-                spr2.coal_node = state.node;
 
                 // fix coal node due to displacement
                 if (spr2.coal_node == newleaf)
@@ -407,8 +407,6 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
                 else
                     spr2.coal_node = newleaf;
             }
-            spr2.coal_time = state.time;
-
 
             // determine mapping:
             // all nodes keep their name expect the broken node, which is the
@@ -416,7 +414,8 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             int *mapping2 = new int [tree->capacity];
             for (int j=0; j<nnodes2; j++)
                 mapping2[j] = j;
-            mapping2[nodes[spr2.recomb_node].parent] = -1;
+            if (spr2.recomb_node != spr2.coal_node)
+                mapping2[nodes[spr2.recomb_node].parent] = -1;
 
 
             // make new local tree and apply SPR operation
@@ -1431,7 +1430,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
 // Add a branch to a partial ARG
 void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
                          int ntimes, const int *thread_path,
-                         vector<int> &recomb_pos, vector<NodePointPath> &recombs,
+                         vector<int> &recomb_pos, vector<Spr> &recombs,
 			 const PopulationTree *pop_tree)
 {
     States states;
@@ -1506,17 +1505,14 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
 
             // determine real name of recomb node
             // it may be different due to adding a new branch
-            Spr spr2;
-            spr2.recomb_node = recombs[irecomb].node;
-            spr2.recomb_time = recombs[irecomb].time;
-            spr2.pop_path = recombs[irecomb].path;
+            Spr spr2(recombs[irecomb]);
             assert(spr2.recomb_time <= tree->nodes[newcoal].age);
 
             // determine coal node and time
-            if (spr2.recomb_node == subtree_root) {
+            if (spr2.recomb_node == subtree_root && spr2.coal_node == subtree_root) {
+                // only path of new branch changes; do nothing here
+            } if (spr2.recomb_node == subtree_root) {
                 // recomb on new branch, coal given thread
-                spr2.coal_node = state.node;
-
                 // rename coal node due to newcoal underneath
                 if (state.node == last_state.node &&
                     state.time > last_state.time)
@@ -1525,11 +1521,7 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
                 // recomb in maintree, coal on new branch
                 if (state.time > last_state.time)
                     spr2.coal_node = nodes[subtree_root].parent;
-                else
-                    spr2.coal_node = subtree_root;
             }
-            spr2.coal_time = state.time;
-
 
             // determine mapping:
             // all nodes keep their name except the broken node, which is the
@@ -1537,7 +1529,8 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
             int *mapping2 = new int [tree->capacity];
             for (int j=0; j<tree->nnodes; j++)
                 mapping2[j] = j;
-            mapping2[nodes[spr2.recomb_node].parent] = -1;
+            if (spr2.recomb_node != spr2.coal_node)
+                mapping2[nodes[spr2.recomb_node].parent] = -1;
 
 
             // make new local tree and apply SPR operation
