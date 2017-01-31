@@ -778,9 +778,7 @@ LocalTrees *arghmm_resample_mcmc_arg(
     char **seqs, int nseqs, int seqlen, int niters, int niters2, int window)
 {
     // setup model, local trees, sequences
-    //    double frac_leaf = 0.5;
-    // TODO : Change back!
-    double frac_leaf = 1.0;
+    double frac_leaf = 0.5;
     //    int step = window / 2;
     ArgModel model(ntimes, times, popsizes, rho, mu);
     Sequences sequences(seqs, nseqs, seqlen);
