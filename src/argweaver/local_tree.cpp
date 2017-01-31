@@ -619,7 +619,6 @@ LocalTrees *partition_local_trees(LocalTrees *trees, int pos,
     LocalTrees::iterator it2 = trees2->begin();
     if (trim) {
         // copy first tree back
-        if (pos - it_start > 0) {
             LocalTree *tree = it2->tree;
             LocalTree *last_tree = new LocalTree(tree->nnodes, tree->capacity);
             last_tree->copy(*tree);
@@ -633,7 +632,6 @@ LocalTrees *partition_local_trees(LocalTrees *trees, int pos,
 
             trees->trees.push_back(
                LocalTreeSpr(last_tree, it2->spr, pos - it_start, mapping));
-        }
 
         // modify first tree of trees2
         if (it2->mapping)
@@ -1136,11 +1134,11 @@ bool write_newick_tree_for_bedfile_recur(FILE *out, const LocalTree *tree,
         nhx.push_back(string(tmpstr));
     }
     if (node == spr.recomb_node) {
-        sprintf(tmpstr, "recomb_node=%.1f", times[spr.recomb_time]);
+        sprintf(tmpstr, "recomb_time=%.1f", times[spr.recomb_time]);
         nhx.push_back(string(tmpstr));
     }
     if (node == spr.coal_node) {
-        sprintf(tmpstr, "coal_node=%.1f", times[spr.coal_time]);
+        sprintf(tmpstr, "coal_time=%.1f", times[spr.coal_time]);
         nhx.push_back(string(tmpstr));
     }
     if (node == spr.recomb_node && model->pop_tree != NULL && spr.pop_path != 0) {
@@ -1466,19 +1464,21 @@ void write_local_trees_as_bed(FILE *out, const LocalTrees *trees,
         assert(it->blocklen > 0);
         LocalTree *tree = it->tree;
 
-        fprintf(out, "%s\t%i\t%i\t%i\t",
-                trees->chrom.c_str(), start, end, sample);
+        if (end - start > 0) {
+            fprintf(out, "%s\t%i\t%i\t%i\t",
+                    trees->chrom.c_str(), start, end, sample);
 
-        LocalTrees::const_iterator it2 = it;
-        ++it2;
-        if (it2 != trees->end()) {
-            spr = it2->spr;
-        } else {
-            spr.set_null();
+            LocalTrees::const_iterator it2 = it;
+            ++it2;
+            if (it2 != trees->end()) {
+                spr = it2->spr;
+            } else {
+                spr.set_null();
+            }
+
+            write_newick_tree_for_bedfile(out, tree, nodeids, model, spr);
+            fprintf(out, "\n");
         }
-
-        write_newick_tree_for_bedfile(out, tree, nodeids, model, spr);
-        fprintf(out, "\n");
     }
 
     // cleanup
