@@ -375,7 +375,7 @@ public:
 class SprPruned {
 private:
     //update spr operation on pruned tree
-    void update_spr_pruned();
+    void update_spr_pruned(const ArgModel *model);
 
     //update object by parsing newick string
     void update_slow(char *newick, const set<string> inds,
