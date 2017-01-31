@@ -1037,7 +1037,7 @@ double TransMatrix::get_time(int a, int b, int c,
                 assert(false);
             return prob;
         }
-        if (npaths > 1 && b <= a &&
+        if (npaths > 1 && b < a &&
             !(pop_tree->paths_equal(path_a, path_c, b, a) &&
               pop_tree->paths_equal(path_b, path_a, minage, b)))
             return prob;
@@ -1056,15 +1056,28 @@ double TransMatrix::get_time(int a, int b, int c,
                                B1_prime->get(path_c, path_a, a)));
         } else if (a == b) {
             prob *= 2.0;  // because could coal to parent or sister branch
-            prob += norecombs[a] + self_recomb[state_a];
-
-            prob += 2.0 * (( D[a] * path_prob[path_c][b]
-                             * E1_prime->get(path_c, path_a, b)
-                             * exp(-C1_prime->get(path_c, path_a, 2*b-2)
-                                   + logsub(B2_prime->get(path_c, path_a, b-1),
-                                            B2_prime->get(path_c, path_a, c-1))))
-                           + ( D[a] * G1_prime->get(path_c, path_a, b) *
-                               F1_prime->get(path_c, path_a, b)));
+            if (pop_tree == NULL || pop_tree->paths_equal(path_a, path_b, minage, a)) {
+                prob += norecombs[a] + self_recomb[state_a];
+                prob += 2.0 * (( D[a] * path_prob[path_c][b]
+                                 * E1_prime->get(path_c, path_a, b)
+                                 * exp(-C1_prime->get(path_c, path_a, 2*b-2)
+                                       + logsub(B2_prime->get(path_c, path_a, b-1),
+                                                B2_prime->get(path_c, path_a, c-1))))
+                               + ( D[a] * G1_prime->get(path_c, path_a, b) *
+                                   F1_prime->get(path_c, path_a, b)));
+            } else {
+                int minp = pop_tree->min_matching_path(path_a, path_b, a);
+                if (minp > minage) {
+                    assert(minp <= b);
+                    double val = logsub(B2_prime->get(path_b, path_a, p),
+                                        B2_prime->get(path_b, path_a, minage-1));
+                    double p2 = K1_prime->get(path_b, path_a, b);
+                    if (minp < b)
+                        p2 += (K2_prime->get(path_b, path_a, b-1)
+                               - K2_prime->get(path_b, path_a, minp-1));
+                    prob += D[a]*exp(val)*p2;
+                }
+            }
         } else if (a > b) {
             prob += D[a] * path_prob[path_c][b]
                 * E2_prime->get(path_c, path_a, b)

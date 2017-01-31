@@ -138,6 +138,7 @@ void arghmm_forward_block(const ArgModel *model,
     // on branch being threaded and same branch case is not special
     double tmatrix2[ntimes][nstates];
     for (int k=0; k<nstates; k++) {
+        for (int a=0; a < ntimes; a++) tmatrix2[a][k]=0.0;
         const int b = states[k].time;
         const int node2 = states[k].node;
         const int c = nodes[node2].age;
@@ -157,13 +158,31 @@ void arghmm_forward_block(const ArgModel *model,
             }
         }
     }
-    //    exit(0);
+
+    // there is one more special case for different path, same time, same node
+    double tmatrix3[max_numpath][nstates];
+    if (max_numpath > 1) {
+        for (int k=0; k < nstates; k++) {
+            for (int i=0; i <max_numpath; i++) tmatrix3[i][k]=0.0;
+            int b = states[k].time;
+            const int pb = states[k].pop_path;
+            for (int j=0; j < numpath_per_time[b]; j++) {
+                int pa = paths_per_time[b][j];
+                if (!model->paths_equal(pa, pb, minage, states[k].time)) {
+                    tmatrix3[j][k] =
+                        ( matrix->get_time(b, b, -1, pa, pb, -1, minage, true, k) -
+                          matrix->get_time(b, b, -1, pa, pb, -1, minage, false, k));
+                }
+            }
+        }
+    }
 
     NodeStateLookup state_lookup(states, minage, model->pop_tree);
 
-    double tmatrix_fgroups[max_numpath][ntimes];
-    double fgroups[max_numpath][ntimes];
+
     for (int i=1; i<blocklen; i++) {
+        double tmatrix_fgroups[max_numpath][ntimes];
+        double fgroups[max_numpath][ntimes];
         const double *col1 = fw[i-1];
         double *col2 = fw[i];
         const double *emit2 = emit[i];
@@ -200,13 +219,7 @@ void arghmm_forward_block(const ArgModel *model,
             const int path1 = tree->nodes[node2].pop_path;
             const int path2 = states[k].pop_path;
 
-            if (isnan(col1[k]) || isinf(col1[k])) {
-                assert(false);
-            }
-
             double sum = tmatrix_fgroups[path_map[k]][b];
-            if (isnan(sum) || isinf(sum))
-                assert(false);
 
             // same branch case
             // note taking advantage of convention in nodestatelookup that
@@ -219,20 +232,24 @@ void arghmm_forward_block(const ArgModel *model,
             for (int a=age1; a <= age2; a++, j++) {
                 int j_state = state_lookup.lookup_by_idx(j);
                 if (j_state >= 0 && col1[j_state] > 0) {
-                    if (isnan(tmatrix2[a][k])) {
-                        printf("a=%i k=%i\n", a, k);
-                        assert(false);
-                    }
                     if (model->pop_tree == NULL || a >= b ||
                         model->paths_equal(path1,
                                            path2, a, b))
                         sum += tmatrix2[a][k] * col1[j_state];
                 }
             }
-
-
+            // this setion accounts for self-recombinations that change paths
+            // (same node, same time, different path)
+            for (int pa=0; pa < numpath_per_time[b]; pa++) {
+                int path_a = paths_per_time[b][pa];
+                if (!model->paths_equal(path_a, path2, minage, b)) {
+                    int j_state = state_lookup.lookup(node2, b, path_a);
+                    if (j_state >= 0 && col1[j_state] > 0) {
+                        sum += tmatrix3[pa][k] * col1[j_state];
+                    }
+                }
+            }
             col2[k] = sum * emit2[k];
-            //            col2[k] = sum;  // use this hack to sample from prior
             norm += col2[k];
             if (isnan(col2[k]))
                 assert(false);
@@ -392,7 +409,6 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
 #ifdef DEBUG
     LocalTree *last_tree = NULL;
 #endif
-
 
     double **fw = forward->get_table();
     // forward algorithm over local trees
