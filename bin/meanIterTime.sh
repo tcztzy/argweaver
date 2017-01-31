@@ -30,6 +30,10 @@ grep -B 1 "sample time" $files |
             } else {
               totalLeafSec += $(NF-1)*3600; leafCount++;}
          }
-         END{avgLeaf=totalLeafSec/60/leafCount;
-             avgSubtree=totalSubtreeSec/60/subtreeCount;
+         END{if (leafCount > 0) {
+                avgLeaf=totalLeafSec/60/leafCount
+             } else {avgLeaf=-1};
+             if (subtreeCount > 0) {
+                avgSubtree=totalSubtreeSec/60/subtreeCount
+             } else {avgSubtree=-1};
              print "leaf: "avgLeaf" m (out of "leafCount");  subtree: "avgSubtree" m; (out of "subtreeCount")"}'
