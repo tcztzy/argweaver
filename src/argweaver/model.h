@@ -520,6 +520,7 @@ class ArgModel
     void set_popsizeconfig_by_pop_tree();
 
     void read_population_tree(string pop_file);
+    void read_population_sizes(string popsize_file);
 
     int get_pop(int path, int time) const;
     int consistent_path(int path1, int path2, int t1, int t2, int t3,

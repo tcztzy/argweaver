@@ -373,7 +373,6 @@ public:
     string subregion_str;
 
     // model parameters
-    double popsize;
     string popsize_str;
     string pop_tree_file;
     int max_migrations;
@@ -1580,27 +1579,14 @@ int main(int argc, char **argv)
     c.model.mu = c.mu;
     if (c.popsize_file != "") {
         // use population sizes from a file
-        vector<double> popsizes;
-        if (!read_doubles(c.popsize_file.c_str(), popsizes)) {
-            printError("cannot popsizes file '%s'", c.popsize_file.c_str());
-            return EXIT_ERROR;
-        }
-        if (popsizes.size() != (unsigned int)c.model.ntimes) {
-            printError("%d population sizes a given, but that does not match "
-                       "the %d time points.", popsizes.size(), c.model.ntimes);
-            return EXIT_ERROR;
-        }
-
-        c.model.set_popsizes(&popsizes[0]);
+        c.model.read_population_sizes(c.popsize_file);
     } else {
         // use single constant population size
-        c.model.set_popsizes(c.popsize);
+        c.model.set_popsizes(c.popsize_str);
     }
     const double infsites_penalty = 1e-100; // TODO: make configurable
     if (c.infsites)
         c.model.infsites_penalty = infsites_penalty;
-
-    c.model.set_popsizes(c.popsize_str);
 
     // setup phasing optinos
     if (c.unphased_file != "")

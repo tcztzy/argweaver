@@ -433,6 +433,62 @@ void ArgModel::set_popsize_config_by_pop_tree() {
     printf("Done set_popsize_config_by_pop_tree numParam = %i\n", nextpop);
 }
 
+// file should have format;
+// pop time0 popsize0
+// pop time1 popsize1
+// pop time2 popsize2
+// means that pop has popsize0 from time 0 to time0,
+// popsize1 from time0 to time1, etc
+// last entry should have time >= maxtime.
+// only two columns required if only single population
+void ArgModel::read_population_sizes(string popsize_file) {
+    if (!popsizes)
+        alloc_popsizes();
+    FILE *infile = fopen(popsize_file.c_str(), "r");
+    char *line = NULL;
+    if (infile == NULL)
+        exitError("error opening popsize file %s\n", popsize_file.c_str());
+    int pop_idx[num_pops()];
+    double next_time[num_pops()];
+    for (int i=0; i < num_pops(); i++) {
+        pop_idx[i]=0;
+        next_time[i] = 0.0;
+    }
+    while (NULL != (line = fgetline(infile))) {
+        chomp(line);
+        if (line[0] == '#') {
+            delete line;
+            continue;
+        }
+        vector<string> splitStr;
+        split(line, '\t', splitStr);
+        int pop=-1;
+        double curr_time=-1, curr_size=-1;
+        if (num_pops() == 2 && splitStr.size() == 2) {
+            pop = 0;
+            curr_time = atof(splitStr[0].c_str());
+            curr_size = atof(splitStr[1].c_str());
+        } else if (splitStr.size() == 3) {
+            pop = atoi(splitStr[0].c_str());
+            if (pop < 0 || pop >= num_pops())
+                exitError("Error parsing population in popsize file\n");
+            curr_time = atof(splitStr[1].c_str());
+            curr_size = atof(splitStr[2].c_str());
+        } else exitError("Error reading popsize file; format should be pop, time, size");
+        if (curr_time < next_time[pop])
+            exitError("Error reading popsize file; times should be increasing");
+        assert(curr_size > 0);
+        assert(pop >= 0 && pop < num_pops());
+        assert(pop_idx[pop] < 2*ntimes - 2);
+        while (curr_time > next_time[pop]) {
+            popsizes[pop][pop_idx[pop]] = curr_size;
+            next_time[pop] += coal_time_steps[pop_idx[pop]++];
+            if (pop_idx[pop] >= 2*ntimes - 2) break;
+        }
+    }
+    fclose(infile);
+}
+
 void ArgModel::read_population_tree(string pop_file) {
     if (pop_tree != NULL)
         delete pop_tree;
