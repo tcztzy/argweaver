@@ -457,7 +457,7 @@ void ArgModel::read_population_sizes(string popsize_file) {
     while (NULL != (line = fgetline(infile))) {
         chomp(line);
         if (line[0] == '#') {
-            delete line;
+            delete [] line;
             continue;
         }
         vector<string> splitStr;
@@ -483,8 +483,9 @@ void ArgModel::read_population_sizes(string popsize_file) {
         while (curr_time > next_time[pop]) {
             popsizes[pop][pop_idx[pop]] = curr_size;
             next_time[pop] += coal_time_steps[pop_idx[pop]++];
-            if (pop_idx[pop] >= 2*ntimes - 2) break;
+            if (pop_idx[pop] >= 2*ntimes - 1) break;
         }
+        delete [] line;
     }
     fclose(infile);
 }
