@@ -21,12 +21,14 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 {
     double lnl = 0.0;
     int nseqs = sequences->get_num_seqs();
-    int use_start = (start_coord > trees->start_coord ? start_coord : trees->start_coord);
-    int use_end = (end_coord > 0 && end_coord < trees->end_coord ? end_coord : trees->end_coord);
+    if (start_coord < trees->start_coord)
+        start_coord = trees->start_coord;
+    if (end_coord < 0 || end_coord > trees->end_coord)
+        end_coord = trees->end_coord;
 
     // special case for truck genealogies
     if (trees->nnodes < 3)
-        return lnl += log(.25) * (use_end - use_start);
+        return lnl += log(.25) * (end_coord - start_coord);
 
     // get sequences for trees
     char *seqs[nseqs];
@@ -39,9 +41,9 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         int start = end;
         end = start + it->blocklen;
         if (end <= start_coord) continue;
-        if (end_coord > 0 && start >= end_coord) break;
+        if (start >= end_coord) break;
         if (start < start_coord) start = start_coord;
-        if (end_coord > 0 && end > end_coord) end = end_coord;
+        if (end > end_coord) end = end_coord;
         LocalTree *tree = it->tree;
         ArgModel local_model;
 
@@ -71,9 +73,14 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     int nseqs = sequences->get_num_seqs();
     const char default_char = 'A';
 
+    if (start_coord < trees->start_coord)
+        start_coord = trees->start_coord;
+    if (end_coord < 0 || end_coord > trees->end_coord)
+        end_coord = trees->end_coord;
+
     // special case for truck genealogies
     if (trees->nnodes < 3)
-        return lnl += log(.25) * sequences->length();
+        return lnl += log(.25) * (end_coord - start_coord);
 
     int end = trees->start_coord;
     int mu_idx = 0;
@@ -83,12 +90,12 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         int start = end;
         end = start + it->blocklen;
         if (end <= start_coord) continue;
-        if (end_coord > 0 && start >= end_coord) break;
+        if (start >= end_coord) break;
         if (start < start_coord)
             start = start_coord;
         if (end > end_coord)
             end = end_coord;
-        int blocklen = start - end;
+        int blocklen = end - start;
         LocalTree *tree = it->tree;
 
         // get sequences for trees
@@ -387,6 +394,10 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
                 num_coal[pop][i] = num_nocoal[pop][i] = 0;
         }
     }
+    if (start_coord < trees->start_coord)
+        start_coord = trees->start_coord;
+    if (end_coord < 0 || end_coord > trees->end_coord)
+        end_coord = trees->end_coord;
 
     // first tree prior
     //    lnl += calc_tree_prior(model, trees->front().tree, lineages);
@@ -398,7 +409,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         int start=end;
         end += it->blocklen;
         if (end <= start_coord) {++it; continue;}
-        if (end_coord > 0 && start >= end_coord) break;
+        if (start >= end_coord) break;
         if (start < start_coord)
             start = start_coord;
         if (end > end_coord)
@@ -412,7 +423,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         // calculate probability P(blocklen | T_{i-1})
         double recomb_rate = max(local_model.rho * treelen, local_model.rho);
 
-        if (end < trees->end_coord) {
+        if (end < end_coord) {
             // not last block
             // probability of recombining after blocklen
 	    lnl += log(recomb_rate) - recomb_rate * blocklen;
