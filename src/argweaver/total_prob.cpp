@@ -17,14 +17,16 @@ namespace argweaver {
 
 
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
-                           const LocalTrees *trees)
+                           const LocalTrees *trees, int start_coord, int end_coord)
 {
     double lnl = 0.0;
     int nseqs = sequences->get_num_seqs();
+    int use_start = (start_coord > trees->start_coord ? start_coord : trees->start_coord);
+    int use_end = (end_coord > 0 && end_coord < trees->end_coord ? end_coord : trees->end_coord);
 
     // special case for truck genealogies
     if (trees->nnodes < 3)
-        return lnl += log(.25) * sequences->length();
+        return lnl += log(.25) * (use_end - use_start);
 
     // get sequences for trees
     char *seqs[nseqs];
@@ -36,6 +38,10 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
         end = start + it->blocklen;
+        if (end <= start_coord) continue;
+        if (end_coord > 0 && start >= end_coord) break;
+        if (start < start_coord) start = start_coord;
+        if (end_coord > 0 && end > end_coord) end = end_coord;
         LocalTree *tree = it->tree;
         ArgModel local_model;
 
@@ -51,13 +57,15 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     // TODO: This fills in compressed sites with A's... should
     // take mask into account!
 // NOTE: trees should be uncompressed and sequences compressed
+//start_coord and end_coord uncompressed, 0 based
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees,
                            const SitesMapping* sites_mapping,
-                           const TrackNullValue *maskmap_uncompressed)
+                           const TrackNullValue *maskmap_uncompressed,
+                           int start_coord, int end_coord)
 {
     if (!sites_mapping)
-        return calc_arg_likelihood(model, sequences, trees);
+        return calc_arg_likelihood(model, sequences, trees, start_coord, end_coord);
 
     double lnl = 0.0;
     int nseqs = sequences->get_num_seqs();
@@ -73,8 +81,14 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     int mask_pos=0;
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
-        int blocklen = it->blocklen;
-        end = start + blocklen;
+        end = start + it->blocklen;
+        if (end <= start_coord) continue;
+        if (end_coord > 0 && start >= end_coord) break;
+        if (start < start_coord)
+            start = start_coord;
+        if (end > end_coord)
+            end = end_coord;
+        int blocklen = start - end;
         LocalTree *tree = it->tree;
 
         // get sequences for trees
@@ -272,7 +286,6 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
     // get tree length, if it is not already given
     if (treelen < 0)
         treelen = get_treelen(tree, model->times, model->ntimes, false);
-    const double treelen_b = treelen + model->time_steps[nodes[tree->root].age];
 
     // get lineage counts
     if (!lineages_counted) {
@@ -304,7 +317,8 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 
     } else {
         lnl += log(lineages.nbranches[k] * model->time_steps[k] /
-                   (lineages.nrecombs[k] * treelen_b));
+                   (lineages.nrecombs[k] *
+                    (treelen + model->time_steps[nodes[tree->root].age])));
     }
 
     // probability of re-coalescence
@@ -360,7 +374,8 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 
 // calculate the probability of an ARG given the model parameters
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
-		      double **num_coal, double **num_nocoal)
+		      double **num_coal, double **num_nocoal,
+                      int start_coord, int end_coord)
 {
     double lnl = 0.0;
     LineageCounts lineages(model->ntimes, model->num_pops());
@@ -382,8 +397,14 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
         int start=end;
         end += it->blocklen;
+        if (end <= start_coord) {++it; continue;}
+        if (end_coord > 0 && start >= end_coord) break;
+        if (start < start_coord)
+            start = start_coord;
+        if (end > end_coord)
+            end = end_coord;
+        int blocklen = start - end;
         LocalTree *tree = it->tree;
-        int blocklen = it->blocklen;
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
         ArgModel local_model;
         model->get_local_model((start+end)/2, local_model, &mu_idx, &rho_idx);

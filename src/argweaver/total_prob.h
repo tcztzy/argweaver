@@ -17,13 +17,14 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
                      double coal_weight=1.0, int lineages_counted=false);
 
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
-                           const LocalTrees *trees);
+                           const LocalTrees *trees, int start_coord=-1, int end_coord=-1);
 
 // NOTE: trees should be uncompressed and sequences compressed
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees,
                            const SitesMapping* sites_mapping,
-                           const TrackNullValue *maskmap_uncompressed);
+                           const TrackNullValue *maskmap_uncompressed,
+                           int start_coord=-1, int end_coord=-1);
 
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
@@ -31,7 +32,8 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        double **num_nocoal=NULL);
 
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
-                      double **num_coal=NULL, double **num_ncoal=NULL);
+                      double **num_coal=NULL, double **num_ncoal=NULL,
+                      int start_coord = -1, int end_coord = -1);
 double calc_arg_joint_prob(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees);
 
