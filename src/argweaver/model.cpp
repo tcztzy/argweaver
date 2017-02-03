@@ -571,6 +571,9 @@ ArgModel::ArgModel(const char *logfilename) {
                 assert((int)splitStr.size() == ntimes);
                 for (int i=0; i < ntimes; i++)
                     times[i] = atof(splitStr[i].c_str());
+                double delta = get_delta(times, ntimes, times[ntimes-1]);
+                coal_time_steps = new double[2*ntimes];
+                get_coal_time_steps(times, ntimes, coal_time_steps, false, delta);
             }
             if (str_starts_with(line, "  npop = ")) {
                 assert(1 == sscanf(line, "  npop = %i", &npop));
