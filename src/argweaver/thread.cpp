@@ -193,7 +193,7 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     // get tree info
     const LocalNode *nodes = tree->nodes;
     const LocalNode *last_nodes = last_tree->nodes;
-
+    bool fix_mapping = true;
 #ifdef DEBUG
     const LocalTree orig_tree(*tree);
     const LocalTree orig_last_tree(*last_tree);
@@ -231,7 +231,37 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
     // however, if it equals newcoal, then either (1) the recomb branch is
     // renamed, (2) there is mediation, or (3) new branch escapes
     int recoal = nodes[mapping[spr->recomb_node]].parent;
-    if (recoal == newcoal) {
+    if (spr->recomb_node == spr->coal_node) {
+        if (last_state.node == spr->recomb_node) {
+            if (last_state.time < spr->recomb_time ||
+                (last_state.time == spr->recomb_time &&
+                 state.time == spr->recomb_time)) {
+                spr->recomb_node = last_nodes[spr->recomb_node].parent;
+                spr->coal_node = spr->recomb_node;
+                fix_mapping = false;
+            } else if (last_state.time >= spr->recomb_time &&
+                       last_state.time < spr->coal_time) {
+                if (state.time <= last_state.time) {
+                    assert(state.time >= spr->recomb_time);
+                    spr->coal_node = last_tree->get_sibling(spr->recomb_node);
+                    spr->coal_time = state.time;
+                    mapping[newcoal] = -1;
+                    fix_mapping = false;
+                } else {
+                    assert(state.time == spr->coal_time);
+                    spr->coal_node = newcoal;
+                    mapping[newcoal] = -1;
+                    fix_mapping = false;
+                }
+            } else if (last_state.time == spr->coal_time) {
+                spr->coal_time = state.time;
+                spr->coal_node = last_tree->get_sibling(spr->recomb_node);
+                mapping[newcoal] = -1;
+                fix_mapping = false;
+            } // if last_state.time > spr->coal_time do nothing
+
+        }
+    } else if (recoal == newcoal) {
         if (spr->recomb_node == spr->coal_node) {
             // (4) new branch breaks "bubble" recomb.
             if (last_state.time > spr->recomb_time &&
@@ -278,26 +308,28 @@ void add_spr_branch(const LocalTree *tree, const LocalTree *last_tree,
 
     // determine if mapping of new node needs to be changed
     // newcoal was parent of recomb, it is broken
-    if (last_nodes[spr->recomb_node].parent == newcoal) {
-        if (spr->recomb_node != spr->coal_node) {
-            mapping[newcoal] = -1;
-            int p = last_nodes[newcoal].parent;
-            if (p != -1)
-                mapping[p] = newcoal;
+    if (fix_mapping) {
+        if (last_nodes[spr->recomb_node].parent == newcoal) {
+            if (spr->recomb_node != spr->coal_node) {
+                mapping[newcoal] = -1;
+                int p = last_nodes[newcoal].parent;
+                if (p != -1)
+                    mapping[p] = newcoal;
+            }
+        } else {
+            // newcoal was not broken
+            // find child without recomb or coal on it
+            int x = newcoal;
+            while (true) {
+                int y = last_nodes[x].child[0];
+                if (y == spr->coal_node || y == spr->recomb_node)
+                    y = last_nodes[x].child[1];
+                x = y;
+                if (mapping[x] != -1)
+                    break;
+            }
+            mapping[newcoal] = nodes[mapping[x]].parent;
         }
-    } else {
-        // newcoal was not broken
-        // find child without recomb or coal on it
-        int x = newcoal;
-        while (true) {
-            int y = last_nodes[x].child[0];
-            if (y == spr->coal_node || y == spr->recomb_node)
-                y = last_nodes[x].child[1];
-            x = y;
-            if (mapping[x] != -1)
-                break;
-        }
-        mapping[newcoal] = nodes[mapping[x]].parent;
     }
 }
 
@@ -357,7 +389,7 @@ void add_arg_thread(LocalTrees *trees, const StatesModel &states_model,
             add_spr_branch(tree, last_tree, state, last_state,
                            &it->spr, mapping,
                            newleaf, displaced, newcoal);
-            //            assert(assert_spr(last_tree, tree, it->spr, mapping, pop_tree));
+            assert(assert_spr(last_tree, tree, &(it->spr), mapping, pop_tree));
         }
 
         // assert new branch is where it should be
