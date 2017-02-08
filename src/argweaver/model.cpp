@@ -543,6 +543,7 @@ ArgModel::ArgModel(const char *logfilename) {
     bool found_model = false;
     int npop;
     int numpath;
+    smc_prime=true;
     if (logfile == NULL) {
         printError("Could not open log file %s\n", logfilename);
         abort();
