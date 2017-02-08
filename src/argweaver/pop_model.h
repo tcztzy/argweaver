@@ -51,6 +51,7 @@ class PopulationPath {
         prob *= currprob;
     }
     int get(int time) const {
+        if (time < 0) return pop[pop.size()-1];
         return pop[time];
     }
     void print() const;
@@ -322,6 +323,10 @@ class PopulationTree {
   // probabilities are summed.
   SubPath ****sub_paths;
 
+  //num_sub_path[t1][t2][p1] is the number of distinct sub_paths from time
+  // t1 to t2 that start at population p1
+  int ***num_sub_path;
+
   // max_matching_path(p1, p2, t) is -1 if the path p1 and p2 have different
   // populations at time t. Otherwise it is the maximum t1 such that
   // paths p1 and p2 match from time t to t1. It is set in
@@ -338,8 +343,14 @@ class PopulationTree {
   // if this is >= 0, then do not allow threading into paths
   // which allow more than this many migrations
   int max_migrations;
-  int num_migrations(int path1, int t1, int t2);
 
+  // returns number of unique paths that start at pop1 at time t1 and
+  // go to time t2 (any pop)
+  int num_paths(int pop1, int t1, int t2);
+
+  // returns true if path does not encounter any "choices" between times
+  // t1 and t2
+  bool is_unique(int path, int t1, int t2);
 
  private:
     void getAllPopulationPathsRec(PopulationPath &curpath,

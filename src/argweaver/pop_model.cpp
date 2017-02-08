@@ -70,6 +70,7 @@ PopulationTree::PopulationTree(int npop, const ArgModel *model) :
     for (int i=0; i < ntime2; i++)
         mig_matrix[i].resize(npop);
     sub_paths = NULL;
+    num_sub_path = NULL;
     max_matching_path_arr = NULL;
     min_matching_path_arr = NULL;
     max_migrations = -1;
@@ -83,6 +84,7 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     //    mig_matrix.copy(other.mig_matrix);
     mig_matrix = other.mig_matrix;
     sub_paths = NULL;
+    num_sub_path = NULL;
     max_matching_path_arr = NULL;
     min_matching_path_arr = NULL;
     if (npop > 0) set_up_population_paths();
@@ -103,6 +105,15 @@ PopulationTree::~PopulationTree() {
             delete [] sub_paths[i];
         }
         delete [] sub_paths;
+    }
+    if (num_sub_path != NULL) {
+        for (int i=0; i < model->ntimes; i++) {
+            for (int j=i; j < model->ntimes; j++) {
+                delete [] num_sub_path[i][j];
+            }
+            delete [] num_sub_path[i];
+        }
+        delete [] num_sub_path;
     }
     if (max_matching_path_arr != NULL) {
         for (unsigned int i=0; i < all_paths.size(); i++) {
@@ -344,7 +355,19 @@ void PopulationTree::set_up_population_paths() {
         }
     }
 
-
+    num_sub_path = new int **[ntime];
+    for (int t1=0; t1 < ntime; t1++) {
+        num_sub_path[t1] = new int *[ntime];
+        for (int t2=t1; t2 < ntime; t2++) {
+            num_sub_path[t1][t2] = new int [npop];
+            for (int p1=0; p1 < npop; p1++) {
+                num_sub_path[t1][t2][p1]=0;
+                for (int p2=0; p2 < npop; p2++) {
+                    num_sub_path[t1][t2][p1] += sub_paths[t1][t2][p1][p2].size();
+                }
+            }
+        }
+    }
     update_population_probs();
 }
 
@@ -459,6 +482,19 @@ int get_closest_half_time(double tgen, const double *time_steps, int ntime) {
         }
     }
     return closest;
+}
+
+
+int PopulationTree::num_paths(int pop1, int t1, int t2) {
+    if (t2 < 0) t2 = model->ntimes-1;
+    return num_sub_path[t1][t2][pop1];
+}
+
+bool PopulationTree::is_unique(int path, int t1, int t2) {
+    int pop1 = get_pop(path, t1);
+    int np = num_paths(pop1, t1, t2);
+    assert(np > 0);
+    return (np == 1);
 }
 
 
