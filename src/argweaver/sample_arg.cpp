@@ -180,10 +180,11 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
     trees2.copy(*trees);
 
     // ramdomly choose a removal path
-    double npaths = sample_arg_removal_path_uniform(trees, removal_path);
+    double npaths = sample_arg_removal_path_uniform(trees, removal_path,
+                                                    model->pop_tree);
     remove_arg_thread_path(trees, removal_path, maxtime, model->pop_tree);
     sample_arg_thread_internal(model, sequences, trees);
-    double npaths2 = count_total_arg_removal_paths(trees);
+    double npaths2 = count_total_arg_removal_paths(trees, model->pop_tree);
 
     // perform reject if needed
     double accept_prob = exp(npaths - npaths2);
@@ -498,7 +499,8 @@ double resample_arg_region(
 
         // remove internal branch from trees2
         int *removal_path = new int [trees2->get_num_trees()];
-        double npaths = sample_arg_removal_path_uniform(trees2, removal_path);
+        double npaths = sample_arg_removal_path_uniform(trees2, removal_path,
+                                                        model->pop_tree);
         remove_arg_thread_path(trees2, removal_path, maxtime, model->pop_tree);
         delete [] removal_path;
         assert_trees(trees2, model->pop_tree, true);
@@ -525,7 +527,7 @@ double resample_arg_region(
         incLogLevel();
         assert_trees(trees2, model->pop_tree);
 
-        double npaths2 = count_total_arg_removal_paths(trees2);
+        double npaths2 = count_total_arg_removal_paths(trees2, model->pop_tree);
 
         // perform reject if needed
         double accept_prob = exp(heat*(npaths - npaths2));

@@ -708,7 +708,8 @@ void get_all_next_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 // find the previous possible branches in a removal path
 void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                             const Spr &spr2, const int *mapping2,
-                            int node, int prev_nodes[2], int *inv_mapping=NULL)
+                            int node, int prev_nodes[2], int *inv_mapping=NULL,
+                            PopulationTree *pop_tree=NULL)
 {
     const int nnodes = tree1->nnodes;
 
@@ -744,6 +745,20 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
         int sib = tree1->get_sibling(spr2.recomb_node);
         if (sib == spr2.coal_node) {
             prev_nodes[1] = tree1->nodes[sib].parent;
+            if (pop_tree != NULL) {
+                int path = tree2->nodes[node].pop_path;
+                bool is_choice[2];
+                int node1 = prev_nodes[1];
+                is_choice[0] = !pop_tree->is_unique(path, spr2.coal_time,
+                                                    tree1->nodes[node1].age);
+                is_choice[1] = !pop_tree->is_unique(path, tree1->nodes[node1].age,
+                                                    tree1->nodes[node1].parent == -1 ? -1 :
+                                                    tree1->nodes[tree1->nodes[node1].parent].age);
+                if (is_choice[0] && !is_choice[1])
+                    prev_nodes[1] = -1;
+                else if (is_choice[1] && !is_choice[0])
+                    prev_nodes[0] = -1;
+            }
         } else
             prev_nodes[1] = -1;
     } else {
@@ -751,6 +766,22 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
         int sib = tree1->get_sibling(spr2.recomb_node);
         if (mapping2[sib] == node && sib != spr2.coal_node) {
             prev_nodes[1] = tree1->nodes[sib].parent;
+            if (pop_tree != NULL) {
+                int path = tree2->nodes[node].pop_path;
+                bool is_choice[2];
+                int node1 = prev_nodes[1];
+                int node0 = prev_nodes[0];
+                assert(tree1->nodes[node0].parent == node1);
+                is_choice[0] = !pop_tree->is_unique(path, tree1->nodes[node0].age,
+                                                    tree1->nodes[node1].age);
+                is_choice[1] = !pop_tree->is_unique(path, tree1->nodes[node1].age,
+                                                    tree1->nodes[node1].parent == -1 ? -1 :
+                                                    tree1->nodes[tree1->nodes[node1].parent].age);
+                if (is_choice[0] && !is_choice[1])
+                    prev_nodes[1] = -1;
+                else if (is_choice[1] && !is_choice[0])
+                    prev_nodes[0] = -1;
+            }
         } else
             prev_nodes[1] = -1;
     }
@@ -760,7 +791,7 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 // find the previous possible branches in a removal path
 void get_all_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                                 const Spr &spr2, const int *mapping2,
-                                int prev_nodes[][2])
+                                int prev_nodes[][2], PopulationTree *pop_tree=NULL)
 {
     const int nnodes = tree1->nnodes;
 
@@ -773,7 +804,7 @@ void get_all_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 
     for (int node=0; node<tree1->nnodes; node++) {
         get_prev_removal_nodes(tree1, tree2, spr2, mapping2, node,
-                               prev_nodes[node], inv_mapping);
+                               prev_nodes[node], inv_mapping, pop_tree);
     }
 }
 
@@ -1023,7 +1054,8 @@ void sample_arg_removal_path_recomb(
 
 // count number of removal paths
 void count_arg_removal_paths(const LocalTrees *trees,
-                             RemovalPaths &removal_paths)
+                             RemovalPaths &removal_paths,
+                             PopulationTree *pop_tree)
 {
     const int ntrees = trees->get_num_trees();
     const int nnodes = trees->nnodes;
@@ -1043,13 +1075,16 @@ void count_arg_removal_paths(const LocalTrees *trees,
 
         // get back pointers
         get_all_prev_removal_nodes(last_tree, tree, it->spr, mapping,
-                                   backptrs[i]);
+                                   backptrs[i], pop_tree);
 
         // calc counts column
         for (int j=0; j<nnodes; j++) {
             int *ptrs = backptrs[i][j];
+            assert(ptrs[0] != -1 || ptrs[1] != -1);
             if (ptrs[1] == -1)
                 counts[i][j] = counts[i-1][ptrs[0]];
+            else if (ptrs[0] == -1)
+                counts[i][j] = counts[i-1][ptrs[1]];
             else
                 counts[i][j] = logadd(counts[i-1][ptrs[0]],
                                       counts[i-1][ptrs[1]]);
@@ -1071,11 +1106,12 @@ double count_total_arg_removal_paths(const RemovalPaths &removal_paths)
 
 
 // sample a removal path uniformly from all paths and return total path count
-double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path)
+double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
+                                           PopulationTree *pop_tree)
 {
     // compute path counts table
     RemovalPaths removal_paths(trees);
-    count_arg_removal_paths(trees, removal_paths);
+    count_arg_removal_paths(trees, removal_paths, pop_tree);
 
     // convenience variables
     const int ntrees = trees->get_num_trees();
@@ -1095,6 +1131,8 @@ double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path)
         if (ptrs[1] == -1) {
             // single trace back
             path[i-1] = ptrs[0];
+        } else if (ptrs[0] == -1) {
+            path[i-1] = ptrs[1];
         } else {
             // sample traceback
             const double p1 = counts[i-1][ptrs[0]];
@@ -1105,6 +1143,7 @@ double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path)
             else
                 path[i-1] = ptrs[1];
         }
+        assert(path[i-1] >= 0);
     }
 
     // count total number of paths
@@ -1113,11 +1152,12 @@ double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path)
 
 
 // count total number of removal paths
-double count_total_arg_removal_paths(const LocalTrees *trees)
+double count_total_arg_removal_paths(const LocalTrees *trees,
+                                     PopulationTree *pop_tree)
 {
     // compute path counts table
     RemovalPaths removal_paths(trees);
-    count_arg_removal_paths(trees, removal_paths);
+    count_arg_removal_paths(trees, removal_paths, pop_tree);
 
     // count total number of paths
     return count_total_arg_removal_paths(removal_paths);

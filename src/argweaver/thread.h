@@ -131,10 +131,12 @@ void count_arg_removal_paths(const LocalTrees *trees,
 double count_total_arg_removal_paths(const RemovalPaths &removal_paths);
 
 // sample a removal path uniformly from all paths and return total path count
-double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path);
+double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
+                                       PopulationTree *pop_tree=NULL);
 
 // count total number of removal paths
-double count_total_arg_removal_paths(const LocalTrees *trees);
+double count_total_arg_removal_paths(const LocalTrees *trees,
+                                     PopulationTree *pop_tree=NULL);
 
 /*
 // sample a removal path using the branch cut method
