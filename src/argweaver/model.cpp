@@ -488,6 +488,11 @@ void ArgModel::read_population_sizes(string popsize_file) {
         delete [] line;
     }
     fclose(infile);
+    for (int pop=0; pop < num_pops(); pop++)
+        for (int i=0; i < 2*ntimes - 2; i++) {
+            if (popsizes[pop][i] == 0.0)
+                exitError("Error in read_population_sizes: some population sizes are zero or not set");
+        }
 }
 
 void ArgModel::read_population_tree(string pop_file) {
