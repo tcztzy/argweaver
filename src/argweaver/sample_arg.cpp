@@ -229,10 +229,6 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
             int val = irand(mig_times.size()+1);
             if (val < (int)mig_times.size())
                 time_interval = mig_times[val];
-            if (time_interval == -1)
-                printLog(LOG_LOW, "resample_arg_region: all times\n");
-            else printLog(LOG_LOW, "resample_arg_region: time interval %i\n",
-                          time_interval);
         }
         double accept_rate = resample_arg_regions(
            model, sequences, trees, window, niters, heat, time_interval);
