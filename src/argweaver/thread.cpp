@@ -709,7 +709,7 @@ void get_all_next_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                             const Spr &spr2, const int *mapping2,
                             int node, int prev_nodes[2], int *inv_mapping=NULL,
-                            PopulationTree *pop_tree=NULL)
+                            int time_interval=-1)
 {
     const int nnodes = tree1->nnodes;
 
@@ -745,20 +745,6 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
         int sib = tree1->get_sibling(spr2.recomb_node);
         if (sib == spr2.coal_node) {
             prev_nodes[1] = tree1->nodes[sib].parent;
-            if (pop_tree != NULL) {
-                int path = tree2->nodes[node].pop_path;
-                bool is_choice[2];
-                int node1 = prev_nodes[1];
-                is_choice[0] = !pop_tree->is_unique(path, spr2.coal_time,
-                                                    tree1->nodes[node1].age);
-                is_choice[1] = !pop_tree->is_unique(path, tree1->nodes[node1].age,
-                                                    tree1->nodes[node1].parent == -1 ? -1 :
-                                                    tree1->nodes[tree1->nodes[node1].parent].age);
-                if (is_choice[0] && !is_choice[1])
-                    prev_nodes[1] = -1;
-                else if (is_choice[1] && !is_choice[0])
-                    prev_nodes[0] = -1;
-            }
         } else
             prev_nodes[1] = -1;
     } else {
@@ -766,24 +752,19 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
         int sib = tree1->get_sibling(spr2.recomb_node);
         if (mapping2[sib] == node && sib != spr2.coal_node) {
             prev_nodes[1] = tree1->nodes[sib].parent;
-            if (pop_tree != NULL) {
-                int path = tree2->nodes[node].pop_path;
-                bool is_choice[2];
-                int node1 = prev_nodes[1];
-                int node0 = prev_nodes[0];
-                assert(tree1->nodes[node0].parent == node1);
-                is_choice[0] = !pop_tree->is_unique(path, tree1->nodes[node0].age,
-                                                    tree1->nodes[node1].age);
-                is_choice[1] = !pop_tree->is_unique(path, tree1->nodes[node1].age,
-                                                    tree1->nodes[node1].parent == -1 ? -1 :
-                                                    tree1->nodes[tree1->nodes[node1].parent].age);
-                if (is_choice[0] && !is_choice[1])
-                    prev_nodes[1] = -1;
-                else if (is_choice[1] && !is_choice[0])
-                    prev_nodes[0] = -1;
-            }
         } else
             prev_nodes[1] = -1;
+    }
+    if (time_interval >= 0) {
+        for (int i=0; i < 2; i++) {
+            int node = prev_nodes[i];
+            if (node < 0) continue;
+            if (!(tree1->nodes[node].age <= time_interval &&
+                  ( tree1->root == node ||
+                    tree1->nodes[tree1->nodes[node].parent].age >
+                    time_interval)))
+                prev_nodes[i] = -1;
+        }
     }
 }
 
@@ -791,7 +772,8 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 // find the previous possible branches in a removal path
 void get_all_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                                 const Spr &spr2, const int *mapping2,
-                                int prev_nodes[][2], PopulationTree *pop_tree=NULL)
+                                int prev_nodes[][2],
+                                int time_interval=-1)
 {
     const int nnodes = tree1->nnodes;
 
@@ -804,7 +786,7 @@ void get_all_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 
     for (int node=0; node<tree1->nnodes; node++) {
         get_prev_removal_nodes(tree1, tree2, spr2, mapping2, node,
-                               prev_nodes[node], inv_mapping, pop_tree);
+                               prev_nodes[node], inv_mapping, time_interval);
     }
 }
 
@@ -1053,21 +1035,33 @@ void sample_arg_removal_path_recomb(
 // sample removal paths uniformly
 
 // count number of removal paths
+// if time_interval >= 0, then only follow branches that span
+// time between (time_interval, time_interval+1)
 void count_arg_removal_paths(const LocalTrees *trees,
                              RemovalPaths &removal_paths,
-                             PopulationTree *pop_tree)
+                             int time_interval)
 {
     const int ntrees = trees->get_num_trees();
     const int nnodes = trees->nnodes;
     double **counts = removal_paths.counts;
     RemovalPaths::next_row **backptrs = removal_paths.backptrs;
 
-    // calculate first column
-    fill(counts[0], counts[0] + nnodes, 0.0);
-
     // compute forward table
     LocalTrees::const_iterator it= trees->begin();
     LocalTree const *last_tree = it->tree;
+
+    // calculate first column
+    if (time_interval < 0)
+        fill(counts[0], counts[0] + nnodes, 0.0);
+    else {
+        for (int i=0; i < nnodes; i++)
+            if (last_tree->nodes[i].age <= time_interval &&
+                ( last_tree->root == i ||
+                  last_tree->nodes[last_tree->nodes[i].parent].age > time_interval))
+                counts[0][i] = 0.0;
+            else counts[0][i] = -INFINITY;
+    }
+
     ++it;
     for (int i=1; i<ntrees; i++, ++it) {
         LocalTree const *tree = it->tree;
@@ -1075,13 +1069,14 @@ void count_arg_removal_paths(const LocalTrees *trees,
 
         // get back pointers
         get_all_prev_removal_nodes(last_tree, tree, it->spr, mapping,
-                                   backptrs[i], pop_tree);
+                                   backptrs[i], time_interval);
 
         // calc counts column
         for (int j=0; j<nnodes; j++) {
             int *ptrs = backptrs[i][j];
-            assert(ptrs[0] != -1 || ptrs[1] != -1);
-            if (ptrs[1] == -1)
+            if (ptrs[0] < 0 && ptrs[1] < 0)
+                counts[i][j] = -INFINITY;
+            else if (ptrs[1] == -1)
                 counts[i][j] = counts[i-1][ptrs[0]];
             else if (ptrs[0] == -1)
                 counts[i][j] = counts[i-1][ptrs[1]];
@@ -1107,11 +1102,11 @@ double count_total_arg_removal_paths(const RemovalPaths &removal_paths)
 
 // sample a removal path uniformly from all paths and return total path count
 double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
-                                           PopulationTree *pop_tree)
+                                       int time_interval)
 {
     // compute path counts table
     RemovalPaths removal_paths(trees);
-    count_arg_removal_paths(trees, removal_paths, pop_tree);
+    count_arg_removal_paths(trees, removal_paths, time_interval);
 
     // convenience variables
     const int ntrees = trees->get_num_trees();
@@ -1153,11 +1148,11 @@ double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
 
 // count total number of removal paths
 double count_total_arg_removal_paths(const LocalTrees *trees,
-                                     PopulationTree *pop_tree)
+                                     int time_interval)
 {
     // compute path counts table
     RemovalPaths removal_paths(trees);
-    count_arg_removal_paths(trees, removal_paths, pop_tree);
+    count_arg_removal_paths(trees, removal_paths, time_interval);
 
     // count total number of paths
     return count_total_arg_removal_paths(removal_paths);

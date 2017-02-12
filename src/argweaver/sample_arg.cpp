@@ -180,11 +180,13 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
     trees2.copy(*trees);
 
     // ramdomly choose a removal path
+    if (model->pop_tree != NULL)
+        exitError("Error: Have not updated this method for population paths\n");
     double npaths = sample_arg_removal_path_uniform(trees, removal_path,
-                                                    model->pop_tree);
+                                                    -1);
     remove_arg_thread_path(trees, removal_path, maxtime, model->pop_tree);
     sample_arg_thread_internal(model, sequences, trees);
-    double npaths2 = count_total_arg_removal_paths(trees, model->pop_tree);
+    double npaths2 = count_total_arg_removal_paths(trees, -1);
 
     // perform reject if needed
     double accept_prob = exp(npaths - npaths2);
@@ -213,9 +215,31 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
         resample_arg_random_leaf(model, sequences, trees);
         printLog(LOG_LOW, "resample_arg_leaf: accept=%f\n", 1.0);
     } else {
+
+        // if there are migration events in tree, then choose a time interval
+        // for focused resampling from the time intervals where migrations occur.
+        // choose uniformly between each of these intervals and normal
+        // subtree pruning.
+        int time_interval = -1;
+        if (model->pop_tree != NULL) {
+            vector<int> mig_times;
+            for (int i=0; i < model->ntimes-1; i++)
+                if (model->pop_tree->has_migration(i))
+                    mig_times.push_back(i);
+            int val = irand(mig_times.size()+1);
+            if (val < (int)mig_times.size())
+                time_interval = mig_times[val];
+            if (time_interval == -1)
+                printLog(LOG_LOW, "resample_arg_region: all times\n");
+            else printLog(LOG_LOW, "resample_arg_region: time interval %i\n",
+                          time_interval);
+        }
         double accept_rate = resample_arg_regions(
-            model, sequences, trees, window, niters, heat);
-        printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
+           model, sequences, trees, window, niters, heat, time_interval);
+        if (time_interval == -1)
+            printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
+        else printLog(LOG_LOW, "resample_arg_regions: time %i, accept=%f\n",
+                      time_interval, accept_rate);
     }
 }
 
@@ -454,7 +478,7 @@ State find_state_sub_tree_internal(const ArgModel *model,
 double resample_arg_region(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int region_start, int region_end, int niters,
-    bool open_ended, double heat)
+    bool open_ended, double heat, int time_interval)
 {
     const int maxtime = model->get_removed_root_time();
     static int count=0;
@@ -481,6 +505,7 @@ double resample_arg_region(
         trees2->end_coord++;
     }
 
+
     // perform several iterations of resampling
     int accepts = 0;
     for (int i=0; i<niters; i++) {
@@ -500,7 +525,7 @@ double resample_arg_region(
         // remove internal branch from trees2
         int *removal_path = new int [trees2->get_num_trees()];
         double npaths = sample_arg_removal_path_uniform(trees2, removal_path,
-                                                        model->pop_tree);
+                                                        time_interval);
         remove_arg_thread_path(trees2, removal_path, maxtime, model->pop_tree);
         delete [] removal_path;
         assert_trees(trees2, model->pop_tree, true);
@@ -527,7 +552,7 @@ double resample_arg_region(
         incLogLevel();
         assert_trees(trees2, model->pop_tree);
 
-        double npaths2 = count_total_arg_removal_paths(trees2, model->pop_tree);
+        double npaths2 = count_total_arg_removal_paths(trees2, time_interval);
 
         // perform reject if needed
         double accept_prob = exp(heat*(npaths - npaths2));
@@ -566,7 +591,8 @@ double resample_arg_region(
 // resample an ARG a region at a time in a sliding window
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int niters, double heat)
+    LocalTrees *trees, int window, int niters, double heat,
+    int time_interval)
 {
     decLogLevel();
     double accept_rate = 0.0;
@@ -580,7 +606,8 @@ double resample_arg_regions(
         nwindows++;
         int end = min(start + currwindow, trees->end_coord);
         accept_rate += resample_arg_region(
-             model, sequences, trees, start, end, niters, true, heat);
+            model, sequences, trees, start, end, niters, true, heat,
+            time_interval);
     }
     incLogLevel();
 
