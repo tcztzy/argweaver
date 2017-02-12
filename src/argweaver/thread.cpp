@@ -771,6 +771,7 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
             prev_nodes[0] = -1;
         }
     }
+    assert(prev_nodes[0] >= 0 || prev_nodes[1] >= 0);
 }
 
 
@@ -1056,16 +1057,7 @@ void count_arg_removal_paths(const LocalTrees *trees,
     LocalTree const *last_tree = it->tree;
 
     // calculate first column
-    if (time_interval < 0)
-        fill(counts[0], counts[0] + nnodes, 0.0);
-    else {
-        for (int i=0; i < nnodes; i++)
-            if (last_tree->nodes[i].age <= time_interval &&
-                ( last_tree->root == i ||
-                  last_tree->nodes[last_tree->nodes[i].parent].age > time_interval))
-                counts[0][i] = 0.0;
-            else counts[0][i] = -INFINITY;
-    }
+    fill(counts[0], counts[0] + nnodes, 0.0);
 
     ++it;
     for (int i=1; i<ntrees; i++, ++it) {
