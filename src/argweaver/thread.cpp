@@ -755,15 +755,20 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
         } else
             prev_nodes[1] = -1;
     }
-    if (time_interval >= 0) {
+    if (time_interval >= 0 && prev_nodes[0] >= 0 && prev_nodes[1] >= 0) {
+        bool span[2];
         for (int i=0; i < 2; i++) {
             int node = prev_nodes[i];
-            if (node < 0) continue;
-            if (!(tree1->nodes[node].age <= time_interval &&
-                  ( tree1->root == node ||
-                    tree1->nodes[tree1->nodes[node].parent].age >
-                    time_interval)))
-                prev_nodes[i] = -1;
+            span[i] = (tree1->nodes[node].age <= time_interval &&
+                       ( tree1->root == node ||
+                         tree1->nodes[tree1->nodes[node].parent].age >
+                         time_interval));
+        }
+        assert(!(span[0] && span[1]));
+        if (span[0]) {
+            prev_nodes[1] = -1;
+        } else if (span[1]) {
+            prev_nodes[0] = -1;
         }
     }
 }
