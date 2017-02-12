@@ -352,6 +352,10 @@ class PopulationTree {
   // t1 and t2
   bool is_unique(int path, int t1, int t2);
 
+  // return true if there is a migration event between whole time interval
+  // t and t+1
+  bool has_migration(int t);
+
  private:
     void getAllPopulationPathsRec(PopulationPath &curpath,
                                   int cur_time, int end_time, int cur_pop);

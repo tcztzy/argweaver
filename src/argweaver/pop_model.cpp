@@ -569,4 +569,21 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     pop_tree->update_population_probs();
 }
 
+
+bool PopulationTree::has_migration(int t) {
+    t = 2*t+1;  // convert to half-time interval
+    for (int i=0; i < npop; i++) {
+        int count=0;
+        for (int j=0; j < npop; j++) {
+            if (mig_matrix[t].get(i, j) > 0) {
+                count++;
+                if (count == 2) return true;
+            }
+        }
+    }
+    return false;
+}
+
 }  //namespace argweaver
+
+
