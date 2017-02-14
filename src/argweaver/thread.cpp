@@ -653,7 +653,7 @@ void remove_arg_thread(LocalTrees *trees, int remove_seqid,
 // find the next possible branches in a removal path
 void get_next_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                             const Spr &spr2, const int *mapping2,
-                            int node, int next_nodes[2], int recoal=-1)
+                            int node, int next_nodes[2], int recoal)
 {
 
     if (spr2.coal_node == spr2.recomb_node) {
@@ -708,8 +708,7 @@ void get_all_next_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 // find the previous possible branches in a removal path
 void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                             const Spr &spr2, const int *mapping2,
-                            int node, int prev_nodes[2], int *inv_mapping=NULL,
-                            int time_interval=-1)
+                            int node, int prev_nodes[2], int *inv_mapping)
 {
     const int nnodes = tree1->nnodes;
 
@@ -755,22 +754,6 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
         } else
             prev_nodes[1] = -1;
     }
-    if (time_interval >= 0 && prev_nodes[0] >= 0 && prev_nodes[1] >= 0) {
-        bool span[2];
-        for (int i=0; i < 2; i++) {
-            int node = prev_nodes[i];
-            span[i] = (tree1->nodes[node].age <= time_interval &&
-                       ( tree1->root == node ||
-                         tree1->nodes[tree1->nodes[node].parent].age >
-                         time_interval));
-        }
-        assert(!(span[0] && span[1]));
-        if (span[0]) {
-            prev_nodes[1] = -1;
-        } else if (span[1]) {
-            prev_nodes[0] = -1;
-        }
-    }
     assert(prev_nodes[0] >= 0 || prev_nodes[1] >= 0);
 }
 
@@ -778,8 +761,7 @@ void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 // find the previous possible branches in a removal path
 void get_all_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
                                 const Spr &spr2, const int *mapping2,
-                                int prev_nodes[][2],
-                                int time_interval=-1)
+                                int prev_nodes[][2])
 {
     const int nnodes = tree1->nnodes;
 
@@ -792,7 +774,7 @@ void get_all_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
 
     for (int node=0; node<tree1->nnodes; node++) {
         get_prev_removal_nodes(tree1, tree2, spr2, mapping2, node,
-                               prev_nodes[node], inv_mapping, time_interval);
+                               prev_nodes[node], inv_mapping);
     }
 }
 
@@ -1041,11 +1023,8 @@ void sample_arg_removal_path_recomb(
 // sample removal paths uniformly
 
 // count number of removal paths
-// if time_interval >= 0, then only follow branches that span
-// time between (time_interval, time_interval+1)
 void count_arg_removal_paths(const LocalTrees *trees,
-                             RemovalPaths &removal_paths,
-                             int time_interval)
+                             RemovalPaths &removal_paths)
 {
     const int ntrees = trees->get_num_trees();
     const int nnodes = trees->nnodes;
@@ -1066,7 +1045,7 @@ void count_arg_removal_paths(const LocalTrees *trees,
 
         // get back pointers
         get_all_prev_removal_nodes(last_tree, tree, it->spr, mapping,
-                                   backptrs[i], time_interval);
+                                   backptrs[i]);
 
         // calc counts column
         for (int j=0; j<nnodes; j++) {
@@ -1081,7 +1060,6 @@ void count_arg_removal_paths(const LocalTrees *trees,
                 counts[i][j] = logadd(counts[i-1][ptrs[0]],
                                       counts[i-1][ptrs[1]]);
         }
-
         last_tree = tree;
     }
 }
@@ -1097,13 +1075,55 @@ double count_total_arg_removal_paths(const RemovalPaths &removal_paths)
 
 
 
+//sets path to the series of nodes that relate to hap's ancestry
+// at time between time_interval and time_interval+1.
+// returns integer vector of coordinates where this path is broken
+// due to recomb on node of interest at or below time_interval
+void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
+                                          int time_interval,
+                                          int hap,
+                                          int *path,
+                                          vector<int> &break_idx,
+                                          vector<int> &break_coords) {
+    int i=0;
+    int coord = trees->start_coord;
+    LocalTree *last_tree = NULL;
+    int next_nodes[2];
+    for (LocalTrees::const_iterator it=trees->begin();
+         it != trees->end(); ++it) {
+        LocalTree *tree = it->tree;
+        int node = hap;
+        assert(tree->nodes[node].age == 0);
+        while (node != tree->root) {
+            assert(tree->nodes[node].age <= time_interval);
+        int parent = tree->nodes[node].parent;
+            if (tree->nodes[parent].age > time_interval)
+                break;
+            node = parent;
+        }
+        if (last_tree) {
+            get_next_removal_nodes(last_tree, tree, it->spr, it->mapping,
+                                   path[i-1], next_nodes);
+            if (next_nodes[0] != node && next_nodes[1] != node) {
+                break_idx.push_back(i);
+                break_coords.push_back(coord);
+            }
+        }
+        coord += it->blocklen;
+        assert(tree->nodes[node].age <= time_interval &&
+               (node == tree->root ||
+                tree->nodes[tree->nodes[node].parent].age > time_interval));
+        path[i++] = node;
+        last_tree = tree;
+    }
+}
+
 // sample a removal path uniformly from all paths and return total path count
-double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
-                                       int time_interval)
+double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path)
 {
     // compute path counts table
     RemovalPaths removal_paths(trees);
-    count_arg_removal_paths(trees, removal_paths, time_interval);
+    count_arg_removal_paths(trees, removal_paths);
 
     // convenience variables
     const int ntrees = trees->get_num_trees();
@@ -1144,12 +1164,11 @@ double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
 
 
 // count total number of removal paths
-double count_total_arg_removal_paths(const LocalTrees *trees,
-                                     int time_interval)
+double count_total_arg_removal_paths(const LocalTrees *trees)
 {
     // compute path counts table
     RemovalPaths removal_paths(trees);
-    count_arg_removal_paths(trees, removal_paths, time_interval);
+    count_arg_removal_paths(trees, removal_paths);
 
     // count total number of paths
     return count_total_arg_removal_paths(removal_paths);
@@ -1785,20 +1804,18 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
             int p = nodes[spr->recomb_node].parent;
             assert(mapping[p] != -1 || p == tree->root);
             spr->set_null();
-            continue;
-        }
+        } else {
 
         // see if recomb node is renamed
         if (spr->recomb_node == broken_node) {
             spr->recomb_node = broken_child;
         }
 
-        // detect branch path splits
-        int next_nodes[2];
-        get_next_removal_nodes(tree, it2->tree, *spr, mapping,
-                               removal_path[i], next_nodes);
-
         if (spr->coal_node == removal_node) {
+            // detect branch path splits
+            int next_nodes[2];
+            get_next_removal_nodes(tree, it2->tree, *spr, mapping,
+                                   removal_path[i], next_nodes);
             if (removal_path[i+1] == next_nodes[0]) {
                 // removal path chooses lower path
                 // note: sister_node = broken_child
@@ -1834,17 +1851,20 @@ void remove_arg_thread_path(LocalTrees *trees, const int *removal_path,
                     spr->coal_node = broken_child;
                     spr->coal_time = coal_time;
                 }
-            } else {
+            } else if (removal_path[i+1] == next_nodes[1]) {
                 // removal path chooses upper path
                 // keep spr recoal where it is
                 // assert that upper path is the new recoal node
                 // nobody should map to the new recoal node
                 for (int j=0; j<tree->nnodes; j++)
                     assert(mapping[j] != removal_path[i+1]);
+            } else {
+                assert(0);
             }
         } else if (spr->coal_node == broken_node) {
             // rename spr recoal
             spr->coal_node = broken_child;
+        }
         }
 
         // check for bubbles

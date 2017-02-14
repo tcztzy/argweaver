@@ -131,12 +131,23 @@ void count_arg_removal_paths(const LocalTrees *trees,
 double count_total_arg_removal_paths(const RemovalPaths &removal_paths);
 
 // sample a removal path uniformly from all paths and return total path count
-double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path,
-                                       int time_interval=-1);
+ double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path);
 
-// count total number of removal paths
-double count_total_arg_removal_paths(const LocalTrees *trees,
-                                     int time_interval = -1);
+// return the removal path relating to a particular haplotypes ancestry
+// during the time span between time_interval and time_interval+1
+// sets break_idx to index of local tree where path is broken and sampling
+// should be done independently.
+// break_coords is set to corresponding coordinates at the start of these breaks
+ void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
+                                           int time_interval,
+                                           int hap,
+                                           int *path,
+                                           vector<int> &break_idx,
+                                           vector<int> &break_coords);
+
+ // count total number of removal paths
+double count_total_arg_removal_paths(const LocalTrees *trees);
+
 
 /*
 // sample a removal path using the branch cut method
@@ -145,6 +156,14 @@ void sample_arg_removal_path_cut(const LocalTrees *trees, int ntimes,
                                  int *region_start, int *region_end,
                                  int window_start=-1, int window_end=-1);
 */
+
+void get_next_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
+                            const Spr &spr2, const int *mapping2,
+                            int node, int next_nodes[2], int recoal=-1);
+
+void get_prev_removal_nodes(const LocalTree *tree1, const LocalTree *tree2,
+                            const Spr &spr2, const int *mapping2,
+                            int node, int prev_nodes[2], int *inv_mapping=NULL);
 
 } // namespace argweaver
 

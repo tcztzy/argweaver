@@ -180,13 +180,10 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
     trees2.copy(*trees);
 
     // ramdomly choose a removal path
-    if (model->pop_tree != NULL)
-        exitError("Error: Have not updated this method for population paths\n");
-    double npaths = sample_arg_removal_path_uniform(trees, removal_path,
-                                                    -1);
+    double npaths = sample_arg_removal_path_uniform(trees, removal_path);
     remove_arg_thread_path(trees, removal_path, maxtime, model->pop_tree);
     sample_arg_thread_internal(model, sequences, trees);
-    double npaths2 = count_total_arg_removal_paths(trees, -1);
+    double npaths2 = count_total_arg_removal_paths(trees);
 
     // perform reject if needed
     double accept_prob = exp(npaths - npaths2);
@@ -221,21 +218,28 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
         // choose uniformly between each of these intervals and normal
         // subtree pruning.
         int time_interval = -1;
+        int hap=-1;
         if (model->pop_tree != NULL) {
             vector<int> mig_times;
             for (int i=0; i < model->ntimes-1; i++)
                 if (model->pop_tree->has_migration(i))
                     mig_times.push_back(i);
             int val = irand(mig_times.size()+1);
-            if (val < (int)mig_times.size())
+            if (val < (int)mig_times.size()) {
                 time_interval = mig_times[val];
+                hap = irand(trees->get_num_leaves());
+            }
         }
-        double accept_rate = resample_arg_regions(
-           model, sequences, trees, window, niters, heat, time_interval);
-        if (time_interval == -1)
+        if (time_interval >= 0) {
+            int num_break = resample_arg_by_time_and_hap(model, sequences,
+                 trees, time_interval, hap);
+            printLog(LOG_LOW, "resample_arg_by_hap (%i %s numbreak=%i): accept=1.0\n",
+                     time_interval, sequences->names[hap].c_str(), num_break);
+        } else {
+            double accept_rate = resample_arg_regions(
+              model, sequences, trees, window, niters, heat, time_interval, hap);
             printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
-        else printLog(LOG_LOW, "resample_arg_regions: time %i, accept=%f\n",
-                      time_interval, accept_rate);
+        }
     }
 }
 
@@ -466,6 +470,157 @@ State find_state_sub_tree_internal(const ArgModel *model,
     return State(ptr, coal_time, pop_path);
 }
 
+int resample_arg_by_time_and_hap(
+    const ArgModel *model, Sequences *sequences,
+    LocalTrees *trees, int time_interval, int hap)
+{
+    const int maxtime = model->get_removed_root_time();
+    static int count=0;
+    const bool open_ended=true;
+    LocalTrees orig_trees;
+    decLogLevel();
+    orig_trees.copy(*trees);
+
+    int orig_numtree = trees->get_num_trees();
+    int *removal_path = new int[orig_numtree];
+    vector<int> break_coords;
+    vector<int> break_idx;
+    assert(time_interval >= 0 && time_interval < model->ntimes - 1);
+    assert(hap >= 0 && hap < trees->get_num_leaves());
+    get_arg_removal_path_by_ind_and_time(trees, time_interval, hap,
+                                         removal_path,
+                                         break_idx, break_coords);
+    int num_break = (int)break_idx.size();
+    for (int i=0; i <= num_break; i++) {
+        count++;
+        int region_start, region_end;
+        if (i == 0) {
+            region_start = trees->start_coord;
+        } else {
+            region_start = break_coords[i-1]-1;
+        }
+        if (i == num_break) {
+            region_end = trees->end_coord;
+        } else region_end = break_coords[i]+1;
+
+        LocalTrees otrees;
+        otrees.copy(*trees);
+
+        // partion trees into three segments
+        LocalTrees *trees2 = partition_local_trees(trees, region_start, true);
+        LocalTrees otrees2;
+        otrees2.copy(*trees2);
+        LocalTrees *trees3 = partition_local_trees(trees2, region_end, true);
+        Spr stub_spr;
+        int *stub_mapping=NULL;
+        stub_spr.set_null();
+        if (i != num_break) {
+            if (trees2->trees.back().blocklen == 0) {
+                stub_spr = trees2->back().spr;
+                stub_mapping = new int[trees2->nnodes];
+                for (int j=0; j < trees2->nnodes; j++)
+                    stub_mapping[j] = trees2->back().mapping[j];
+                trees2->trees.pop_back();
+            }
+            assert(trees2->trees.back().blocklen == 1);
+        }
+        vector<int> temp1, temp2;
+        int curr_numtree = trees2->get_num_trees();
+        if (curr_numtree > 2) {
+            int *curr_removal_path = new int[curr_numtree];
+            get_arg_removal_path_by_ind_and_time(trees2, time_interval, hap,
+                                                    curr_removal_path, temp1, temp2);
+
+            if (i != num_break) {
+                const LocalTrees::iterator it = orig_trees.get_block(region_end-1);
+                const LocalTrees::iterator it2 = orig_trees.get_block(region_end-2);
+                int next_nodes[2];
+                get_next_removal_nodes(it2->tree, it->tree, it->spr, it->mapping,
+                                       curr_removal_path[curr_numtree-2],
+                                       next_nodes);
+                // we just want to choose a legal node to remove here
+                // it doesn't matter what it is because we are going to condition
+                // on end state
+                curr_removal_path[curr_numtree-1] = next_nodes[0];
+                assert(curr_removal_path[curr_numtree-1] != -1);
+            }
+
+
+
+            if (i != 0) {
+                // same as above (except for beginning state)
+                // the removal node at first tree does not matter
+                int prev_nodes[2];
+                list<LocalTreeSpr>::iterator it = trees2->begin();
+                ++it;
+                get_prev_removal_nodes(trees2->front().tree,
+                                       it->tree, it->spr,
+                                       it->mapping, curr_removal_path[1],
+                                       prev_nodes);
+                curr_removal_path[0] = prev_nodes[0];
+                assert(curr_removal_path[0] != -1);
+            }
+
+            printLog(LOG_LOW, "region sample: iter=%d, region=(%d, %d)\n",
+                     i, region_start, region_end);
+
+            // get starting and ending trees
+            LocalTree start_tree(*trees2->front().tree);
+            LocalTree end_tree(*trees2->back().tree);
+
+            // remove internal branch from trees2
+            remove_arg_thread_path(trees2, curr_removal_path,
+                                   maxtime, model->pop_tree);
+            assert_trees(trees2, model->pop_tree, true);
+
+            // determine start and end states from start and end trees
+            LocalTree *start_tree_partial = trees2->front().tree;
+            LocalTree *end_tree_partial = trees2->back().tree;
+            State start_state = find_state_sub_tree_internal(model,
+                  &start_tree, start_tree_partial, maxtime);
+            State end_state = find_state_sub_tree_internal(model,
+                  &end_tree, end_tree_partial, maxtime);
+
+            // set start/end state to null if open ended is requested
+            if (open_ended) {
+                if (region_start == trees->start_coord)
+                    start_state.set_null();
+                if (region_end == trees3->end_coord)
+                    end_state.set_null();
+            }
+            // sample new ARG conditional on start and end states
+            decLogLevel();
+            cond_sample_arg_thread_internal(model, sequences, trees2,
+                                            start_state, end_state);
+            incLogLevel();
+            assert_trees(trees2, model->pop_tree);
+
+            delete [] curr_removal_path;
+        }
+
+        // rejoin trees
+        assert_trees(trees, model->pop_tree);
+        assert_trees(trees2, model->pop_tree);
+        assert_trees(trees3, model->pop_tree);
+        append_local_trees(trees, trees2, true, model->pop_tree);
+        if (trees3->get_num_trees() > 0) {
+            trees3->front().spr = stub_spr;
+            assert(trees3->front().mapping == NULL);
+            trees3->front().mapping = stub_mapping;
+        }
+
+        append_local_trees(trees, trees3, true, model->pop_tree);
+        assert_trees(trees, model->pop_tree);
+
+        // clean up
+        delete trees2;
+        delete trees3;
+    }
+    delete [] removal_path;
+    incLogLevel();
+    return num_break;
+}
+
 
 // resample an ARG only for a given region
 // all branches are possible to resample
@@ -474,7 +629,7 @@ State find_state_sub_tree_internal(const ArgModel *model,
 double resample_arg_region(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int region_start, int region_end, int niters,
-    bool open_ended, double heat, int time_interval)
+    bool open_ended, double heat, int time_interval, int hap)
 {
     const int maxtime = model->get_removed_root_time();
     static int count=0;
@@ -506,7 +661,6 @@ double resample_arg_region(
     int accepts = 0;
     for (int i=0; i<niters; i++) {
         count++;
-        //        printf("resample_arg_region i=%i (%i,%i)\n", i, region_start, region_end);
         printLog(LOG_LOW, "region sample: iter=%d, region=(%d, %d)\n",
                  i, region_start, region_end);
 
@@ -520,8 +674,8 @@ double resample_arg_region(
 
         // remove internal branch from trees2
         int *removal_path = new int [trees2->get_num_trees()];
-        double npaths = sample_arg_removal_path_uniform(trees2, removal_path,
-                                                        time_interval);
+        double npaths;
+        npaths = sample_arg_removal_path_uniform(trees2, removal_path);
         remove_arg_thread_path(trees2, removal_path, maxtime, model->pop_tree);
         delete [] removal_path;
         assert_trees(trees2, model->pop_tree, true);
@@ -548,12 +702,16 @@ double resample_arg_region(
         incLogLevel();
         assert_trees(trees2, model->pop_tree);
 
-        double npaths2 = count_total_arg_removal_paths(trees2, time_interval);
+        bool accept=true;
+        double npaths2=1.0;
+        double accept_prob=1.0;
+        if (time_interval < 0) {
+            npaths2 = count_total_arg_removal_paths(trees2);
 
-        // perform reject if needed
-        double accept_prob = exp(heat*(npaths - npaths2));
-        bool accept = (frand() < accept_prob);
-        //        printf("%f %f %i\n", npaths, npaths2, (int) accept);
+            // perform reject if needed
+            accept_prob = exp(heat*(npaths - npaths2));
+            accept = (frand() < accept_prob);
+        }
         if (!accept)
             trees2->copy(old_trees2);
         else
@@ -584,11 +742,13 @@ double resample_arg_region(
 }
 
 
+
+
 // resample an ARG a region at a time in a sliding window
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int window, int niters, double heat,
-    int time_interval)
+    int time_interval, int hap)
 {
     decLogLevel();
     double accept_rate = 0.0;
@@ -603,7 +763,7 @@ double resample_arg_regions(
         int end = min(start + currwindow, trees->end_coord);
         accept_rate += resample_arg_region(
             model, sequences, trees, start, end, niters, true, heat,
-            time_interval);
+            time_interval, hap);
     }
     incLogLevel();
 

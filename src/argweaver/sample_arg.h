@@ -58,7 +58,7 @@ void sample_arg_seq_region(const ArgModel *model, const Sequences *sequences,
 double resample_arg_region(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int region_start, int region_end, int niters,
-    bool open_ended=true, double heat=1.0, int time_interval=-1);
+    bool open_ended=true, double heat=1.0, int time_interval=-1, int hap=-1);
 
 double resample_arg_cut(
     const ArgModel *model, const Sequences *sequences, LocalTrees *trees,
@@ -71,7 +71,11 @@ double resample_arg_cut(
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int window, int niters=1,
-    double heat=1.0, int time_interval=-1);
+    double heat=1.0, int time_interval=-1, int hap=-1);
+
+int resample_arg_by_time_and_hap(
+    const ArgModel *model, Sequences *sequences,
+    LocalTrees *trees, int time_interval, int hap);
 
 } // namespace argweaver
 
