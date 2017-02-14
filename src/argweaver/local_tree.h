@@ -656,7 +656,7 @@ public:
     // return local block containing site
     const_iterator get_block(int site, int &start, int &end) const
     {
-        end = start_coord;
+        start = end = start_coord;
         for (const_iterator it = begin(); it != this->end(); ++it) {
             start = end;
             end += it->blocklen;
@@ -676,7 +676,7 @@ public:
     // return local block containing site
     iterator get_block(int site, int &start, int &end)
     {
-        end = start_coord;
+        start = end = start_coord;
         for (iterator it = begin(); it != this->end(); ++it) {
             start = end;
             end += it->blocklen;
