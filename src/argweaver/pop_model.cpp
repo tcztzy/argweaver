@@ -223,10 +223,19 @@ void PopulationTree::update_population_probs() {
     }
 }
 
+int PopulationTree::subpath_num_mig(int path, int t1, int t2) const {
+    if (t1 == t2) return 0;
+    if (t2 < 0) t2 = model->ntimes - 1;
+    int pop1 = get_pop(path, t1);
+    int pop2 = get_pop(path, t2);
+    int subpath = find_sub_path(path, sub_paths[t1][t2][pop1][pop2], t1, t2);
+    return subpath_num_mig(t1, pop1, t2, pop2, subpath);
+}
+
 
 int PopulationTree::find_sub_path(int path,
                                   const SubPath &subpath,
-                                  int t1, int t2) {
+                                  int t1, int t2) const {
     for (unsigned int i=0; i < subpath.size(); i++) {
         int cur_path = subpath.first_path(i);
         if (paths_equal(path, cur_path, t1, t2))

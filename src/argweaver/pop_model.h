@@ -240,6 +240,8 @@ class PopulationTree {
       return sub_paths[t1][t2][p1][p2].num_mig(i);
   }
 
+  int subpath_num_mig(int path, int t1, int t2) const;
+
   /* This one returns the sum of the probability of all paths which are
      consistent with the given path from time t1 to time t2. The given path
      should have an index between 0 and all_paths.size()
@@ -360,7 +362,7 @@ class PopulationTree {
     void getAllPopulationPathsRec(PopulationPath &curpath,
                                   int cur_time, int end_time, int cur_pop);
     int find_sub_path(int path, const SubPath &subpath,
-                      int t1, int t2);
+                      int t1, int t2) const;
 
 };  /* class PopulationTree */
 
