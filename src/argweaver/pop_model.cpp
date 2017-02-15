@@ -225,7 +225,7 @@ void PopulationTree::update_population_probs() {
 
 int PopulationTree::subpath_num_mig(int path, int t1, int t2) const {
     if (t1 == t2) return 0;
-    if (t2 < 0) t2 = model->ntimes - 1;
+    if (t2 < 0 || t2 >= model->ntimes) t2 = model->ntimes - 1;
     int pop1 = get_pop(path, t1);
     int pop2 = get_pop(path, t2);
     int subpath = find_sub_path(path, sub_paths[t1][t2][pop1][pop2], t1, t2);
