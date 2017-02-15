@@ -102,10 +102,23 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
     states.clear();
     const LocalNode *nodes = tree->nodes;
 
+
+    int curr_nummig=0;
+    if (pop_tree != NULL) {
+        for (int i=0; i < tree->nnodes; i++)
+            curr_nummig +=
+                pop_tree->subpath_num_mig(tree->nodes[i].pop_path,
+                                          tree->nodes[i].age,
+                                          i == tree->root ? -1 :
+                                          tree->nodes[tree->nodes[i].parent].age);
+        assert(curr_nummig <= 1);
+    }
+
     // iterate over the branches of the tree
     for (int i=0; i<tree->nnodes; i++) {
         int time = max(minage, nodes[i].age);
         const int parent = nodes[i].parent;
+
 
         int max_time;
         if (parent == -1)
@@ -125,9 +138,7 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                     double path_prob =
                         pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
                     if (path_prob > 0.0 &&
-                        (pop_tree->max_migrations < 0 ||
-                         (pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
-                          <= pop_tree->max_migrations))) {
+                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p) + curr_nummig <= 1) {
                         int path1 =
                             pop_tree->unique_path(minage, start_pop, time,
                                                   end_pop, p);
@@ -137,7 +148,11 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                             pop_tree->consistent_path(path1, target_path,
                                                       minage, time, -1);
                         states.push_back(State(i, time, path));
-                    }
+                    } /*else if (path_prob > 0 && pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
+                               > pop_tree->max_migrations) {
+                        printf("skipping state nummig=%i maxmig=%i\n", pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p),
+                               pop_tree->max_migrations);
+                               }*/
                 }
             }
         }
@@ -195,6 +210,20 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
     int subtree_root = nodes[tree->root].child[0];
     minage = max(minage, nodes[subtree_root].age);
 
+    int curr_nummig=0;
+    if (pop_tree != NULL) {
+        for (int i=0; i < tree->nnodes; i++) {
+            if (i == subtree_root || i == tree->root) continue;
+            curr_nummig +=
+                pop_tree->subpath_num_mig(tree->nodes[i].pop_path,
+                                          tree->nodes[i].age,
+                                          i == tree->root ? -1 :
+                                          tree->nodes[tree->nodes[i].parent].age);
+        }
+        assert(curr_nummig <= 1);
+    }
+
+
     // ignore root and whole subtree
     bool ignore[nnodes];
     fill(ignore, ignore + nnodes, false);
@@ -250,9 +279,7 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                     double path_prob =
                         pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
                     if (path_prob > 0.0 &&
-                        (pop_tree->max_migrations < 0 ||
-                         (pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
-                          <= pop_tree->max_migrations))) {
+                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p) + curr_nummig <= 1) {
                         int path1 =
                             pop_tree->unique_path(minage, start_pop, time,
                                                   end_pop, p);
