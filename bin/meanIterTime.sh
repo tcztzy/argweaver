@@ -8,32 +8,36 @@ else
 fi
 
 grep -B 1 "sample time" $files |
-    awk '$0 ~ /resample_arg_regions/ {subtree=1};
+    awk 'BEGIN {
+           sampleType[0]="leaf"
+           sampleType[1]="subtree"
+           sampleType[2]="hap"
+         }
+         $0 ~ /resample_arg_regions/ {subtree=1};
          $0 ~ /resample_arg_leaf/ {subtree=0}
-         $NF=="ms" {if (subtree==1) {
-              totalSubtreeSec += $(NF-1)/1000; subtreeCount++;
-            } else {
-              totalLeafSec += $(NF-1)/1000; leafCount++;
-         }}
-         $NF=="s" {if (subtree==1) {
-              totalSubtreeSec += $(NF-1); subtreeCount++
-            } else {
-              totalLeafSec += $(NF-1); leafCount++;
-          }}
-         $NF=="m" {if (subtree==1) {
-              totalSubtreeSec += $(NF-1)*60; subtreeCount++;
-            } else {
-              totalLeafSec += $(NF-1)*60; leafCount++;}
+         $0 ~ /resample_arg_by_hap/ {subtree=2}
+         {val=-1}
+         $NF=="ms" {
+            val=$(NF-1)/1000
          }
-         $NF=="h" {if (subtree==1) {
-              totalSubtreeSec += $(NF-1)*3600; subtreeCount++;
-            } else {
-              totalLeafSec += $(NF-1)*3600; leafCount++;}
+         $NF == "s" {
+            val = $(NF-1)
          }
-         END{if (leafCount > 0) {
-                avgLeaf=totalLeafSec/60/leafCount
-             } else {avgLeaf=-1};
-             if (subtreeCount > 0) {
-                avgSubtree=totalSubtreeSec/60/subtreeCount
-             } else {avgSubtree=-1};
-             print "leaf: "avgLeaf" m (out of "leafCount");  subtree: "avgSubtree" m; (out of "subtreeCount")"}'
+         $NF == "m" {
+            val = $(NF-1)*60
+         }
+         $NF == "h" {
+            val = $(NF-1)*3600
+         }
+         val > 0 {
+            totalSec[subtree] += val;
+            totalCount[subtree]++;
+         }
+         END{
+            for (i=0; i < 3; i++) {
+               if (totalCount[i] > 0) {
+                  avg=totalSec[i]/totalCount[i]/60
+                  print sampleType[i]": "avg" m (out of "totalCount[i]")"
+                }
+             }
+         }'
