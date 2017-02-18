@@ -35,6 +35,7 @@ double likelihood_tree(const LocalTree *tree, const ArgModel *model,
 int count_noncompat(const LocalTrees *trees, const char * const *seqs,
                     int nseqs, int seqlen);
 
+int count_noncompat(const LocalTrees *trees, const Sequences *sequences);
 
 //=============================================================================
 // C interface

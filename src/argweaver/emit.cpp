@@ -1105,6 +1105,8 @@ int count_noncompat(const LocalTree *tree, const char * const *seqs,
 }
 
 
+
+
 int count_noncompat(const LocalTrees *trees, const char * const *seqs,
                     int nseqs, int seqlen)
 {
@@ -1129,6 +1131,16 @@ int count_noncompat(const LocalTrees *trees, const char * const *seqs,
 
     return noncompat;
 }
+
+
+int count_noncompat(const LocalTrees *trees, const Sequences *sequences) {
+    int nseqs = trees->get_num_leaves();
+    char *seqs[nseqs];
+    for (int i=0; i < nseqs; i++)
+        seqs[i] = sequences->seqs[trees->seqids[i]];
+    return count_noncompat(trees, seqs, nseqs, sequences->length());
+}
+
 
 
 
