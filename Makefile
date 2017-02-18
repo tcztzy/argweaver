@@ -55,7 +55,7 @@ PKG_DIR=$(DIST)/$(PKG_NAME)-$(PKG_VERSION)
 
 # program files
 SCRIPTS = bin/*
-PROGS = bin/arg-sample bin/arg-summarize bin/smc2bed bin/popsize-post bin/compress-sites
+PROGS = bin/arg-sample bin/arg-likelihood bin/arg-summarize bin/smc2bed 
 BINARIES = $(PROGS) $(SCRIPTS)
 
 ARGWEAVER_SRC = $(shell ls src/argweaver/*.cpp)
@@ -71,7 +71,8 @@ ALL_SRC = \
     src/arg-summarize.cpp \
     src/smc2bed.cpp \
     src/popsize-post.cpp \
-    src/compress-sites.cpp
+    src/compress-sites.cpp \
+    src/arg-likelihood.cpp
 
 
 ARGWEAVER_OBJS = $(ARGWEAVER_SRC:.cpp=.o)
@@ -125,6 +126,9 @@ bin/popsize-post: src/popsize-post.o $(LIBARGWEAVER)
 
 bin/compress-sites: src/compress-sites.o $(LIBARGWEAVER)
 	$(CXX) $(CFLAGS) -o bin/compress-sites src/compress-sites.o $(LIBARGWEAVER)
+
+bin/arg-likelihood: src/arg-likelihood.o $(LIBARGWEAVER)
+	$(CXX) $(CFLAGS) -o bin/arg-likelihood src/arg-likelihood.o $(LIBARGWEAVER)
 
 #-----------------------------
 # ARGWEAVER C-library
