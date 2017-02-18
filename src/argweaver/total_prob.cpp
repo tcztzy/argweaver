@@ -378,6 +378,25 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 }
 
 
+double calc_self_recomb_prob(const ArgModel *model, LocalTree *tree,
+                             LineageCounts &lineages, double treelen) {
+    double lnprob=-INFINITY;
+    for (int i=0; i < tree->nnodes; i++) {
+        if (i == tree->root) continue;
+        int parent_age = tree->nodes[tree->nodes[i].parent].age;
+        for (int j = tree->nodes[i].age; j <= parent_age; j++) {
+            for (int k=j; k <= parent_age; k++) {
+                Spr spr(i,j,i,k,tree->nodes[i].pop_path);
+                lnprob = logadd(lnprob,
+                                calc_spr_prob(model, tree, spr,
+                                              lineages, treelen,
+                                              NULL, NULL, 1.0, true));
+            }
+        }
+    }
+    return lnprob;
+}
+
 
 // calculate the probability of an ARG given the model parameters
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
@@ -419,10 +438,16 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
         ArgModel local_model;
         model->get_local_model((start+end)/2, local_model, &mu_idx, &rho_idx);
+        lineages.count(tree, model->pop_tree);
+
+        // not sure what this is for but it is only used for non-SMC' calcs
+        lineages.nrecombs[tree->nodes[tree->root].age]--;
 
         // calculate probability P(blocklen | T_{i-1})
         double recomb_rate = max(local_model.rho * treelen, local_model.rho);
-
+        double self_recomb_prob = exp(calc_self_recomb_prob(&local_model, tree, lineages, treelen));
+        assert(self_recomb_prob >= 0 && self_recomb_prob < 1.0);
+        recomb_rate = max(local_model.rho * treelen, local_model.rho)*(1.0-self_recomb_prob);
         if (end < end_coord) {
             // not last block
             // probability of recombining after blocklen
@@ -431,8 +456,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
             // get SPR move information
             ++it;
             const Spr *spr = &it->spr;
-            lnl += calc_spr_prob(model, tree, *spr, lineages, treelen,
-				 num_coal, num_nocoal);
+            lnl += calc_spr_prob(&local_model, tree, *spr, lineages, treelen,
+				 num_coal, num_nocoal, 1.0, true);
 
         } else {
             // last block
