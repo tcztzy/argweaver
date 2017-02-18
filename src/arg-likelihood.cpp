@@ -300,8 +300,11 @@ void print_arg_likelihood(const ArgModel *model,
                           const Region *region) {
     double prior = calc_arg_prior(model, trees, NULL, NULL, region->start, region->end);
     double posterior = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
-    fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\n", region->chrom.c_str(),
-            region->start, region->end, c->mcmc_rep, prior, posterior);
+    int noncompat = count_noncompat(trees, sequences);
+    int nrecomb = trees->get_num_trees()-1;
+    fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\t%i\t%i\n", region->chrom.c_str(),
+            region->start, region->end, c->mcmc_rep, prior, posterior,
+            nrecomb, noncompat);
 }
 
 
@@ -506,6 +509,10 @@ int main(int argc, char **argv)
         printError("Could not open out file %s for writing\n",
                    c.outfile_name.c_str());
         return EXIT_ERROR;
+    }
+
+    if (c.overwrite) {
+        fprintf(c.outfile, "#chrom\tstart\tend\trep\tprior\tlikelihood\tnrecomb\tncompat\n");
     }
 
     // get likelihod
