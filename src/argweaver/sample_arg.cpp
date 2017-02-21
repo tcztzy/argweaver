@@ -206,7 +206,8 @@ bool resample_arg_mcmc(const ArgModel *model, Sequences *sequences,
 // Also sometimes resample leaves specifically
 void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
                            LocalTrees *trees, bool do_leaf,
-                           int window, int niters, double heat)
+                           int window, int niters, double heat,
+                           bool no_resample_mig)
 {
     if (do_leaf) {
         resample_arg_random_leaf(model, sequences, trees);
@@ -219,7 +220,7 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
         // subtree pruning.
         int time_interval = -1;
         int hap=-1;
-        if (model->pop_tree != NULL) {
+        if (model->pop_tree != NULL && !no_resample_mig) {
             vector<int> mig_times;
             for (int i=0; i < model->ntimes-1; i++)
                 if (model->pop_tree->has_migration(i))

@@ -230,6 +230,10 @@ public:
 		    "Do not sample the ARG; hold at initial value "
 		    "(usually for use with --sample-popsize)",
 		    DEBUG_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--no-resample-mig", &no_resample_mig,
+                    "Do not perform migration-specific resampling",
+                   DEBUG_OPT));
 
         // misc
         config.add(new ConfigParamComment("Miscellaneous"));
@@ -409,6 +413,7 @@ public:
 #endif
     string mcmcmc_prefix;
     bool no_sample_arg;
+    bool no_resample_mig;
 
     // search
     int nclimb;
@@ -1071,7 +1076,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 		resample_arg(model, sequences, trees);
 	    else
 		resample_arg_mcmc_all(model, sequences, trees, do_leaf[i],
-				      window, niters, heat);
+				      window, niters, heat,
+                                      config->no_resample_mig);
 	}
 
 
