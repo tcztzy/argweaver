@@ -1545,12 +1545,13 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
 
         while (next_self_pos < end) {
             assert(self_idx < (int)self_recomb_pos.size());
-            fprintf(out, "SPR-INVIS\t%d\t%d\t%f\t%d\t%f\n",
+            fprintf(out, "SPR-INVIS\t%d\t%d\t%f\t%d\t%f\t%i\n",
                     next_self_pos + 1,
                     total_mapping[self_recombs[self_idx].recomb_node],
                     times[self_recombs[self_idx].recomb_time],
                     total_mapping[self_recombs[self_idx].recomb_node],
-                    times[self_recombs[self_idx].coal_time]);
+                    times[self_recombs[self_idx].coal_time],
+                    self_recombs[self_idx].pop_path);
             self_idx++;
             if (self_idx < (int)self_recomb_pos.size())
                 next_self_pos = self_recomb_pos[self_idx];
