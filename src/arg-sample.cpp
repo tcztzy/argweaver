@@ -1146,18 +1146,20 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
         print_stats(config->stats_file, "resample_region", 0,
                     model, sequences, trees, sites_mapping, config,
-                    maskmap_orig, -1);
+                    maskmap_orig);
 
-        resample_arg_region(model, sequences, trees,
-                            config->resample_region[0],
-                            config->resample_region[1],
-                            config->niters);
+        for (int i=0; i < config->niters; i++) {
+            resample_arg_region(model, sequences, trees,
+                                config->resample_region[0],
+                                config->resample_region[1],
+                                1);
 
-        // logging
-        print_stats(config->stats_file, "resample_region", config->niters,
-                    model, sequences, trees, sites_mapping, config,
-                    maskmap_orig, -1);
-        log_local_trees(model, sequences, trees, sites_mapping, config, 0);
+            // logging
+            print_stats(config->stats_file, "resample_region", config->niters,
+                        model, sequences, trees, sites_mapping, config,
+                        maskmap_orig);
+            log_local_trees(model, sequences, trees, sites_mapping, config, i);
+        }
 
     } else{
         // climb sampling
