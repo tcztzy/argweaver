@@ -33,7 +33,9 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
 
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
                       double **num_coal=NULL, double **num_ncoal=NULL,
-                      int start_coord = -1, int end_coord = -1);
+                      int start_coord = -1, int end_coord = -1,
+                      const vector<int> &invisible_recomb_pos=vector<int>(),
+                      const vector<Spr> &invisible_recombs=vector<Spr>());
 double calc_arg_joint_prob(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees);
 

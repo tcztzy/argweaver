@@ -662,7 +662,8 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
                  const Sequences *sequences, LocalTrees *trees,
                  const SitesMapping* sites_mapping, const Config *config,
                  const TrackNullValue *maskmap_uncompressed,
-                 double num_invisible_recombs)
+                 const vector<int> &invisible_recomb_pos0=vector<int>(),
+                 const vector<Spr> &invisible_recombs=vector<Spr>())
 {
 
     // calculate number of recombinations
@@ -681,12 +682,15 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
 
     // calculate likelihood, prior, and joint probabilities
     // uncompressed local trees
+    vector<int> invisible_recomb_pos;
     if (sites_mapping) {
         uncompress_local_trees(trees, sites_mapping);
 	uncompress_model(model, sites_mapping, config->compress_seq);
+        sites_mapping->uncompress(invisible_recomb_pos0, invisible_recomb_pos);
     }
 
-    double prior = calc_arg_prior(model, trees);
+    double prior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
+                                  invisible_recomb_pos, invisible_recombs);
     double likelihood = config->all_masked ? 0.0 :
         calc_arg_likelihood(model, sequences, trees,
                             sites_mapping,
@@ -705,7 +709,7 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
             stage, iter,
             prior, likelihood, joint, nrecombs, noncompats, arglen);
     if (config->invisible_recombs)
-        fprintf(stats_file, "\t%f", num_invisible_recombs);
+        fprintf(stats_file, "\t%i", (int)invisible_recomb_pos.size());
     if (model->popsize_config.sample) {
         list<PopsizeConfigParam> l=model->popsize_config.params;
         for (list<PopsizeConfigParam>::iterator it=l.begin();
@@ -897,7 +901,7 @@ void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         sample_arg_seq(model, sequences, trees, true, config->num_buildup);
         print_stats(config->stats_file, "seq", trees->get_num_leaves(),
                     model, sequences, trees, sites_mapping, config,
-                    maskmap_orig, 0);
+                    maskmap_orig);
 
     }
 }
@@ -917,7 +921,7 @@ void climb_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "climb %d\n", i+1);
         resample_arg_climb(model, sequences, trees, recomb_preference);
         print_stats(config->stats_file, "climb", i, model, sequences, trees,
-                    sites_mapping, config, maskmap_orig, 0);
+                    sites_mapping, config, maskmap_orig);
     }
     printLog(LOG_LOW, "\n");
 }
@@ -1045,7 +1049,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     else {
         // save first ARG (iter=0)
         print_stats(config->stats_file, "resample", 0, model, sequences, trees,
-                    sites_mapping, config, maskmap_orig, 0);
+                    sites_mapping, config, maskmap_orig);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0,
                         invisible_recomb_pos, invisible_recombs);
     }
@@ -1068,7 +1072,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         double heat = model->mc3.heat;
 
 #ifndef ARGWEAVER_MPI
-        do_leaf[i] = frand() < frac_leaf;
+        do_leaf[i] = ( frand() < frac_leaf );
 #endif
 
 	if ( ! config->no_sample_arg) {
@@ -1106,7 +1110,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         // logging
         print_stats(config->stats_file, "resample", i, model, sequences, trees,
                     sites_mapping, config, maskmap_orig,
-                    invisible_recomb_pos.size());
+                    invisible_recomb_pos, invisible_recombs);
 
         // sample saving
         if (i % config->sample_step == 0 && ! config->no_sample_arg)

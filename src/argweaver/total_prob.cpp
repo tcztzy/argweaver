@@ -219,8 +219,6 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
         for (int i=0; i<model->ntimes-1; i++) {
             int a;
             if (i == 0) {
-                assert((lineages.ncoals_pop[pop][0] +
-                        lineages.nbranches_pop[pop][0])%2 == 1);
                 a = (lineages.ncoals_pop[pop][0] +
                      lineages.nbranches_pop[pop][0])/2;
                 assert( a >= 0);
@@ -401,10 +399,14 @@ double calc_self_recomb_prob(const ArgModel *model, LocalTree *tree,
 // calculate the probability of an ARG given the model parameters
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 		      double **num_coal, double **num_nocoal,
-                      int start_coord, int end_coord)
+                      int start_coord, int end_coord,
+                      const vector<int> &invisible_recomb_pos,
+                      const vector<Spr> &invisible_recombs)
 {
     double lnl = 0.0;
     LineageCounts lineages(model->ntimes, model->num_pops());
+    int num_invis = (int)invisible_recombs.size();
+    assert(num_invis == (int)invisible_recomb_pos.size());
 
     if (num_coal != NULL) {
 	assert(num_nocoal != NULL);
@@ -418,8 +420,21 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
     if (end_coord < 0 || end_coord > trees->end_coord)
         end_coord = trees->end_coord;
 
+    int next_self_pos = ( num_invis == 0 ?
+                          trees->end_coord + 1 : invisible_recomb_pos[0] );
+    int self_idx = 0;
+    while (start_coord > next_self_pos) {
+        self_idx++;
+        if (self_idx == num_invis) {
+            next_self_pos = trees->end_coord + 1;
+            break;
+        }
+        next_self_pos = invisible_recomb_pos[self_idx];
+    }
+
     // first tree prior
-    //    lnl += calc_tree_prior(model, trees->front().tree, lineages);
+        if (start_coord <= trees->start_coord)
+        lnl += calc_tree_prior(model, trees->front().tree, lineages);
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int end = trees->start_coord;
@@ -445,9 +460,23 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 
         // calculate probability P(blocklen | T_{i-1})
         double recomb_rate = max(local_model.rho * treelen, local_model.rho);
-        double self_recomb_prob = exp(calc_self_recomb_prob(&local_model, tree, lineages, treelen));
-        assert(self_recomb_prob >= 0 && self_recomb_prob < 1.0);
-        recomb_rate = max(local_model.rho * treelen, local_model.rho)*(1.0-self_recomb_prob);
+        //        double self_recomb_prob = exp(calc_self_recomb_prob(&local_model, tree, lineages, treelen));
+        //        assert(self_recomb_prob >= 0 && self_recomb_prob < 1.0);
+        //        recomb_rate = max(local_model.rho * treelen, local_model.rho)*(1.0-self_recomb_prob);
+
+        while (next_self_pos < end) {
+            lnl += calc_spr_prob(&local_model, tree, invisible_recombs[self_idx],
+                                 lineages, treelen, num_coal, num_nocoal, 1.0, true);
+            self_idx++;
+            if (self_idx == num_invis) {
+                next_self_pos = end_coord + 1;
+            } else {
+                next_self_pos = invisible_recomb_pos[self_idx];
+            }
+        }
+
+
+
         if (end < end_coord) {
             // not last block
             // probability of recombining after blocklen
@@ -469,7 +498,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
     assert(!isnan(lnl));
     assert(!isinf(lnl));
     return lnl;
-}
+ }
 
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
