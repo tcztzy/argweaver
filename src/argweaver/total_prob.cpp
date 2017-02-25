@@ -448,7 +448,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
             start = start_coord;
         if (end > end_coord)
             end = end_coord;
-        int blocklen = start - end;
+        int last_pos = start;
         LocalTree *tree = it->tree;
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
         ArgModel local_model;
@@ -460,11 +460,10 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 
         // calculate probability P(blocklen | T_{i-1})
         double recomb_rate = max(local_model.rho * treelen, local_model.rho);
-        //        double self_recomb_prob = exp(calc_self_recomb_prob(&local_model, tree, lineages, treelen));
-        //        assert(self_recomb_prob >= 0 && self_recomb_prob < 1.0);
-        //        recomb_rate = max(local_model.rho * treelen, local_model.rho)*(1.0-self_recomb_prob);
 
         while (next_self_pos < end) {
+            lnl += log(recomb_rate) - recomb_rate * (next_self_pos - last_pos);
+            last_pos = next_self_pos;
             lnl += calc_spr_prob(&local_model, tree, invisible_recombs[self_idx],
                                  lineages, treelen, num_coal, num_nocoal, 1.0, true);
             self_idx++;
@@ -480,7 +479,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         if (end < end_coord) {
             // not last block
             // probability of recombining after blocklen
-	    lnl += log(recomb_rate) - recomb_rate * blocklen;
+	    lnl += log(recomb_rate) - recomb_rate * (end - last_pos);
 
             // get SPR move information
             ++it;
@@ -491,7 +490,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         } else {
             // last block
             // probability of not recombining after blocklen
-            lnl += - recomb_rate * blocklen;
+            lnl += - recomb_rate * (end - last_pos);
             ++it;
         }
     }
