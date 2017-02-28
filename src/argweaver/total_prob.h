@@ -10,11 +10,11 @@ void calc_coal_rates_spr(const ArgModel *model, const LocalTree *tree,
                          const Spr &spr, const LineageCounts &lineages,
                          double *coal_rates);
 
-double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
-                     const Spr &spr, LineageCounts &lineages,
-                     double treelen=-1.0,
-		     double **num_coal=NULL, double **num_nocoal=NULL,
-                     double coal_weight=1.0, int lineages_counted=false);
+double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
+                         const Spr &spr, LineageCounts &lineages,
+                         double treelen=-1.0,
+                         double **num_coal=NULL, double **num_nocoal=NULL,
+                         double coal_weight=1.0, int lineages_counted=false);
 
 double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
                            const LocalTrees *trees, int start_coord=-1, int end_coord=-1);
@@ -29,7 +29,8 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
                                        double **num_coal=NULL,
-                                       double **num_nocoal=NULL);
+                                       double **num_nocoal=NULL,
+                                       double *first_tree_lnprob=NULL);
 
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
                       double **num_coal=NULL, double **num_ncoal=NULL,

@@ -632,7 +632,7 @@ void compress_model(ArgModel *model, const SitesMapping *sites_mapping,
 // statistics output
 
 void print_stats_header(Config *config) {
-    fprintf(config->stats_file, "stage\titer\tprior\tlikelihood\tjoint\t"
+    fprintf(config->stats_file, "stage\titer\tprior\tprior2\tlikelihood\tjoint\t"
             "recombs\tnoncompats\targlen");
     if (config->invisible_recombs)
         fprintf(config->stats_file, "\tinvis_recombs");
@@ -691,6 +691,7 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
 
     double prior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
                                   invisible_recomb_pos, invisible_recombs);
+    double prior2 = calc_arg_prior_recomb_integrate(model, trees, NULL, NULL);
     double likelihood = config->all_masked ? 0.0 :
         calc_arg_likelihood(model, sequences, trees,
                             sites_mapping,
@@ -705,9 +706,9 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
     }
 
     // output stats
-    fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%d\t%d\t%f",
+    fprintf(stats_file, "%s\t%d\t%f\t%f\t%f\t%f\t%d\t%d\t%f",
             stage, iter,
-            prior, likelihood, joint, nrecombs, noncompats, arglen);
+            prior, prior2, likelihood, joint, nrecombs, noncompats, arglen);
     if (config->invisible_recombs)
         fprintf(stats_file, "\t%i", (int)invisible_recomb_pos.size());
     if (model->popsize_config.sample) {

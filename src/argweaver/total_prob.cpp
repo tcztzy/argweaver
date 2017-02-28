@@ -143,7 +143,7 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 
 
 // The probabiluty of going from 'a' lineages to 'b' lineages in time 't'
-// with population size 'n'
+// with (haploid) population size 'n'
 double log_prob_coal_counts(int a, int b, double t, double n)
 {
     double lnC1 = 0.0, lnC2=0.0, C3=1.0;
@@ -187,7 +187,7 @@ double log_prob_coal_counts(int a, int b, double t, double n)
 
 
 // The probabiluty of going from 'a' lineages to 'b' lineages in time 't'
-// with population size 'n'
+// with (haploid) population size 'n'
 double prob_coal_counts(int a, int b, double t, double n)
 {
     double C = 1.0;
@@ -209,8 +209,8 @@ double prob_coal_counts(int a, int b, double t, double n)
     return s;
 }
 
-double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
-                       LineageCounts &lineages)
+double calc_log_tree_prior(const ArgModel *model, const LocalTree *tree,
+                           LineageCounts &lineages)
 {
     lineages.count(tree, model->pop_tree);
     double lnl = 0.0;
@@ -274,15 +274,16 @@ void calc_coal_rates_spr(const ArgModel *model, const LocalTree *tree,
 }
 
 
-double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
-                     const Spr &spr, LineageCounts &lineages,
-                     double treelen, double **num_coal, double **num_nocoal,
-                     double coal_weight, int lineages_counted)
+// returns probability of particular SPR event, conditional on a recombination event
+double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
+                         const Spr &spr, LineageCounts &lineages,
+                         double treelen, double **num_coal, double **num_nocoal,
+                         double coal_weight, int lineages_counted)
 {
     if (spr.recomb_node == tree->root) {
         assert(spr.coal_node == tree->root);
         assert(model->pop_tree != NULL);
-        return (model->path_prob(spr.pop_path, spr.recomb_time, spr.coal_time));
+        return log(model->path_prob(spr.pop_path, spr.recomb_time, spr.coal_time));
     }
     assert(spr.recomb_node != tree->root);
     const LocalNode *nodes = tree->nodes;
@@ -376,19 +377,36 @@ double calc_spr_prob(const ArgModel *model, const LocalTree *tree,
 }
 
 
-double calc_self_recomb_prob(const ArgModel *model, LocalTree *tree,
-                             LineageCounts &lineages, double treelen) {
+// calculates log probability of a selc-recombination, conditional
+// on a recombination occurring
+double calc_log_self_recomb_prob(const ArgModel *model, LocalTree *tree,
+                                 LineageCounts &lineages, double treelen) {
     double lnprob=-INFINITY;
     for (int i=0; i < tree->nnodes; i++) {
         if (i == tree->root) continue;
-        int parent_age = tree->nodes[tree->nodes[i].parent].age;
-        for (int j = tree->nodes[i].age; j <= parent_age; j++) {
-            for (int k=j; k <= parent_age; k++) {
-                Spr spr(i,j,i,k,tree->nodes[i].pop_path);
+        int parent = tree->nodes[i].parent;
+        int parent_age = tree->nodes[parent].age;
+        int sib = ( tree->nodes[parent].child[0] == i ?
+                    tree->nodes[parent].child[1] :
+                    tree->nodes[parent].child[0] );
+        if (model->smc_prime) {
+            for (int j = tree->nodes[i].age; j <= parent_age; j++) {
+                for (int k=j; k <= parent_age; k++) {
+                    Spr spr(i,j,i,k,tree->nodes[i].pop_path);
+                    lnprob = logadd(lnprob,
+                                    calc_log_spr_prob(model, tree, spr,
+                                                      lineages, treelen,
+                                                      NULL, NULL, 1.0, true));
+                }
+            }
+        }
+        const int coal_nodes[2] = {sib, parent};
+        for (int k=tree->nodes[i].age; k <= parent_age; k++) {
+            for (int l=0; l < 2; l++) {
+                Spr spr(i,k,coal_nodes[l],parent_age, tree->nodes[i].pop_path);
                 lnprob = logadd(lnprob,
-                                calc_spr_prob(model, tree, spr,
-                                              lineages, treelen,
-                                              NULL, NULL, 1.0, true));
+                                calc_log_spr_prob(model, tree, spr, lineages,
+                                                  treelen, NULL, NULL, 1.0, true));
             }
         }
     }
@@ -434,7 +452,7 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 
     // first tree prior
         if (start_coord <= trees->start_coord)
-        lnl += calc_tree_prior(model, trees->front().tree, lineages);
+        lnl += calc_log_tree_prior(model, trees->front().tree, lineages);
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int end = trees->start_coord;
@@ -464,8 +482,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
         while (next_self_pos < end) {
             lnl += log(recomb_rate) - recomb_rate * (next_self_pos - last_pos);
             last_pos = next_self_pos;
-            lnl += calc_spr_prob(&local_model, tree, invisible_recombs[self_idx],
-                                 lineages, treelen, num_coal, num_nocoal, 1.0, true);
+            lnl += calc_log_spr_prob(&local_model, tree, invisible_recombs[self_idx],
+                                     lineages, treelen, num_coal, num_nocoal, 1.0, true);
             self_idx++;
             if (self_idx == num_invis) {
                 next_self_pos = end_coord + 1;
@@ -484,8 +502,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
             // get SPR move information
             ++it;
             const Spr *spr = &it->spr;
-            lnl += calc_spr_prob(&local_model, tree, *spr, lineages, treelen,
-				 num_coal, num_nocoal, 1.0, true);
+            lnl += calc_log_spr_prob(&local_model, tree, *spr, lineages, treelen,
+                                     num_coal, num_nocoal, 1.0, true);
 
         } else {
             // last block
@@ -501,7 +519,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
-                                       double **num_coal, double **num_nocoal) {
+                                       double **num_coal, double **num_nocoal,
+                                       double *first_tree_lnprob) {
     double lnl = 0.0;
     LineageCounts lineages(model->ntimes, model->num_pops());
 
@@ -511,52 +530,44 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
 	    num_coal[i] = num_nocoal[i] = 0;
     }
 
-    // first tree prior- ignore for now
-    lnl += calc_tree_prior(model, trees->front().tree, lineages);
+    // first tree prior
+    lnl += calc_log_tree_prior(model, trees->front().tree, lineages);
+    if (first_tree_lnprob != NULL)
+        *first_tree_lnprob = lnl;
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
 
     int rho_idx = 0;
     int end = trees->start_coord;
-    for (LocalTrees::const_iterator it=trees->begin(); it != trees->end();) {
+    for (LocalTrees::const_iterator it=trees->begin(); it != trees->end(); ) {
         end += it->blocklen;
         LocalTree *tree = it->tree;
         int blocklen = it->blocklen;
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
+        lineages.count(tree, model->pop_tree);
+        const int root_age = tree->nodes[tree->root].age;
+        lineages.nrecombs[root_age]--;  // SMC' calcs not affected by this
 
         // calculate probability P(blocklen | T_{i-1})
-        double recomb_rate = max(model->get_local_rho(trees->start_coord,
-                                                      &rho_idx)
-                                 * treelen, model->rho);
+        double rho = model->get_local_rho(trees->start_coord, &rho_idx);
+        double recomb_rate = max(rho * treelen, rho);
+
 
         //for single site, probability of no recomb
         double pr_no_recomb = exp(-recomb_rate);
         double pr_recomb = 1.0 - pr_no_recomb;
-        const int root_age = tree->nodes[tree->root].age;
-        lineages.count(tree, model->pop_tree);
-        lineages.nrecombs[root_age]--;
+        double pr_self = 0.0;
+
+        // only do this for smc_prime because under non-smc-prime, recombs to
+        // parent/sister branch that do not change topology are still in ARG
+        if (model->smc_prime)
+            pr_self = pr_recomb * exp(calc_log_self_recomb_prob(model, tree, lineages, treelen));
+        double log_pr_nochange  = log(pr_no_recomb + pr_self);
+
+
         if (end >= trees->end_coord)
             blocklen++;
         if (blocklen > 1) {
-
-            double recomb_sum = 0.0;
-            for (int i=0; i < tree->nnodes; i++) {
-                const LocalNode *node = &(tree->nodes[i]);
-                if (node->parent != -1) {
-                    int maxage = tree->nodes[node->parent].age;
-                    assert(node->age <= maxage);
-                    for (int age=node->age; age <= maxage; age++) {
-                        Spr spr(i, age, node->parent, maxage, node->pop_path);
-                        double val =
-                            exp(calc_spr_prob(model, tree, spr, lineages,
-                                              treelen, NULL, NULL, 0, true));
-                        recomb_sum += val;
-                        // printf("%i\t%i\t%f\t%f\n", i, age, val, recomb_sum);
-
-                    }
-                }
-            }
-            lnl += ((double)blocklen-1.0) * log(pr_no_recomb +
-                                                pr_recomb * recomb_sum);
+            lnl += ((double)blocklen - 1.0)*log_pr_nochange;
         }
 
         if (end < trees->end_coord) {
@@ -568,42 +579,52 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
             const Spr *real_spr = &it->spr;
             int node = real_spr->recomb_node;
             int parent = tree->nodes[node].parent;
+            int sib = tree->nodes[parent].child[0] == node ?
+                tree->nodes[parent].child[1] : tree->nodes[parent].child[0];
             int max_age = min(tree->nodes[parent].age,
                               real_spr->coal_time);
             assert(tree->nodes[node].age <= max_age);
             assert(real_spr->recomb_time >= tree->nodes[node].age &&
                    real_spr->recomb_time <= max_age);
+            if (real_spr->coal_time == tree->nodes[parent].age &&
+                (real_spr->coal_node == parent ||
+                 real_spr->coal_node == sib) &&
+                model->paths_equal(real_spr->pop_path, tree->nodes[node].pop_path,
+                                   real_spr->recomb_time, real_spr->coal_time)) {
+                lnl += log_pr_nochange;
+                continue;
+            }
+
+            // from here we assume that the SPR changes the tree
             double recomb_sum = 0.0;
             int target_path = model->consistent_path(tree->nodes[node].pop_path,
                                                      real_spr->pop_path,
                                                      tree->nodes[node].age,
                                                      real_spr->recomb_time,
                                                      real_spr->coal_time);
-            for (int age=tree->nodes[node].age; age <= max_age; age++) {
+            int this_max_age = min(max_age,
+                                   model->max_matching_path(tree->nodes[node].pop_path,
+                                                            target_path, tree->nodes[node].age));
+            for (int age=tree->nodes[node].age; age <= this_max_age; age++) {
                 Spr spr(node, age, real_spr->coal_node, real_spr->coal_time,
                         target_path);
-                double val = exp(calc_spr_prob(model, tree, spr, lineages,
-                                               treelen, num_coal, num_nocoal,
-                                               age == real_spr->recomb_time
-                                               ? 1.0 : 0.0, true));
+                double val = exp(calc_log_spr_prob(model, tree, spr, lineages,
+                                                   treelen, num_coal, num_nocoal,
+                                                   age == real_spr->recomb_time
+                                                   ? 1.0 : 0.0, true));
                 recomb_sum += val;
             }
-            int sib = tree->nodes[parent].child[0] == node ?
-                tree->nodes[parent].child[1] : tree->nodes[parent].child[0];
-            bool possible_no_recomb = false;
             if (real_spr->coal_node == sib) {
                 if (model->paths_equal(real_spr->pop_path,
                                        tree->nodes[node].pop_path,
                                        real_spr->recomb_time,
                                        real_spr->coal_time)) {
-                    if (real_spr->coal_time == tree->nodes[parent].age)
-                        possible_no_recomb = true;
                     for (int age=tree->nodes[sib].age; age <= max_age; age++) {
                         Spr spr(sib, age, node, real_spr->coal_time,
                                 tree->nodes[sib].pop_path);
-                        recomb_sum += exp(calc_spr_prob(model, tree, spr, lineages,
-                                                        treelen, num_coal, num_nocoal,
-                                                        0, true));
+                        recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
+                                                            treelen, num_coal, num_nocoal,
+                                                            0, true));
                     }
                 }
             } else if (real_spr->coal_node == parent) {
@@ -615,8 +636,6 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                 if (model->paths_equal(path, real_spr->pop_path,
                                        real_spr->recomb_time,
                                        real_spr->coal_time)) {
-                    if (real_spr->coal_time == tree->nodes[parent].age)
-                        possible_no_recomb = true;
                     path = model->consistent_path(tree->nodes[sib].pop_path,
                                                   tree->nodes[parent].pop_path,
                                                   tree->nodes[sib].age,
@@ -624,14 +643,13 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                                   real_spr->coal_time);
                     for (int age=tree->nodes[sib].age; age <= max_age; age++) {
                         Spr spr(sib, age, parent, real_spr->coal_time, path);
-                        recomb_sum += exp(calc_spr_prob(model, tree, spr, lineages,
-                                                        treelen, num_coal, num_nocoal,
-                                                        0, true));
+                        recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
+                                                            treelen, num_coal, num_nocoal,
+                                                            0, true));
                     }
                 }
             }
-            lnl += log(pr_recomb * recomb_sum +
-                       (possible_no_recomb ? pr_no_recomb : 0.0));
+            lnl += log(pr_recomb * recomb_sum);
 	    if (isinf(lnl))
 		assert(0);
         } else {
@@ -706,10 +724,10 @@ double arghmm_tree_prior_prob(LocalTrees *trees,
     ArgModel model(ntimes, times, popsizes, 0.0, 0.0);
     LineageCounts lineages(ntimes, model->num_pops());
 
-    //printf("%f\n", calc_tree_prior_approx(&model, trees->front().tree,
+    //printf("%f\n", calc_log_tree_prior_approx(&model, trees->front().tree,
     //                                      lineages));
 
-    return calc_tree_prior(&model, trees->front().tree, lineages);
+    return calc_log_tree_prior(&model, trees->front().tree, lineages);
 }
 
 
