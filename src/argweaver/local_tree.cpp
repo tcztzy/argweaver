@@ -86,10 +86,12 @@ void count_lineages(const LocalTree *tree, int ntimes,
     // ensure last time segment always has one branch
     nbranches[ntimes - 1] = 1;
     int final_pop = (pop_tree == NULL ? 0 : pop_tree->final_pop() );
-    for (int i=0; i < npop; i++)
+    for (int i=0; i < npop; i++) {
 	nbranches_pop[i][2*(ntimes - 1)] =
             nbranches_pop[i][2*ntimes - 1] =
             (i == final_pop ? 1 : 0);
+        ncoals_pop[i][ntimes-1] = (i == final_pop ? 1 : 0);
+    }
 }
 
 
@@ -167,8 +169,10 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
         if (i == final_pop) {
             nbranches_pop[i][2*ntimes - 2] = 1;
             nbranches_pop[i][2*ntimes - 1] = 1;
+            ncoals_pop[i][ntimes-1] = 1;
         } else assert(nbranches_pop[i][2*ntimes - 1] == 0 &&
-                      nbranches_pop[i][2*ntimes - 2] == 0);
+                      nbranches_pop[i][2*ntimes - 2] == 0 &&
+                      ncoals_pop[i][ntimes-1] == 0);
     }
 }
 
