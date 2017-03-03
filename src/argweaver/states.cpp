@@ -279,7 +279,8 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                     double path_prob =
                         pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
                     if (path_prob > 0.0 &&
-                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p) + curr_nummig <= 1) {
+                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p) +
+                        curr_nummig <= 1) {
                         int path1 =
                             pop_tree->unique_path(minage, start_pop, time,
                                                   end_pop, p);
