@@ -1108,6 +1108,12 @@ void get_transition_probs(const LocalTree *tree, const ArgModel *model,
             transprob[i][j] = matrix->get_log(tree, states, i, j);
 }
 
+void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
+                           const States &states, const LineageCounts *lineages, TransMatrix *matrix,
+                           bool internal, int minage) {
+    matrix->calc_transition_probs(tree, model, states, lineages, internal, minage);
+}
+
 
 // Calculate transition probability within a local block
 // Stores transition probabilities in dense matrix
@@ -2695,7 +2701,7 @@ bool assert_transmat_switch_internal(const LocalTree *last_tree,
 //=============================================================================
 // C interface
 extern "C" {
-    /*
+
 double **new_transition_probs(int nnodes, int *ptree,
                               int *ages, double treelen,
                               intstate *istates, int nstates,
@@ -2705,7 +2711,7 @@ double **new_transition_probs(int nnodes, int *ptree,
 {
 
     // setup model, local tree, states
-    ArgModel model(ntimes, times, popsizes, rho, 0.0);
+    ArgModel model(ntimes, times, &popsizes, rho, 0.0);
     LocalTree tree(ptree, nnodes, ages);
     LineageCounts lineages(ntimes, model.num_pops());
     lineages.count(&tree, model.pop_tree);
@@ -2731,7 +2737,7 @@ double **new_transition_probs_switch(
     double *popsizes, double rho)
 {
     // setup model
-    ArgModel model(ntimes, times, popsizes, rho, 0.0);
+    ArgModel model(ntimes, times, &popsizes, rho, 0.0);
 
     // setup local trees
     LocalTree tree(ptree, nnodes, ages_index);
@@ -2760,17 +2766,18 @@ void delete_transition_probs(double **transmat, int nstates)
 }
 
 
+/*
 bool arghmm_assert_transmat(int nnodes, int *ptree, int *ages,
                             int ntimes, double *times,
                             double *popsizes, double rho)
 {
-    ArgModel model(ntimes, times, popsizes, rho, 0.0);
+    ArgModel model(ntimes, times, &popsizes, rho, 0.0);
     LocalTree tree(ptree, nnodes, ages);
 
     States states;
     get_coal_states(&tree, ntimes, states);
 
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, 1);
     lineages.count(&tree, model.pop_tree);
 
     TransMatrix transmat(&model, states.size());
@@ -2781,13 +2788,13 @@ bool arghmm_assert_transmat(int nnodes, int *ptree, int *ages,
 
 
 
-bool arghmm_assert_transmat_switch(
+ bool arghmm_assert_transmat_switch(
     int nnodes, int *ptree, int *ages,
     int recomb_node, int recomb_time, int coal_node, int coal_time,
     int ntimes, double *times,
     double *popsizes, double rho)
 {
-    ArgModel model(ntimes, times, popsizes, rho, 0.0);
+    ArgModel model(ntimes, times, &popsizes, rho, 0.0);
     LocalTree last_tree(ptree, nnodes, ages);
 
     // build next tree from last tree
@@ -2808,7 +2815,7 @@ bool arghmm_assert_transmat_switch(
     get_coal_states(&tree, ntimes, states);
 
     // get lineages
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, 1);
     lineages.count(&last_tree, model.pop_tree);
 
     TransMatrixSwitch transmat_switch(last_states.size(), states.size(),
@@ -2825,7 +2832,7 @@ bool arghmm_assert_transmat_internal(int nnodes, int *ptree, int *ages,
                                      int ntimes, double *times,
                                      double *popsizes, double rho)
 {
-    ArgModel model(ntimes, times, popsizes, rho, 0.0);
+    ArgModel model(ntimes, times, &popsizes, rho, 0.0);
     LocalTree tree(ptree, nnodes, ages);
 
     // randomly choose branch to remove
@@ -2843,7 +2850,7 @@ bool arghmm_assert_transmat_internal(int nnodes, int *ptree, int *ages,
     States states;
     get_coal_states_internal(&tree, ntimes, states);
 
-    LineageCounts lineages(ntimes);
+    LineageCounts lineages(ntimes, 1);
     lineages.count(&tree, model.pop_tree, true);
 
     TransMatrix transmat(&model, states.size());
@@ -2856,7 +2863,7 @@ bool arghmm_assert_transmat_internal(int nnodes, int *ptree, int *ages,
 bool arghmm_assert_transmat_switch_internal(
     LocalTrees *trees, int ntimes, double *times, double *popsizes, double rho)
 {
-    ArgModel model(ntimes, times, popsizes, rho, 0.0);
+    ArgModel model(ntimes, times, &popsizes, rho, 0.0);
 
     const int maxtime = model.ntimes + 1;
     int *removal_path = new int [trees->get_num_trees()];
@@ -2885,8 +2892,8 @@ bool arghmm_assert_transmat_switch_internal(
     }
 
     return true;
-}
-*/
+    } */
+
 
 } // extern C
 

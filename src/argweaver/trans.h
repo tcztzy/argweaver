@@ -325,6 +325,9 @@ public:
     const States &states, const LineageCounts *lineages, TransMatrix *matrix,
     bool internal=false, int minage=0);*/
 void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
+    const States &states, const LineageCounts *lineages, TransMatrix *matrix,
+    bool internal=false, int minage=0);
+void calc_transition_probs(const LocalTree *tree, const ArgModel *model,
                           const States &states, const LineageCounts *lineages,
                           double **transprob);
 void get_transition_probs(const LocalTree *tree, const ArgModel *model,
