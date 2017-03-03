@@ -495,6 +495,15 @@ void ArgModel::read_population_sizes(string popsize_file) {
         }
 }
 
+
+void ArgModel::read_population_tree(FILE *infile) {
+    if (pop_tree != NULL)
+        delete pop_tree;
+    pop_tree = new PopulationTree(1, this);
+    argweaver::read_population_tree(infile, pop_tree);
+}
+
+
 void ArgModel::read_population_tree(string pop_file) {
     if (pop_tree != NULL)
         delete pop_tree;
@@ -548,6 +557,8 @@ ArgModel::ArgModel(const char *logfilename) {
     bool found_model = false;
     int npop;
     int numpath;
+    char *pop_file=NULL;
+    bool read_pop_file = false;
     smc_prime=true;
     if (logfile == NULL) {
         printError("Could not open log file %s\n", logfilename);
@@ -556,6 +567,17 @@ ArgModel::ArgModel(const char *logfilename) {
     times=NULL;
     while (NULL != (line = fgetline(logfile))) {
         chomp(line);
+        if (str_starts_with(line, "command:")) {
+            vector<string> splitStr;
+            split(line, ' ', splitStr);
+            for (int i=1; i < (int)splitStr.size()-1; i++) {
+                if (strcmp(splitStr[i].c_str(), "--pop-tree-file")==0) {
+                    pop_file = new char[strlen(splitStr[i+1].c_str())+1];
+                    strcpy(pop_file, splitStr[i+1].c_str());
+                    break;
+                }
+            }
+        }
         if (str_starts_with(line, "model:")) found_model = true;
         if (found_model) {
             if (str_starts_with(line, "----------")) break;
@@ -583,9 +605,30 @@ ArgModel::ArgModel(const char *logfilename) {
                 get_coal_time_steps(times, ntimes, coal_time_steps, false, delta);
             }
             if (str_starts_with(line, "  npop = ")) {
-                assert(1 == sscanf(line, "  npop = %i", &npop));
-                assert(npop >= 1);
-                if (npop > 1) pop_tree = new PopulationTree(npop, this);
+                if (pop_file != NULL) {
+                    FILE *infile = fopen(pop_file, "r");
+                    if (infile == NULL) {
+                        fprintf(stderr,
+                                "Warning: Could not open pop_file %s. "
+                                "Migration probabilities will not be set correctyl!\n",
+                                pop_file);
+                    } else {
+                        read_population_tree(infile);
+                        fclose(infile);
+                        read_pop_file = true;
+                        npop = this->num_pops();
+                        int temp_npop;
+                        assert(1 == sscanf(line, " npop = %i", &temp_npop));
+                        assert(temp_npop == npop);
+                    }
+
+                }
+                if (!read_pop_file) {
+                    assert(1 == sscanf(line, "  npop = %i", &npop));
+                    assert(npop >= 1);
+                    if (npop > 1) pop_tree = new PopulationTree(npop, this);
+                    alloc_popsizes();
+                }
                 alloc_popsizes();
             }
             if (str_starts_with(line, "  popsizes = [")) {
@@ -616,7 +659,7 @@ ArgModel::ArgModel(const char *logfilename) {
                     }
                 }
             }
-            if (str_starts_with(line, "    numpath = ")) {
+            if (str_starts_with(line, "    numpath = ") && !read_pop_file) {
                 assert(1 == sscanf(line, "    numpath = %i", &numpath));
                 assert(pop_tree != NULL);
                 MultiArray path(2, numpath, ntimes);
@@ -673,6 +716,7 @@ ArgModel::ArgModel(const char *logfilename) {
             }
         }
     }
+    if (pop_file != NULL) delete[] pop_file;
 }
 
 

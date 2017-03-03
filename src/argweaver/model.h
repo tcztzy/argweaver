@@ -519,6 +519,7 @@ class ArgModel
 
     void set_popsizeconfig_by_pop_tree();
 
+    void read_population_tree(FILE *infile);
     void read_population_tree(string pop_file);
     void read_population_sizes(string popsize_file);
 
