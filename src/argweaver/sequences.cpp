@@ -621,7 +621,7 @@ void Sequences::set_age(string agefile, int ntimes, const double *times) {
 		// choose the discrete time interval closest to the real time
 		double mindif = fabs(times[0] - time);
 		int whichmin=0;
-		for (int j=1; j < ntimes; j++) {
+		for (int j=1; j < ntimes-1; j++) {
 		    double tempdif = fabs(times[j]-time);
 		    if (tempdif < mindif) {
 			whichmin=j;
@@ -630,6 +630,8 @@ void Sequences::set_age(string agefile, int ntimes, const double *times) {
 		    if (times[j] > time) break;
 		}
 		ages[i] = whichmin;
+                printLog(LOG_LOW, "rounded age for sample %s to %f\n",
+                         currseq, times[whichmin]);
 		found=true;
 		break;
 	    }
