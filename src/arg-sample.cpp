@@ -92,7 +92,9 @@ public:
 	config.add(new ConfigParam<string>
 		   ("", "--age-file", "<age file>", &age_file,
 		    " file giving age for any ancient samples (two-columns, "
-		    " first column is sample name, second age in generations "));
+		    " first column is sample name, second age in generations)."
+		    " Age will be rounded to nearest discrete time point in"
+		    " the model, with a maximum of the second-to-oldest point."));
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
         config.add(new ConfigParam<string>
@@ -631,8 +633,8 @@ bool seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                  sequences->get_num_seqs());
         printLog(LOG_LOW, "------------------------------------------------\n");
         sample_arg_seq(model, sequences, trees, true);
-        print_stats(config->stats_file, "seq", trees->get_num_leaves(),
-                    model, sequences, trees, sites_mapping, config);
+	print_stats(config->stats_file, "seq", trees->get_num_leaves(),
+		    model, sequences, trees, sites_mapping, config);
 	return true;
     }
     return false;
