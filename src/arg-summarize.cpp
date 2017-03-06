@@ -764,7 +764,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 //now output three versions- one for all samples,
                 //one for same derived allele, one for infinite sites
                 BedLine* first = *(bedlist.begin());
-                int same=0, diff=0, infsites=0, derConstCount,
+                int same=0, diff=0, infsites=0,
                     derFreq, otherFreq;
                 char derAllele, otherAllele;
                 for (list<BedLine*>::iterator it=bedlist.begin();
@@ -776,13 +776,11 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 if (same >= diff) {
                     derAllele = first->derAllele;
                     otherAllele = first->otherAllele;
-                    derConstCount = same;
                     derFreq = first->derFreq;
                     otherFreq = first->otherFreq;
                 } else {
                     derAllele=first->otherAllele;
                     otherAllele = first->derAllele;
-                    derConstCount = diff;
                     derFreq = first->otherFreq;
                     otherFreq = first->derFreq;
                 }
