@@ -212,7 +212,7 @@ void arghmm_forward_block(const LocalTree *tree, const int ntimes,
     for (int a=0; a<ntimes-1; a++) {
         for (int b=0; b<ntimes-1; b++) {
             tmatrix[a][b] = matrix->get_time(a, b, 0, minage, false);
-            assert(!isnan(tmatrix[a][b]));
+            //assert(!isnan(tmatrix[a][b]));
         }
 
         for (int k=0; k<nstates; k++) {
@@ -399,6 +399,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
     LineageCounts lineages(model->ntimes);
     States states;
     ArgModel local_model;
+    int mu_idx=0, rho_idx=0;
 
     double **fw = forward->get_table();
 
@@ -409,7 +410,7 @@ void arghmm_forward_alg(const LocalTrees *trees, const ArgModel *model,
         ArgHmmMatrices &matrices = matrix_iter->ref_matrices(phase_pr);
         int pos = matrix_iter->get_block_start();
         int blocklen = matrices.blocklen;
-        model->get_local_model(pos, local_model);
+        model->get_local_model(pos, local_model, &mu_idx, &rho_idx);
         double **emit = matrices.emit;
 
         // allocate the forward table
@@ -650,14 +651,15 @@ void sample_arg_thread_internal(
     matrix_iter.set_internal(internal, minage);
 
     if (phase_pr != NULL)
-        printf("treemap = %i %i\n", phase_pr->treemap1, phase_pr->treemap2);
+        printLog(LOG_HIGH, "treemap = %i %i\n",
+                 phase_pr->treemap1, phase_pr->treemap2);
 
     // compute forward table
     Timer time;
     arghmm_forward_alg(trees, model, sequences, &matrix_iter, &forward,
                        phase_pr, false, internal);
     int nstates = get_num_coal_states_internal(
-        trees->front().tree, model->ntimes);
+        	       trees->front().tree, model->ntimes, minage);
     printTimerLog(time, LOG_LOW,
                   "forward (%3d states, %6d blocks):",
                   nstates, trees->get_num_trees());

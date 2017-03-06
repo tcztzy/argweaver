@@ -118,9 +118,24 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
             nbranches[parent_age]++;
     }
 
+    // Do Not discount one lineage for subtree unless it is actually there (may not be for ancient samples)
+    // It will not necessarily be added back by other procedures either (will it)?
+    int subtreeMinage=tree->nodes[subtree_root].age;
+    if (subtreeMinage > 0) {
+	int order[tree->nnodes];
+	int norder;
+	tree->get_preorder(subtree_root, order, norder);
+	for (int i=0; i < norder; i++) {
+	    if (tree->nodes[order[i]].age < subtreeMinage) {
+		subtreeMinage = tree->nodes[order[i]].age;
+		if (subtreeMinage == 0) break;
+	    }
+	}
+    }
+
     // discount one lineage from within subtree, since it will be added
     // back by other procedures
-    for (int i=0; i<minage; i++) {
+    for (int i=subtreeMinage; i<minage; i++) {
         nbranches[i]--;
         ncoals[i]--;
         nrecombs[i]--;

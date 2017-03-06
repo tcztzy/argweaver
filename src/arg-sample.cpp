@@ -85,11 +85,19 @@ public:
 		   ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
                     "mask map file (optional)"));
-
+        config.add(new ConfigParam<string>
+                   ("", "--subsites", "<subsites file>", &subsites_file,
+                    "file listing NAMES from sites file (or sequences from"
+                    " fasta) to keep; others will not be used"));
+	config.add(new ConfigParam<string>
+		   ("", "--age-file", "<age file>", &age_file,
+		    " file giving age for any ancient samples (two-columns, "
+		    " first column is sample name, second age in generations "));
         // model parameters
-	config.add(new ConfigParamComment("Model parameters"));
-	config.add(new ConfigParam<double>
-		   ("-N", "--popsize", "<population size>", &popsize, 1e4,
+        config.add(new ConfigParamComment("Model parameters"));
+        config.add(new ConfigParam<string>
+                   ("-N", "--popsize", "<population size>", &popsize_str,
+                    "10000",
                     "effective population size (default=1e4)"));
 	config.add(new ConfigParam<double>
 		   ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
@@ -106,6 +114,10 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--time-step", "<time>", &time_step, 0,
                     "linear time step in generations (optional)"));
+        config.add(new ConfigParam<double>
+                   ("", "--delta", "<delta>", &delta, 0.01,
+                    "delta value for choosing log times (bigger value-> more"
+                    " dense time points at leaves", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
                     "file containing population sizes for each time span (optional)"));
@@ -243,18 +255,22 @@ public:
     // input/output
     string fasta_file;
     string sites_file;
+    string subsites_file;
     string out_prefix;
     string arg_file;
     string subregion_str;
+    string age_file;
 
     // model parameters
     double popsize;
+    string popsize_str;
     double mu;
     double rho;
     int ntimes;
     double maxtime;
     double time_step;
     string popsize_file;
+    double delta;
     string times_file;
     string mutmap;
     string recombmap;
@@ -417,10 +433,12 @@ void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
             if (track[i].start < prev_start_orig)
                 prev_start_new = 0;
             prev_start_orig = track[i].start;
-            track[i].start = sites_mapping->compress(track[i].start, prev_start_new);
+            track[i].start = sites_mapping->compress(track[i].start,
+                                                     prev_start_new, 1);
             prev_start_new = track[i].start;
-            track[i].end = sites_mapping->compress(track[i].end, track[i].start);
-	}
+            track[i].end = sites_mapping->compress(track[i].end,
+                                                   track[i].start, -1);
+        }
     }
 }
 
@@ -605,7 +623,7 @@ bool read_init_arg(const char *arg_file, const ArgModel *model,
 // sampling methods
 
 // build initial arg by sequential sampling
-void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
+bool seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                     SitesMapping* sites_mapping, Config *config)
 {
     if (trees->get_num_leaves() < sequences->get_num_seqs()) {
@@ -615,7 +633,9 @@ void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         sample_arg_seq(model, sequences, trees, true);
         print_stats(config->stats_file, "seq", trees->get_num_leaves(),
                     model, sequences, trees, sites_mapping, config);
+	return true;
     }
+    return false;
 }
 
 
@@ -648,7 +668,6 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
     int window = config->resample_window;
     int niters = config->resample_window_iters;
     window /= config->compress_seq;
-    int step = window / 2;
 
     // set iteration counter
     int iter = 1;
@@ -671,8 +690,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         if (config->gibbs)
             resample_arg(model, sequences, trees);
         else
-            resample_arg_mcmc_all(model, sequences, trees, frac_leaf,
-                                  window, step, niters);
+            resample_arg_mcmc_all(model, sequences, trees, frand() < frac_leaf,
+                                  window, niters);
         printTimerLog(timer, LOG_LOW, "sample time:");
 
 
@@ -699,7 +718,44 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         print_stats_header(config->stats_file);
 
     // build initial arg by sequential sampling
-    seq_sample_arg(model, sequences, trees, sites_mapping, config);
+    bool seq_sample = seq_sample_arg(model, sequences, trees, sites_mapping, config);
+
+    // re-thread any ancient samples using internal threading to make use of minage
+    if (seq_sample && sequences->ages.size() > 0) {
+	for (int i=0; i < (int)sequences->ages.size(); i++) {
+	    if (sequences->ages[i] > 0) {
+		int mintime = sequences->ages[i];
+		for (int j=0; j < trees->get_num_leaves(); j++) {
+		    if (trees->seqids[j] == i) {
+			printLog(LOG_LOW, "Re-threading ancient sample %s to set sample age %i (%.1f)\n",
+				 sequences->names[i].c_str(), mintime,
+				 model->times[mintime]);
+			resample_arg_leaf(model, sequences, trees, j);
+			assert(trees->seqids[j] == i);  //not sure this is true after re-threading
+
+			for (LocalTrees::iterator it=trees->begin();
+			     it != trees->end(); ++it) {
+
+			    if (it->spr.recomb_node == j && it->spr.recomb_time < mintime) {
+				assert(it->spr.coal_time >= mintime);
+				it->spr.recomb_time = mintime;
+			    }
+			    if (it->spr.coal_node == j && it->spr.coal_time < mintime)
+				it->spr.coal_time = mintime;
+
+			    LocalTree *tree = it->tree;
+			    if (tree->nodes[tree->nodes[j].parent].age < mintime) {
+				assert(0);
+			    }
+			    tree->nodes[j].age = mintime;
+			}
+
+			break;
+		    }
+		}
+	    }
+	}
+    }
 
     if (config->resample_region[0] != -1) {
         // region sampling
@@ -948,8 +1004,8 @@ int main(int argc, char **argv)
         printLog(LOG_LOW, "read input sequences (nseqs=%d, length=%d)\n",
                  sequences.get_num_seqs(), sequences.length());
 
-        // if compress requested, make sites object
-        if (c.compress_seq > 1)
+        // if compress or subset requested, make sites object
+        if (c.compress_seq > 1 || c.subsites_file != "")
             make_sites_from_sequences(&sequences, &sites);
 
     } else if (c.sites_file != "") {
@@ -993,8 +1049,41 @@ int main(int argc, char **argv)
         return EXIT_ERROR;
     }
 
+    if (c.subsites_file != "") {
+        set<string> keep;
+        FILE *infile;
+        if (!(infile = fopen(c.subsites_file.c_str(), "r"))) {
+            printError("Could not open subsites file %s",
+                       c.subsites_file.c_str());
+            return false;
+        }
+        char name[10000];
+        while (EOF != fscanf(infile, "%s", name))
+            keep.insert(string(name));
+        fclose(infile);
+        if (sites.subset(keep)) {
+            printError("Error subsetting sites\n");
+            return false;
+        }
+    }
+
+    //read in mask
+    TrackNullValue maskmap;
+    if (c.maskmap != "") {
+        //read mask
+        CompressStream stream(c.maskmap.c_str(), "r");
+        if (!stream.stream ||
+            !read_track_filter(stream.stream, &maskmap, seq_region)) {
+            printError("cannot read mask map '%s'",
+                       c.maskmap.c_str());
+            return EXIT_ERROR;
+        }
+    }
+
     // compress sequences
     if (sites.get_num_sites() > 0) {
+        // first remove any sites that fall under mask
+
         sites_mapping = new SitesMapping();
         sites_mapping_ptr = auto_ptr<SitesMapping>(sites_mapping);
 
@@ -1007,20 +1096,11 @@ int main(int argc, char **argv)
     }
     seq_region_compress.set(seq_region.chrom, 0, sequences.length());
 
-
-    // mask sequences
-    TrackNullValue maskmap;
+    // compress mask
     if (c.maskmap != "") {
-        // read mask
-        CompressStream stream(c.maskmap.c_str(), "r");
-        if (!stream.stream ||
-            !read_track_filter(stream.stream, &maskmap, seq_region)) {
-            printError("cannot read mask map '%s'",
-                       c.maskmap.c_str());
-            return EXIT_ERROR;
-        }
-
         // apply mask
+        // TODO: when mask is compressed, only allow it to apply to
+        // whole compressed regions
         if (sites_mapping)
             compress_mask(maskmap, sites_mapping);
         apply_mask_sequences(&sequences, maskmap);
@@ -1052,7 +1132,7 @@ int main(int argc, char **argv)
         c.model.set_linear_times(c.time_step, c.ntimes);
     } else {
         // use log-spaced time points
-        c.model.set_log_times(c.maxtime, c.ntimes);
+        c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     }
     c.model.rho = c.rho;
     c.model.mu = c.mu;
@@ -1077,6 +1157,12 @@ int main(int argc, char **argv)
     const double infsites_penalty = 1e-100; // TODO: make configurable
     if (c.infsites)
         c.model.infsites_penalty = infsites_penalty;
+
+    if (c.age_file != "")
+	sequences.set_age(c.age_file, c.model.ntimes, c.model.times);
+    else sequences.set_age();
+ 
+    c.model.set_popsizes(c.popsize_str, c.model.ntimes);
 
     // setup phasing options
     if (c.unphased_file != "")
@@ -1174,8 +1260,8 @@ int main(int argc, char **argv)
         c.resample_region[0] -= 1; // convert to 0-index
 
         if (sites_mapping) {
-            c.resample_region[0] = sites_mapping->compress(c.resample_region[0]);
-            c.resample_region[1] = sites_mapping->compress(c.resample_region[1]);
+            c.resample_region[0] = sites_mapping->compress(c.resample_region[0], -1);
+            c.resample_region[1] = sites_mapping->compress(c.resample_region[1], 1);
         }
     }
 

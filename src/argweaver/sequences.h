@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 
 // arghmm includes
 #include "track.h"
@@ -60,6 +61,9 @@ public:
 	  for (int i = 0; i < nseqs; i++)
 	    pairs[i] = sequences->pairs[i];
 	}
+
+	ages = sequences->ages;
+
     }
 
     ~Sequences()
@@ -140,13 +144,16 @@ public:
         }
         seqs.clear();
         names.clear();
-	pairs.clear();
+        non_singleton_snp.clear();
     }
 
     //set pairs vector assuming that diploids are named XXXX_1 and XXXX_2
     void set_pairs_by_name();
     void set_pairs_from_file(string fn);
     void set_pairs(const ArgModel *mod);
+
+    void set_age(string agefile, int ntimes, const double *times);
+    void set_age();
 
     int get_pair(int i) {
 	if ((int)pairs.size() < i) return -1;
@@ -161,9 +168,15 @@ public:
 
     void randomize_phase(double frac);
 
+    // set vector to true for each snp which has frequency > 1
+    bool get_non_singleton_snp(vector<bool> &nonsing);
+
     vector <char*> seqs;
     vector <string> names;
-    vector <int> pairs;  // index of diploid pair partner
+    vector <int> pairs; // index of diploid pair partner
+    vector <bool> non_singleton_snp;  //true if snp w frequency > 1
+    vector <int> ages; // set to non-zero for ancient samples
+    vector <double> real_ages;
 
 protected:
     int seqlen;
@@ -174,7 +187,7 @@ protected:
 class PhaseProbs
 {
  public:
- PhaseProbs(int hap1, int _treemap1, Sequences *_seqs, 
+ PhaseProbs(int hap1, int _treemap1, Sequences *_seqs,
 	    const LocalTrees *trees, const ArgModel *model);
   ~PhaseProbs() {}
 
@@ -189,7 +202,7 @@ class PhaseProbs
 	  it->second[state] = pr;
       }
    }
-     
+
    unsigned int size() {
      return probs.size();
    }
@@ -203,6 +216,7 @@ class PhaseProbs
   int treemap1, treemap2;
   int offset;
   Sequences *seqs;
+  vector<bool> non_singleton_snp;
 };
 
 
@@ -258,6 +272,10 @@ public:
         return names.size();
     }
 
+    int subset(set<string> names_to_keep);
+
+    template<class T>
+    int remove_overlapping(const Track<T> &track);
 
     string chrom;
     int start_coord;
@@ -283,11 +301,15 @@ public:
         seqlen = sites->length();
     }
 
-    int compress(int pos, int start=0) const {
+    //round_dir < 0: round down (returns lower bound on coordinate)
+    //round_dir >= 0: round up (returns upper bound on coordinate)
+    int compress(int pos, int round_dir, int start=0) const {
         const int n = all_sites.size();
         for (int pos2 = start; pos2<n; pos2++) {
-            if (all_sites[pos2] > pos)
-                return pos2;
+            if (all_sites[pos2] >= pos) {
+                if (round_dir >= 0 || pos2 == 0) return pos2;
+                else return pos2 - 1;
+            }
         }
         return n - 1;
     }

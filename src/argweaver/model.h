@@ -10,6 +10,7 @@
 #include <set>
 #include <map>
 #include <list>
+#include <algorithm>
 
 // arghmm includes
 #include "track.h"
@@ -33,7 +34,8 @@ inline void get_time_points(int ntimes, double maxtime,
 
 
 void get_coal_time_steps(const double *times, int ntimes,
-                         double *coal_time_steps);
+                         double *coal_time_steps, bool linear,
+                         double delta);
 
 
 
@@ -190,7 +192,7 @@ public:
 	unphased_file = other.unphased_file;
 
         // copy popsizes and times
-        set_times(other.times, ntimes);
+        set_times(other.times, other.coal_time_steps, ntimes);
         if (other.popsizes)
             set_popsizes(other.popsizes, ntimes);
 
@@ -216,6 +218,16 @@ public:
     // setting time points and population sizes
 
     // Sets the model time points from an array
+    void set_times(double *_times, double *_coal_time_steps, int _ntimes) {
+        ntimes = _ntimes;
+        clear_array(&times);
+        times = new double [ntimes];
+        std::copy(_times, _times + ntimes, times);
+        setup_time_steps(false, 0, _coal_time_steps);
+    }
+
+
+    // Sets the model time points from an array
     void set_times(double *_times, int _ntimes) {
         ntimes = _ntimes;
         clear_array(&times);
@@ -225,12 +237,13 @@ public:
     }
 
     // Sets the model time points linearily in log space
-    void set_log_times(double maxtime, int _ntimes) {
+    void set_log_times(double maxtime, int _ntimes,
+		       double delta=0.01) {
         ntimes = _ntimes;
         clear_array(&times);
         times = new double [ntimes];
-        get_time_points(ntimes, maxtime, times);
-        setup_time_steps();
+        get_time_points(ntimes, maxtime, times, delta);
+        setup_time_steps(false, delta);
     }
 
     // Sets the model time points linearily
@@ -240,7 +253,26 @@ public:
         times = new double [ntimes];
         for (int i=0; i<ntimes; i++)
             times[i] = i * time_step;
-        setup_time_steps();
+        setup_time_steps(true);
+    }
+
+    void set_times_from_file(string file) {
+        FILE *infile = fopen(file.c_str(), "r");
+        if (infile == NULL) {
+            printError("Error reading times file %s\n", file.c_str());
+            exit(1);
+        }
+        vector<double> tmp;
+        double t;
+        while (EOF != fscanf(infile, "%lf", &t))
+            tmp.push_back(t);
+        fclose(infile);
+        std::sort(tmp.begin(), tmp.end());
+        ntimes = tmp.size();
+        times = new double [ntimes];
+        for (int i=0; i < ntimes; i++)
+            times[i] = tmp[i];
+        setup_time_steps(true);
     }
 
     // Sets the model population sizes from an array
@@ -249,6 +281,26 @@ public:
         clear_array(&popsizes);
         popsizes = new double [ntimes];
         std::copy(_popsizes, _popsizes + ntimes, popsizes);
+    }
+
+    void set_popsizes(string popsize_str, int _ntimes) {
+        ntimes = _ntimes;
+        clear_array(&popsizes);
+        popsizes = new double [ntimes];
+        vector<string> tokens;
+        split(popsize_str.c_str(), ",", tokens);
+        if (tokens.size() == 1) {
+            fill(popsizes, popsizes + ntimes, atof(tokens[0].c_str()));
+        } else {
+            if ((int)tokens.size() != ntimes) {
+                printError("Number of popsizes (%i) does not match ntimes"
+                           " (%i)\n", tokens.size(), ntimes);
+                exit(1);
+            }
+            for (unsigned int i=0; i < tokens.size(); i++) {
+                popsizes[i] = atof(tokens[i].c_str());
+            }
+        }
     }
 
     // Sets the model populations to be constant over all time points
@@ -282,9 +334,10 @@ public:
     }
 
     // Returns a model customized for the local position
-    void get_local_model(int pos, ArgModel &model) const {
-        model.mu = mutmap.find(pos, mu);
-        model.rho = recombmap.find(pos, rho);
+    void get_local_model(int pos, ArgModel &model,
+                         int *mu_idx=NULL, int *rho_idx=NULL) const {
+        model.mu = mutmap.find(pos, mu, mu_idx);
+        model.rho = recombmap.find(pos, rho, rho_idx);
         model.infsites_penalty = infsites_penalty;
 
         model.owned = false;
@@ -293,6 +346,10 @@ public:
         model.time_steps = time_steps;
         model.coal_time_steps = coal_time_steps;
         model.popsizes = popsizes;
+    }
+
+    double get_local_rho(int pos, int *rho_idx=NULL) const {
+        return recombmap.find(pos, rho, rho_idx);
     }
 
     void get_local_model_index(int index, ArgModel &model) const {
@@ -319,7 +376,9 @@ public:
 protected:
 
     // Setup time steps between time points
-    void setup_time_steps()
+    // if linear=true, ignore delta and set mid-points halfway between
+    //   each time step
+    void setup_time_steps(bool linear=false, double delta=0.01, double *_coal_time_steps=NULL)
     {
         clear_array(&time_steps);
         time_steps = new double [ntimes];
@@ -329,7 +388,9 @@ protected:
 
         clear_array(&coal_time_steps);
         coal_time_steps = new double [2*ntimes];
-        get_coal_time_steps(times, ntimes, coal_time_steps);
+	if (_coal_time_steps == NULL)
+	    get_coal_time_steps(times, ntimes, coal_time_steps, linear, delta);
+	else std::copy(_coal_time_steps, _coal_time_steps + 2*ntimes, coal_time_steps);
     }
 
 public:

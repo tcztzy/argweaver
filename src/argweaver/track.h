@@ -71,6 +71,9 @@ typedef RegionValue<char> RegionNullValue;
 // A track is a series of regions each associated with a value
 template <class T>
 class Track : public vector<RegionValue<T> > {
+protected:
+    //used for the find function
+    int start_idx;
 public:
 
 
@@ -92,14 +95,19 @@ public:
             return Track<T>::back().end;
     }
 
-    // Returns value of region containing position pos
-    T find(int pos, const T &default_value) const {
-        for (unsigned int i=0; i<Track<T>::size(); i++) {
+    // Returns value of region containing position
+    // If start_idx not NULL, is updated to index of return value
+    T find(int pos, const T &default_value, int *start_idx=NULL) const {
+        int start = ( start_idx == NULL ? 0 : *start_idx );
+        for (unsigned int i=start; i<Track<T>::size(); i++) {
             const RegionValue<T> &region = Track<T>::at(i);
-            if (region.start <= pos && pos < region.end)
+            if (region.start <= pos && pos < region.end) {
+                if (start_idx != NULL) *start_idx = i;
                 return region.value;
+            }
         }
         // region not found
+        if (start_idx != NULL) *start_idx = 0;
         return default_value;
     }
 

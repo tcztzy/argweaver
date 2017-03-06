@@ -50,14 +50,15 @@ int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal)
 // NOTE: Do not allow coalescing at top time
 // states for the same branch are clustered together and ages are given
 // in increasing order
-void get_coal_states_external(const LocalTree *tree, int ntimes, States &states)
+void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
+			      int minage)
 {
     states.clear();
     const LocalNode *nodes = tree->nodes;
 
     // iterate over the branches of the tree
     for (int i=0; i<tree->nnodes; i++) {
-        int time = nodes[i].age;
+        int time = max(minage, nodes[i].age);
         const int parent = nodes[i].parent;
 
         if (parent == -1) {
@@ -74,14 +75,14 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states)
 }
 
 // Returns the number of possible coalescing states for a tree
-int get_num_coal_states_external(const LocalTree *tree, int ntimes)
+int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage)
 {
     int nstates = 0;
     const LocalNode *nodes = tree->nodes;
 
     // iterate over the branches of the tree
     for (int i=0; i<tree->nnodes; i++) {
-        int time = nodes[i].age;
+        int time = max(minage, nodes[i].age);
         const int parent = nodes[i].parent;
 
         if (parent == -1) {
@@ -167,12 +168,12 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
 
 
 // Returns the number of possible coalescing states for a tree
-int get_num_coal_states_internal(const LocalTree *tree, int ntimes)
+int get_num_coal_states_internal(const LocalTree *tree, int ntimes, int minage)
 {
     int nstates = 0;
     const LocalNode *nodes = tree->nodes;
     int subtree_root = nodes[tree->root].child[0];
-    int minage = nodes[subtree_root].age;
+    minage = max(minage, nodes[subtree_root].age);
 
     // iterate over the branches of the tree
     for (int i=0; i<tree->nnodes; i++) {

@@ -490,13 +490,14 @@ double calc_recoal(
                        (2.0*model->popsizes[j]) - Z);
     }
 
-    // asserts
-    if (ncoals_j <= 0 || nbranches_j <= 0) {
+    // asserts- these may not hold for ancient samples, if threading the non-ancient
+    // subtree could have 0 branches in recent time intervals with 0 prob of coal
+ /*   if (ncoals_j <= 0 || nbranches_j <= 0) {
         printError("counts %d %d %e\n",
                    ncoals_j, nbranches_j, p);
         assert(false);
     }
-    assert(!isnan(p) && p>0);
+    assert(!isnan(p) && p>0);*/
 
     return p;
 }
@@ -617,8 +618,8 @@ void calc_transition_probs_switch(
     calc_recoal_sums(model, lineages, spr, recomb_parent_age, &sums, sums2);
     double recoals[model->ntimes];
     for (int a=0; a<model->ntimes; a++)
-        recoals[a] = calc_recoal(last_tree, model, lineages, spr,
-                                 a, recomb_parent_age, last_treelen);
+        recoals[a] = calc_recoal(last_tree, model, lineages, spr,  //melissa added internal to end of this call, used to be blank and default to internal=false
+                                 a, recomb_parent_age, last_treelen, internal);
 
     for (int i=0; i<nstates1; i++) {
         int j = transmat_switch->determ[i];

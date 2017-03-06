@@ -241,6 +241,7 @@ bool read_sites(FILE *infile, Sites *sites,
             }
 
             // skip site if not in region
+            position--; //convert to 0-index
             if (position < sites->start_coord || position >= sites->end_coord) {
                 delete [] line;
                 continue;
@@ -268,9 +269,6 @@ bool read_sites(FILE *infile, Sites *sites,
                 delete [] line;
                 return false;
             }
-
-            // convert to 0-index
-            position--;
 
             // validate site locations are unique and sorted.
             int npos = sites->get_num_sites();
@@ -342,6 +340,55 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     sequences->set_length(seqlen);
 }
 
+int Sites::subset(set<string> names_to_keep) {
+    vector<int> keep;
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (names_to_keep.find(names[i]) != names_to_keep.end())
+            keep.push_back(i);
+    }
+    if (keep.size() != names_to_keep.size()) {
+        fprintf(stderr, "Error in subset: not all names found in sites\n");
+        return 1;
+    }
+    std::sort(keep.begin(), keep.end());
+    vector<string> new_names;
+    for (unsigned int i=0; i < keep.size(); i++)
+        new_names.push_back(names[keep[i]]);
+    names = new_names;
+    vector<int> new_positions;
+    vector<char*> new_cols;
+    for (unsigned int i=0; i < positions.size(); i++) {
+        char *tmp = new char[keep.size()+1];
+        bool variant=false;
+        for (unsigned int j=0; j < keep.size(); j++) {
+            tmp[j] = cols[i][keep[j]];
+            if (tmp[j]=='N' || tmp[j] != tmp[0]) variant=true;
+        }
+        tmp[keep.size()] = '\0';
+        delete [] cols[i];
+        if (variant) {
+            new_cols.push_back(tmp);
+            new_positions.push_back(positions[i]);
+        } else delete [] tmp;
+    }
+    cols = new_cols;
+    positions = new_positions;
+    printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)",
+             names.size(), positions.size());
+    return 0;
+}
+
+template<>
+int Sites::remove_overlapping(const TrackNullValue &track) {
+    for (int i=positions.size()-1; i >= 0; i--) {
+        if (track.index(positions[i]) != -1) {
+            positions.erase(positions.begin() + i);
+            cols.erase(cols.begin() + i);
+        }
+    }
+    return 0;
+}
+
 
 template<>
 void apply_mask_sequences<NullValue>(Sequences *sequences,
@@ -394,6 +441,32 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
             sites->append(i, col);
         }
     }
+}
+
+
+bool Sequences::get_non_singleton_snp(vector<bool> &nonsing) {
+    if (seqs.size() == 0) return false;
+    for (int i=0; i < seqlen; i++) {
+        char allele[4]={'N','N','N','N'};
+        int count[4]={0,0,0,0};
+        for (unsigned int j=0; j < seqs.size(); j++) {
+            char c = seqs[j][i];
+            if (c == 'N') continue;
+            for (int k=0; k < 4; k++) {
+                if (allele[k] == 'N')
+                    allele[k] = c;
+                if (allele[k] == c) {
+                    count[k]++;
+                    break;
+                }
+            }
+        }
+        int total = 0;
+        for (int k=0; k < 4; k++)
+            total += (count[k] > 1);
+        nonsing[i] = (total >= 2);
+    }
+    return true;
 }
 
 void Sequences::set_pairs_by_name() {
@@ -476,19 +549,30 @@ void Sequences::set_pairs(const ArgModel *mod) {
 }
 
 void PhaseProbs::sample_phase(int *thread_path) {
-  int count=0;
-  if (probs.size() == 0)
-    return;
-  for (map<int,vector<double> >::iterator it=probs.begin(); it != probs.end();
+    int sing_tot=0, sing_switch=0, non_sing_tot=0, non_sing_switch=0;
+    if (probs.size() == 0)
+        return;
+    for (map<int,vector<double> >::iterator it=probs.begin(); it != probs.end();
        it++) {
-    int coord = it->first;
-    vector<double> prob = it->second;
-    if (frand() > prob[thread_path[coord]]) {
-      seqs->switch_alleles(coord, hap1, hap2);
-      count++;
+        int coord = it->first;
+        vector<double> prob = it->second;
+        if (seqs->seqs[hap1][coord] != seqs->seqs[hap2][coord]) {
+            if (frand() > prob[thread_path[coord]]) {
+                seqs->switch_alleles(coord, hap1, hap2);
+                if (non_singleton_snp[coord])
+                    non_sing_switch++;
+                else sing_switch++;
+            }
+            if (non_singleton_snp[coord])
+                non_sing_tot++;
+            else sing_tot++;
+        }
     }
-  }
-  printLog(LOG_LOW, "sample_phase %i %i size=%i frac_switch=%f\n", hap1, hap2, (int)probs.size(), (double)count/probs.size());
+    printLog(LOG_LOW, "sample_phase %s %s size=%i %i frac_switch=%f %f\n",
+             seqs->names[hap1].c_str(), seqs->names[hap2].c_str(),
+             sing_tot, non_sing_tot,
+             (double)sing_switch/sing_tot,
+             (double)non_sing_switch/non_sing_tot);
 }
 
 void Sequences::randomize_phase(double frac) {
@@ -506,9 +590,60 @@ void Sequences::randomize_phase(double frac) {
           }
         }
       }
-      printLog(LOG_LOW, "switched %i of %i (%f)\n", count, total, (double)count/(double)total);
-    }
+      printLog(LOG_LOW, "switched %i of %i (%f)\n", count, total,
+	       (double)count/(double)total);
+}
 
+
+void Sequences::set_age() {
+    int nseqs = names.size();
+    ages.resize(nseqs, 0);
+    real_ages.resize(nseqs, 0);
+}
+
+void Sequences::set_age(string agefile, int ntimes, const double *times) {
+    char currseq[1000];
+    FILE *infile = fopen(agefile.c_str(), "r");
+    double time;
+    int nseqs=names.size();
+    if (infile == NULL) {
+	fprintf(stderr, "Error opening %s\n", agefile.c_str());
+	exit(-1);
+    }
+    ages.resize(nseqs, 0);
+    real_ages.resize(nseqs, 0);
+    while (EOF != fscanf(infile, "%s %lf", currseq, &time)) {
+	bool found=false;
+	for (int i=0; i < nseqs; i++) {
+	    if (strcmp(names[i].c_str(), currseq)==0) {
+		real_ages[i] = time;
+
+		// choose the discrete time interval closest to the real time
+		double mindif = fabs(times[0] - time);
+		int whichmin=0;
+		for (int j=1; j < ntimes-1; j++) {
+		    double tempdif = fabs(times[j]-time);
+		    if (tempdif < mindif) {
+			whichmin=j;
+			mindif = tempdif;
+		    }
+		    if (times[j] > time) break;
+		}
+		ages[i] = whichmin;
+                printLog(LOG_LOW, "rounded age for sample %s to %f\n",
+                         currseq, times[whichmin]);
+		found=true;
+		break;
+	    }
+	}
+	if (!found) {
+	    fprintf(stderr,
+		    "WARNING: could not find sequence %s (from %s) in sequences\n",
+		    currseq, agefile.c_str());
+	}
+    }
+    fclose(infile);
+}
 
 // Compress the sites by a factor of 'compress'.
 //
@@ -615,11 +750,27 @@ void compress_sites(Sites *sites, const SitesMapping *sites_mapping)
 void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping)
 {
     const int ncols = sites->cols.size();
+    if (ncols > (int)sites_mapping->old_sites.size() ||
+        sites_mapping->old_sites.size() != sites_mapping->new_sites.size()) {
+        fprintf(stderr, "Error; uncompress_sites got incompatible sites_mapping\n");
+        abort();
+    }
     sites->start_coord = sites_mapping->old_start;
     sites->end_coord = sites_mapping->old_end;
 
-    for (int i=0; i<ncols; i++)
-        sites->positions[i] = sites_mapping->old_sites[i];
+    unsigned int j=0;
+    for (int i=0; i<ncols; i++) {
+        while (sites_mapping->new_sites[j] != sites->positions[i]) {
+            j++;
+            if (j == sites_mapping->new_sites.size()) {
+                fprintf(stderr,
+                        "Error; could not find position %i in sites mapping\n",
+                         sites->positions[i]);
+                abort();
+            }
+        }
+        sites->positions[i] = sites_mapping->old_sites[j];
+    }
 }
 
 
@@ -759,6 +910,10 @@ PhaseProbs::PhaseProbs(int _hap1, int _treemap1, Sequences *_seqs,
   if (hap2 != -1) {
     updateTreeMap2(trees);
   } else treemap2 = -1;
+  if (seqs->get_num_seqs() > 0) {
+      non_singleton_snp = vector<bool>(seqs->length());
+      seqs->get_non_singleton_snp(non_singleton_snp);
+  }
 }
 
 
