@@ -519,6 +519,11 @@ int main(int argc, char **argv)
     // get likelihod
     printLog(LOG_LOW, "\n");
 
+    if (c.region == "" && c.regions_bed_file == "") {
+        char tmp[1000];
+        sprintf(tmp, "%i-%i", sites.start_coord+1, sites.end_coord);
+        c.region = string(tmp);
+    }
     if (c.region != "") {
         int start, end;
         if (!parse_region(c.region.c_str(), &start, &end)) {
