@@ -83,7 +83,7 @@ void resample_arg(const ArgModel *model, Sequences *sequences,
     const int nleaves = trees->get_num_leaves();
 
     // cycle through chromosomes
-    
+
     for (int chrom=0; chrom<nleaves; chrom++)
 	resample_arg_leaf(model, sequences, trees, chrom);
 }
@@ -123,7 +123,7 @@ void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
     if (model->unphased)
         phase_pr = new PhaseProbs(trees->seqids[node], node,
                                   sequences, trees, model);
-    sample_arg_thread_internal(model, sequences, trees, 
+    sample_arg_thread_internal(model, sequences, trees,
 			       sequences->ages[trees->seqids[node]], phase_pr);
     if (model->unphased)
         delete phase_pr;
@@ -200,7 +200,18 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
             int val = irand(mig_times.size()+1);
             if (val < (int)mig_times.size()) {
                 time_interval = mig_times[val];
-                hap = irand(trees->get_num_leaves());
+                // identify lineages that can migrate between
+                // time_interval and time_interval+1 and pick one
+                // at random (uniformly)
+                vector<int> possible_haps;
+                for (int i=0; i < trees->get_num_leaves(); i++) {
+                    int start_pop = sequences->get_pop(i);
+                    if (model->pop_tree->num_sub_path[0][time_interval][start_pop]
+                        < model->pop_tree->num_sub_path[0][time_interval+1][start_pop])
+                        possible_haps.push_back(i);
+                }
+                assert(possible_haps.size() > 0);
+                hap = possible_haps[irand(possible_haps.size())];
             }
         }
         if (time_interval >= 0) {

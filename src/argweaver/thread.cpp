@@ -1093,10 +1093,10 @@ void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
          it != trees->end(); ++it) {
         LocalTree *tree = it->tree;
         int node = hap;
-        assert(tree->nodes[node].age == 0);
+        assert(tree->nodes[node].age <= time_interval);
         while (node != tree->root) {
             assert(tree->nodes[node].age <= time_interval);
-        int parent = tree->nodes[node].parent;
+            int parent = tree->nodes[node].parent;
             if (tree->nodes[parent].age > time_interval)
                 break;
             node = parent;
