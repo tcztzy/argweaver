@@ -74,14 +74,14 @@ public:
         config.add(new ConfigParam<string>
                    ("-o", "--output", "<outfile>", &outfile_name,
                     "likelihood.bed",
-                    "outfile for likelihoods (bed format)"));
+                    "outfile for likelihoods (bed format; default=likelihood.bed)"));
         config.add(new ConfigParam<string>
                    ("-a", "--arg", "<SMC file>", &arg_file, "",
-                    "initial ARG file (*.smc) for resampling (optional)"));
+                    "initial ARG file (*.smc) for resampling"));
         config.add(new ConfigParam<string>
                    ("", "--region", "<start>-<end>",
                     &region, "",
-                    "sample ARG for only a region of the sites (optional)"));
+                    "sample ARG for only a region of the sites"));
         config.add(new ConfigParam<int>
                    ("", "--rep", "<MCMC_rep>",
                     &mcmc_rep, 0,
@@ -89,7 +89,7 @@ public:
         config.add(new ConfigParam<string>
                    ("", "--region-bed", "<regions.bed>", &regions_bed_file, "",
                     "(alternative to --region) Bed file containing regions to"
-                    "compute likelihood"));
+                    " compute likelihood"));
         config.add(new ConfigParam<string>
                    ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
@@ -351,7 +351,7 @@ int main(int argc, char **argv)
 
 
     if (c.sites_file == "") {
-        printError("Error: Require --sites-file");
+        printError("Error: Require --sites");
         return EXIT_ERROR;
     }
     // read sites file
