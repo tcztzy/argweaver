@@ -1733,19 +1733,6 @@ double calc_recoal(
                        (2.0 * model->popsizes[coal_pop][2*j])
                        - Z);
     }
-
-    // asserts
-    if (ncoals_j <= 0) {
-        assert(false);
-        return 0.0;
-        printError("counts %d %d %e\n",
-                   ncoals_j, nbranches_j, p);
-    }
-    assert(!isnan(p) && p>0);
-    /*    printf("%i calc_recoal %e %i %i %i %i %i %i %i\n", function_count++, p, a, k, j,
-           nbranches_j, ncoals_j, b1, over); fflush(stdout);
-    printf("j=%i minage=%i rpa=%i nb=%i int=%i\n",
-    j, minage, recomb_parent_age, nbranches[2*j-1], internal);*/
     return p;
 }
 

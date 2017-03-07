@@ -66,6 +66,7 @@ public:
             for (int i=0; i < nseqs; i++)
                 pops[i] = sequences->pops[i];
         }
+	ages = sequences->ages;
     }
 
     ~Sequences()
@@ -199,6 +200,9 @@ public:
     }
 
 
+    void set_age(string agefile, int ntimes, const double *times);
+    void set_age();
+
     int get_pair(int i) {
 	if ((int)pairs.size() < i) return -1;
 	return pairs[i];
@@ -220,6 +224,8 @@ public:
     vector <int> pops;
     vector <int> pairs; // index of diploid pair partner
     vector <bool> non_singleton_snp;  //true if snp w frequency > 1
+    vector <int> ages; // set to non-zero for ancient samples
+    vector <double> real_ages;
 
 protected:
     int seqlen;

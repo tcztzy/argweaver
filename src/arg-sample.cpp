@@ -106,6 +106,12 @@ public:
                     " <rank>.smc.gz to --arg option (if given)"));
 #endif
 
+	config.add(new ConfigParam<string>
+		   ("", "--age-file", "<age file>", &age_file,
+		    " file giving age for any ancient samples (two-columns, "
+		    " first column is sample name, second age in generations)."
+		    " Age will be rounded to nearest discrete time point in"
+		    " the model, with a maximum of the second-to-oldest point."));
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
         config.add(new ConfigParam<string>
@@ -375,6 +381,7 @@ public:
     string arg_file;
     string cr_file;
     string subregion_str;
+    string age_file;
 
     // model parameters
     string popsize_str;
@@ -890,7 +897,7 @@ bool read_init_arg(const char *arg_file, const ArgModel *model,
 // sampling methods
 
 // build initial arg by sequential sampling
-void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
+bool seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                     SitesMapping* sites_mapping, Config *config,
                     const TrackNullValue *maskmap_orig)
 {
@@ -903,8 +910,9 @@ void seq_sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         print_stats(config->stats_file, "seq", trees->get_num_leaves(),
                     model, sequences, trees, sites_mapping, config,
                     maskmap_orig);
-
+	return true;
     }
+    return false;
 }
 
 
@@ -1135,8 +1143,45 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         print_stats_header(config);
 
     // build initial arg by sequential sampling
-    seq_sample_arg(model, sequences, trees, sites_mapping, config,
+    bool seq_sample = seq_sample_arg(model, sequences, trees, sites_mapping, config,
                    maskmap_orig);
+
+    // re-thread any ancient samples using internal threading to make use of minage
+    if (seq_sample && sequences->ages.size() > 0) {
+	for (int i=0; i < (int)sequences->ages.size(); i++) {
+	    if (sequences->ages[i] > 0) {
+		int mintime = sequences->ages[i];
+		for (int j=0; j < trees->get_num_leaves(); j++) {
+		    if (trees->seqids[j] == i) {
+			printLog(LOG_LOW, "Re-threading ancient sample %s to set sample age %i (%.1f)\n",
+				 sequences->names[i].c_str(), mintime,
+				 model->times[mintime]);
+			resample_arg_leaf(model, sequences, trees, j);
+			assert(trees->seqids[j] == i);  //not sure this is true after re-threading
+
+			for (LocalTrees::iterator it=trees->begin();
+			     it != trees->end(); ++it) {
+
+			    if (it->spr.recomb_node == j && it->spr.recomb_time < mintime) {
+				assert(it->spr.coal_time >= mintime);
+				it->spr.recomb_time = mintime;
+			    }
+			    if (it->spr.coal_node == j && it->spr.coal_time < mintime)
+				it->spr.coal_time = mintime;
+
+			    LocalTree *tree = it->tree;
+			    if (tree->nodes[tree->nodes[j].parent].age < mintime) {
+				assert(0);
+			    }
+			    tree->nodes[j].age = mintime;
+			}
+
+			break;
+		    }
+		}
+	    }
+	}
+    }
 
     if (config->resample_region[0] != -1) {
         // region sampling
@@ -1601,7 +1646,11 @@ int main(int argc, char **argv)
     if (c.infsites)
         c.model.infsites_penalty = infsites_penalty;
 
-    // setup phasing optinos
+    if (c.age_file != "")
+	sequences.set_age(c.age_file, c.model.ntimes, c.model.times);
+    else sequences.set_age();
+
+    // setup phasing options
     if (c.unphased_file != "")
         c.model.unphased_file = c.unphased_file;
     sequences.set_pairs(&c.model);

@@ -308,7 +308,6 @@ class ArgModel
         popsizes = NULL;
     }
 
-
  public:
     // Copy parameters from another model
     void copy(const ArgModel &other);
@@ -380,7 +379,7 @@ class ArgModel
         times = new double [ntimes];
         for (int i=0; i < ntimes; i++)
             times[i] = tmp[i];
-        setup_time_steps();
+        setup_time_steps(true);
     }
 
     void set_popsizes(double *_popsizes) {

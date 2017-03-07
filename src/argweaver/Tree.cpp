@@ -137,13 +137,26 @@ Tree::Tree(string newick, const ArgModel *model)
             nodes[i]->parent->addChild(nodes[i]);
         }
     }
-    ExtendArray<Node*> postnodes;
-    getTreePostOrder(this, &postnodes);
-    for (int i=0; i < postnodes.size(); i++) {
-        if (postnodes[i]->nchildren == 0)
-            postnodes[i]->age = 0.0;
-        else postnodes[i]->age = postnodes[i]->children[0]->age +
-                 postnodes[i]->children[0]->dist;
+    // do not assume a molecular clock! But assume that some samples have age 0, set
+    // the age of the root to max distance from leaf to root, and all other ages accordingly
+    ExtendArray<Node*> prenodes;
+    getTreePreOrder(this, &prenodes);
+    double maxage = 0.0;
+    for (int i=0; i < prenodes.size(); i++) {
+	if (prenodes[i]->nchildren==0) {
+	    double tmpage=0.0;
+	    Node *tmpnode = prenodes[i];
+	    while (tmpnode->parent != NULL) {
+		tmpage += tmpnode->dist;
+		tmpnode = tmpnode->parent;
+	    }
+	    if (tmpage > maxage) maxage=tmpage;
+	}
+    }
+    assert(prenodes[0] == root);
+    root->age = maxage;
+    for (int i=1; i < prenodes.size(); i++) {
+	prenodes[i]->age = prenodes[i]->parent->age - prenodes[i]->dist;
     }
     if (model != NULL)
         this->correct_times(model, 1);

@@ -162,14 +162,14 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
 // Returns the number of possible coalescing states for a tree
 // NOTE: is not accurate for multiple populations; but currently only used
 // for logging purposes
-int get_num_coal_states_external(const LocalTree *tree, int ntimes)
+int get_num_coal_states_external(const LocalTree *tree, int ntimes, int minage)
 {
     int nstates = 0;
     const LocalNode *nodes = tree->nodes;
 
     // iterate over the branches of the tree
     for (int i=0; i<tree->nnodes; i++) {
-        int time = nodes[i].age;
+        int time = max(minage, nodes[i].age);
         const int parent = nodes[i].parent;
 
         if (parent == -1) {

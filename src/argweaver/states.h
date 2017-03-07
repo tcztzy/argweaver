@@ -125,10 +125,11 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
 // actual states used. However these functions are currently only used for
 // logging purposes.
 int get_num_coal_states(const LocalTree *tree, int ntimes, bool internal=false);
-int get_num_coal_states_external(const LocalTree *tree, int ntimes);
-int get_num_coal_states_internal(const LocalTree *tree, int ntimes,
-                                 int minage=0);
+int get_num_coal_states_external(const LocalTree *tree, int ntimes,
+				 int minage=0);
 
+int get_num_coal_states_internal(const LocalTree *tree, int ntimes,
+				 int minage=0);
 
  int find_state(const States &states, const State target, const ArgModel *model,
                 int minage);
