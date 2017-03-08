@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <vector>
 
 #include "t2exp.h"
 
@@ -242,6 +243,26 @@ inline void shuffle(T *list, int size)
         list[j] = tmp;
     }
 }
+
+
+//sample m numbers in 0..n-1 without replacement
+// returns UN-sorted vector
+vector<int> inline SampleWithoutReplacement(int m, int n) {
+    vector<int> rv;
+    int max = n;
+    for (int i=0; i < m; i++) {
+        int val = frand()*max;
+        assert(val >= 0 && val < max);
+        for (int j=0; j < i; j++) {
+            if (val >= rv[j]) val++;
+        }
+        for (int j=0; j < i; j++)
+            assert(rv[j] != val);
+        rv.push_back(i);
+    }
+    return rv;
+}
+
 
 /*
 inline double logadd(double lna, double lnb)
