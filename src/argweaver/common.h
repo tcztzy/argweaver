@@ -218,6 +218,19 @@ inline double expovariate(double lambda)
 { return -log(frand()) / lambda; }
 
 
+inline int rand_poisson(double rate) {
+    double l = exp(-rate);
+    int k=0;
+    double p=1;
+    while (true) {
+        k++;
+        p *= frand();
+        if (p <= l) break;
+    }
+    return k-1;
+}
+
+
 // shuffle array
 template<class T>
 inline void shuffle(T *list, int size)
