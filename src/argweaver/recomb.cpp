@@ -1,4 +1,4 @@
-
+#include <algorithm>
 #include "local_tree.h"
 #include "matrices.h"
 
@@ -393,26 +393,28 @@ void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
             }
         }
         assert(total_prob >= 0.0 && total_prob <= 1.0);
-        for (int i=start; i < end - 1; i++) {
-            int next_recomb = min( i + int(expovariate(total_prob)), end);
-            if (next_recomb < i) next_recomb=end;  //underflow due to total_prob very small
-            if (next_recomb < end - 1) {
-                double r = frand(total_prob);
-                total_prob = 0.0;
-                bool found=false;
-                for (unsigned int j=0; j < possible_recombs.size(); j++) {
-                    total_prob += recomb_probs[j];
-                    if (r <= total_prob) {
-                        recombs.push_back(possible_recombs[j]);
-                        found=true;
-                        break;
-                    }
+        double pois_rate = total_prob * (double)(end - 1 - start);
+        int curr_num_recomb = min(rand_poisson(pois_rate), end - 1 - start);
+        if (curr_num_recomb == 0) continue;
+        for (int i = 0; i < curr_num_recomb; i++) {
+            double r = frand(total_prob);
+            double val = 0.0;
+            bool found=false;
+            for (unsigned int j=0; j < possible_recombs.size(); j++) {
+                val += recomb_probs[j];
+                if (r <= val) {
+                    recombs.push_back(possible_recombs[j]);
+                    found=true;
+                    break;
                 }
-                assert(found);
-                recomb_pos.push_back(next_recomb);
             }
-            i = next_recomb;
+            assert(found);
         }
+        vector<int> tmp = SampleWithoutReplacement(curr_num_recomb, end - 1 - start);
+        std::sort(tmp.begin(), tmp.end());
+        for (int i=0; i < curr_num_recomb; i++)
+            recomb_pos.push_back(tmp[i]+start);
+
     }
 }
 
