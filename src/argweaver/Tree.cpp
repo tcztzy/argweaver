@@ -187,21 +187,14 @@ void Tree::correct_times(const ArgModel *model, double tol) {
     ExtendArray<Node*> postnodes;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < postnodes.size(); i++) {
-        if (postnodes[i]->nchildren == 0) {
-            j = model->discretize_time(postnodes[i]->dist, 0, tol);
-            postnodes[i]->age = 0.0;
-            postnodes[i]->dist = model->times[j];
+        if (postnodes[i]->nchildren == 0)
+            lasttime = 0;
+        double newage = postnodes[i]->age + postnodes[i]->dist;
+        j = model->discretize_time(newage, lasttime, tol);
+        postnodes[i]->dist = age_diff(model->times[j], postnodes[i]->age);
+        if (postnodes[i]->parent != NULL)
             postnodes[i]->parent->age = model->times[j];
-            lasttime=0;
-        }
-        else {
-            double newage = postnodes[i]->age + postnodes[i]->dist;
-            j = model->discretize_time(newage, lasttime, tol);
-            postnodes[i]->dist = age_diff(model->times[j], postnodes[i]->age);
-            if (postnodes[i]->parent != NULL)
-                postnodes[i]->parent->age = model->times[j];
-            lasttime = j;
-        }
+        lasttime = j;
     }
 }
 
