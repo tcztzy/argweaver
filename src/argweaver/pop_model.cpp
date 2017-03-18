@@ -243,6 +243,18 @@ void PopulationTree::update_population_probs() {
                                                        all_paths[i].pop[t]);
         }
     }
+
+    for (int t=1; t < ntime; t++) {
+        for (int pop=0; pop < npop; pop++) {
+            double total=0.0;
+            for (int pop2=0; pop2 < npop; pop2++) {
+                total += mig_matrix[2*t-1].get(pop, pop2);
+            }
+            if (fabs(total-1.0) > 0.01) {
+                exitError("migration rates do not sum to 1\n");
+            }
+        }
+    }
 }
 
 int PopulationTree::subpath_num_mig(int path, int t1, int t2) const {
