@@ -660,6 +660,10 @@ void print_stats_header(Config *config) {
             }
         }
     }
+    if (config->model.pop_tree != NULL) {
+        for (unsigned int i=0; i < config->model.pop_tree->mig_params.size(); i++)
+            fprintf(config->stats_file, "\t%s", config->model.pop_tree->mig_params[i].name.c_str());
+    }
     fprintf(config->stats_file, "\n");
 }
 
@@ -737,6 +741,13 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
         for (int pop=0; pop < model->num_pops(); pop++)
             for (int i=0; i < model->ntimes-1; i++)
                 fprintf(stats_file, "\t%f", model->popsizes[pop][2*i]);
+    }
+    if (model->pop_tree != NULL) {
+        for (unsigned int i=0; i < model->pop_tree->mig_params.size(); i++) {
+            MigParam mp = model->pop_tree->mig_params[i];
+            fprintf(stats_file, "\t%e",
+                    model->pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop, mp.to_pop));
+        }
     }
     fprintf(stats_file, "\n");
     fflush(stats_file);
@@ -1094,6 +1105,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 	}
 
 
+
             // TODO: implement popsize updates
             /*	if (config->popsize_em > 0 && i % config->popsize_em == 0)
 	    mle_popsize(model, trees, config->popsize_em_min_event);
@@ -1115,6 +1127,12 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                                             invisible_recomb_pos,
                                             invisible_recombs);
         }
+
+        if (model->pop_tree != NULL) {
+            resample_migrates(model, trees, invisible_recomb_pos,
+                              invisible_recombs);
+        }
+
 
         // logging
         print_stats(config->stats_file, "resample", i, model, sequences, trees,
