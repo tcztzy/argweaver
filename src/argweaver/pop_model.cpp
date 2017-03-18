@@ -554,7 +554,7 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     int ntimes = pop_tree->model->ntimes;
     double time_steps[2*ntimes-1];
     int npop=-1;
-    int last_mig_from_pop=-1, last_mig_to_pop, last_mig_tidx;
+    int last_mig_from_pop=-1, last_mig_to_pop=-1, last_mig_tidx=-1;
     time_steps[0] = 0.0;
     for (int i=1; i < 2*ntimes-1; i++)
         time_steps[i] = time_steps[i-1] + pop_tree->model->coal_time_steps[i-1];
