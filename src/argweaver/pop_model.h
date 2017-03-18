@@ -47,6 +47,9 @@ class PopulationPath {
         return false;
     }
     void set(int time, int t_pop, double currprob=1.0) {
+        assert(currprob > -1.0e-8 && currprob < 1.0000001);
+        if (currprob < 0) currprob=0.0;
+        if (currprob > 1) currprob=1.0;
         pop[time] = t_pop;
         prob *= currprob;
     }
