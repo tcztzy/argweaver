@@ -60,6 +60,22 @@ class PopulationPath {
     vector<int> pop;
 };  /* class PopulationPath */
 
+class MigParam {
+ public:
+    MigParam(char *cname, double mean, double sd, int time_idx,
+             int from_pop, int to_pop) :
+       mean(mean), time_idx(time_idx), from_pop(from_pop), to_pop(to_pop) {
+         var = sd*sd;
+         name = string(cname);
+     }
+     string name;
+     double mean;
+     double var;
+     int time_idx;
+     int from_pop;
+     int to_pop;
+};
+
 
 /* Represents the migration matrix for a single time period.
    Is simply a two-dimensional matrix giving the probability of
@@ -89,13 +105,22 @@ class MigMatrix {
     void set(int from_pop, int to_pop, double val) {
         mat[from_pop * npop + to_pop] = val;
     }
+    void setEstimate(int from_pop, int to_pop, bool val) {
+        estimate[from_pop * npop + to_pop] = val;
+    }
+    bool getEstimate(int from_pop, int to_pop) {
+        return estimate[from_pop * npop + to_pop];
+    }
     void update(int from_pop, int to_pop, double val) {
         set(from_pop, to_pop, val);
         set(from_pop, from_pop, 1.0-val);
     }
     void resize(int new_npop) {
         if (new_npop != npop) {
-            if (npop > 0) delete [] mat;
+            if (npop > 0) {
+                delete [] mat;
+                delete [] estimate;
+            }
             npop = new_npop;
             init();
         }
@@ -103,16 +128,22 @@ class MigMatrix {
     double get(int from_pop, int to_pop) const {
         return mat[from_pop * npop + to_pop];
     }
-
+    //    void addEstimate(MigParam mp,
     int npop;
     double *mat;
+    bool *estimate;
+    vector<MigParam> params;
 
  protected:
     void init() {
         if (npop > 0) {
             mat = new double[npop*npop]();
-            for (int i=0; i < npop; i++)
+            estimate = new bool[npop*npop]();
+            for (int i=0; i < npop; i++) {
                 set(i, i, 1.0);
+            }
+            for (int i=0; i < npop*npop; i++)
+                estimate[i] = false;
         }
     }
 };
@@ -214,6 +245,7 @@ class PopulationTree {
   ~PopulationTree();
   void update_npop(int new_npop);
   void add_migration(int t, int from_pop, int to_pop, double prob);
+  void estimate_migrate(MigParam mp);
   void set_up_population_paths();
   void update_population_probs();
   bool paths_equal(int path1, int path2, int t1, int t2) const;
@@ -357,6 +389,8 @@ class PopulationTree {
   // return true if there is a migration event between whole time interval
   // t and t+1
   bool has_migration(int t);
+
+  vector<MigParam> mig_params;
 
  private:
     void getAllPopulationPathsRec(PopulationPath &curpath,

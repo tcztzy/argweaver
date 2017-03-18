@@ -69,6 +69,7 @@ PopulationTree::PopulationTree(int npop, const ArgModel *model) :
     mig_matrix.resize(ntime2);
     for (int i=0; i < ntime2; i++)
         mig_matrix[i].resize(npop);
+    mig_params.clear();
     sub_paths = NULL;
     num_sub_path = NULL;
     max_matching_path_arr = NULL;
@@ -83,6 +84,7 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     //    mig_matrix.init(npop);
     //    mig_matrix.copy(other.mig_matrix);
     mig_matrix = other.mig_matrix;
+    mig_params = other.mig_params;
     sub_paths = NULL;
     num_sub_path = NULL;
     max_matching_path_arr = NULL;
@@ -148,13 +150,33 @@ void PopulationTree::add_migration(int t, int from_pop, int to_pop, double prob)
      if (t%2 != 1)
          exitError("Error: addMigration expects only odd times\n");
      if (t < 0 || t > 2 * model->ntimes - 3)
-         exitError("Error: migratation index %i out of range\n", t);
+         exitError("Error: addMigration index %i out of range\n", t);
      if (from_pop >= npop || from_pop < 0)
          exitError("Error: from_pop (%i) out of range\n", from_pop);
      if (to_pop >= npop || to_pop < 0)
          exitError("Error: to_pop (%i) out of range\n", to_pop);
      mig_matrix[t].update(from_pop, to_pop, prob);
  }
+
+
+void PopulationTree::estimate_migrate(MigParam mp) {
+    int t = mp.time_idx;
+    int from_pop = mp.from_pop;
+    int to_pop = mp.to_pop;
+    if (t%2 != 1)
+        exitError("Error: estimate_migrate expects only odd times\n");
+    if (t < 0 || t > 2 * model->ntimes - 3)
+        exitError("Error: estimate_migrate index %i out of range\n", t);
+    if (from_pop >= npop || from_pop < 0)
+        exitError("Error: from_pop (%i) out of range\n", from_pop);
+    if (to_pop >= npop || to_pop < 0)
+        exitError("Error: to_pop (%i) out of range\n", to_pop);
+    if (mig_matrix[t].getEstimate(from_pop, to_pop))
+        exitError("Error: duplicate migEst entry\n");
+    mig_matrix[t].setEstimate(from_pop, to_pop, true);
+    mig_params.push_back(mp);
+}
+
 
 int PopulationTree::max_matching_path(int path1, int path2, int t) const {
     /*    static int mult1 = all_paths.size() * model->ntimes;
@@ -255,7 +277,8 @@ void PopulationTree::getAllPopulationPathsRec(PopulationPath &curpath,
     bool called=false;
     for (int next_pop=0; next_pop < npop; next_pop++) {
         double prob = mig_matrix[t].get(cur_pop, next_pop);
-        if (prob > 0.0) {
+        bool est = mig_matrix[t].getEstimate(cur_pop, next_pop);
+        if (est || prob > 0.0) {
             if (called) {
                 PopulationPath newpath(curpath);
                 newpath.set(cur_time + 1, next_pop, prob);
@@ -531,6 +554,7 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     int ntimes = pop_tree->model->ntimes;
     double time_steps[2*ntimes-1];
     int npop=-1;
+    int last_mig_from_pop=-1, last_mig_to_pop, last_mig_tidx;
     time_steps[0] = 0.0;
     for (int i=1; i < 2*ntimes-1; i++)
         time_steps[i] = time_steps[i-1] + pop_tree->model->coal_time_steps[i-1];
@@ -554,16 +578,32 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
             bool is_mig=(strcmp(str, "mig")==0);
             if (3 != fscanf(infile, "%lf %i %i", &tgen, &from_pop, &to_pop))
                 exitError("Premature end of population file\n");
+            int tidx = get_closest_half_time(tgen, time_steps, 2*ntimes-1);
             if (is_mig) {
                 if (1 != fscanf(infile, "%lf", &prob))
                     exitError("Premature end of population file\n");
+                last_mig_from_pop = from_pop;
+                last_mig_to_pop = to_pop;
+                last_mig_tidx = tidx;
             }
-            int tidx = get_closest_half_time(tgen, time_steps, 2*ntimes-1);
             if (fabs(tgen - time_steps[tidx]) > 1)
                 printLog(LOG_LOW, "Using time %f instead of %f for %s event in "
                          "popfile\n",
                          time_steps[tidx], tgen, str);
             pop_tree->add_migration(tidx, from_pop, to_pop, prob);
+        } else if (strcmp(str, "migEstimate")==0) {
+            char paramName[1000];
+            double paramMean, paramSd;
+            if (3 != fscanf(infile, "%s %lf %lf", paramName, &paramMean, &paramSd)) {
+                exitError("Expect three values after migEstimate in population file\n");
+            }
+            MigParam mp(paramName, paramMean, paramSd, last_mig_tidx,
+                        last_mig_from_pop, last_mig_to_pop);
+            assert(last_mig_from_pop != -1);
+            pop_tree->estimate_migrate(mp);
+
+        } else {
+            exitError("Unknown tag '%s' in population file", str);
         }
         bool incomment=false;
         while ('\n' != (c=fgetc(infile)) && c != EOF) {
