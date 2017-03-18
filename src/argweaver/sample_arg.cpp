@@ -821,6 +821,7 @@ void resample_migrates(ArgModel *model,
             model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
                                                          mp.from_pop,
                                                          curr_self_rate);
+            model->pop_tree->update_population_probs();
             //            printf("reject %e over %e mh=%e\n", new_migrate, curr_migrate, mh);
         }
     }
