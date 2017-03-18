@@ -132,7 +132,6 @@ class MigMatrix {
     int npop;
     double *mat;
     bool *estimate;
-    vector<MigParam> params;
 
  protected:
     void init() {
