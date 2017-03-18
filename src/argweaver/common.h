@@ -149,6 +149,11 @@ inline double rand_exp(double b) {
 }
 
 
+ inline double ln_gamma_pdf(double x, double k, double theta) {
+     return(-lgamma(k) - k*log(theta) + (k-1)*log(x) - x/theta);
+ }
+
+
 /* make a draw from a gamma distribution with parameters 'a' and
  * 'b'. Be sure to call srandom externally.  If a == 1, exp_draw is
  * called.  If a > 1, Best's (1978) rejection algorithm is used, and
