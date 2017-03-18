@@ -47,9 +47,6 @@ class PopulationPath {
         return false;
     }
     void set(int time, int t_pop, double currprob=1.0) {
-        assert(currprob > -1.0e-8 && currprob < 1.0000001);
-        if (currprob < 0) currprob=0.0;
-        if (currprob > 1) currprob=1.0;
         pop[time] = t_pop;
         prob *= currprob;
     }
@@ -106,6 +103,9 @@ class MigMatrix {
         std::copy(other.mat, other.mat + pop*pop, mat);
         }*/
     void set(int from_pop, int to_pop, double val) {
+        assert(val > -1.0e-8 && val < 1.0000001);
+        if (val < 0) val=0.0;
+        if (val > 1) val=1.0;
         mat[from_pop * npop + to_pop] = val;
     }
     void setEstimate(int from_pop, int to_pop, bool val) {
