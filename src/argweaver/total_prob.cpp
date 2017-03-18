@@ -371,8 +371,6 @@ double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
             }
 	}
     }
-    assert(!isinf(lnl));
-    assert(!isnan(lnl));
     return lnl;
 }
 
@@ -512,8 +510,6 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
             ++it;
         }
     }
-    assert(!isnan(lnl));
-    assert(!isinf(lnl));
     return lnl;
  }
 
