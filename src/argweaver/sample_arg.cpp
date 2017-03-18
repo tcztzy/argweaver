@@ -795,23 +795,26 @@ void resample_migrates(ArgModel *model,
         model->pop_tree->update_population_probs();
         double newPrior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
                                          invisible_recomb_pos, invisible_recombs);
+        bool accept=false;
+        if (!isinf(newPrior)) {
+            double new_proposal_k = (new_migrate*new_migrate/(target_sd*target_sd));
+            double new_proposal_theta = new_migrate/new_proposal_k;
 
-        double new_proposal_k = (new_migrate*new_migrate/(target_sd*target_sd));
-        double new_proposal_theta = new_migrate/new_proposal_k;
+            // probability of forward direction proposal
+            double ln_proposal_prob = ln_gamma_pdf(new_migrate, proposal_k, proposal_theta);
+            double ln_proposal_prob2 = ln_gamma_pdf(curr_migrate, new_proposal_k, new_proposal_theta);
 
-        // probability of forward direction proposal
-        double ln_proposal_prob = ln_gamma_pdf(new_migrate, proposal_k, proposal_theta);
-        double ln_proposal_prob2 = ln_gamma_pdf(curr_migrate, new_proposal_k, new_proposal_theta);
+            double new_param_prior = ln_gamma_pdf(new_migrate, mp.mean*mp.mean/mp.var,
+                                                  mp.var/mp.mean);
+            double curr_param_prior = ln_gamma_pdf(curr_migrate, mp.mean*mp.mean/mp.var,
+                                                   mp.var/mp.mean);
+            //MH acceptance ratio;
+            double mh = newPrior - oldPrior + ln_proposal_prob2 - ln_proposal_prob
+                + new_param_prior - curr_param_prior;
+            accept = (mh > 0 || frand() < exp(mh));
 
-        double new_param_prior = ln_gamma_pdf(new_migrate, mp.mean*mp.mean/mp.var,
-                                              mp.var/mp.mean);
-        double curr_param_prior = ln_gamma_pdf(curr_migrate, mp.mean*mp.mean/mp.var,
-                                               mp.var/mp.mean);
-
-        //MH acceptance ratio;
-        double mh = newPrior - oldPrior + ln_proposal_prob2 - ln_proposal_prob
-            + new_param_prior - curr_param_prior;
-        if (mh > 0 || frand() < exp(mh)) {
+        }
+        if (accept) {
             //            printf("accept %e from %e mh=%e\n", new_migrate, curr_migrate, mh);
             oldPrior = newPrior;
         } else {
