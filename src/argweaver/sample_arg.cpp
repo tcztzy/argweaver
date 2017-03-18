@@ -770,8 +770,6 @@ void resample_migrates(ArgModel *model,
     if (model->pop_tree == NULL) return;
     for (unsigned int i=0; i < model->pop_tree->mig_params.size(); i++) {
         MigParam mp = model->pop_tree->mig_params[i];
-        printf("Estimate param %s\n", mp.name.c_str());
-
         double curr_migrate = model->pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop,
                                                                            mp.to_pop);
         double proposal_k = (curr_migrate*curr_migrate/(target_sd*target_sd));
