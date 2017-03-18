@@ -161,7 +161,9 @@ inline double rand_exp(double b) {
  * performed, both as described in "Non-Uniform Random Variate
  * Generation" by Luc Devroye, available online at
  * http://cgm.cs.mcgill.ca/~luc/rnbookindex.html */
-
+// NOTE: "a" and "b" refer to parameters "k" and "theta"
+// as described on Wikipedia, so that the expected value is a*b
+// and variance is a*b*b
 inline double rand_gamma(double a, double b) {
   double retval = -1;
 
