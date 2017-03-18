@@ -783,9 +783,15 @@ void resample_migrates(ArgModel *model,
                                       invisible_recomb_pos, invisible_recombs);
         }
 
+        double diff = new_migrate - curr_migrate;
+        double curr_self_rate = model->pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop, mp.from_pop);
         model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
                                                      mp.to_pop,
                                                      new_migrate);
+        model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
+                                                     mp.from_pop,
+                                                     curr_self_rate - diff);
+
         model->pop_tree->update_population_probs();
         double newPrior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
                                          invisible_recomb_pos, invisible_recombs);
@@ -812,6 +818,9 @@ void resample_migrates(ArgModel *model,
             model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
                                                          mp.to_pop,
                                                          curr_migrate);
+            model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
+                                                         mp.from_pop,
+                                                         curr_self_rate);
             //            printf("reject %e over %e mh=%e\n", new_migrate, curr_migrate, mh);
         }
     }
