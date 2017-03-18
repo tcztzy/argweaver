@@ -1319,6 +1319,29 @@ bool parse_status_line(const char* line, const Config &config,
                 sscanf(tokens[i].c_str(), "%lf", &config.model.popsizes[pop][i]);
     }
 
+    if (config.model.pop_tree != NULL) {
+        for (unsigned int i=0; i < config.model.pop_tree->mig_params.size(); i++) {
+            MigParam mp = config.model.pop_tree->mig_params[i];
+            double migrate;
+            bool found=false;
+            for (unsigned int j=0; j < header.size(); j++) {
+                if (mp.name == header[j]) {
+                    found=true;
+                    sscanf(tokens[j].c_str(), "%lf", &migrate);
+                    config.model.pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
+                                                                       mp.to_pop,
+                                                                       migrate);
+                    config.model.pop_tree->update_population_probs();
+                    break;
+                }
+            }
+            if (!found) {
+                printError("Error resuming run; could not find mig rate estimate %s in stats file\n",
+                           mp.name.c_str());
+                abort();
+            }
+        }
+    }
     return true;
 }
 
