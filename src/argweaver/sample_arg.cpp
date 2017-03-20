@@ -769,7 +769,9 @@ void resample_migrates(ArgModel *model,
                          model, trees, &invisible_recombs, &count, &total);
         double alpha = (double)count+mp.alpha;
         double beta = (double)(total-count)+mp.beta;
-        double new_migrate = rand_beta(alpha, beta);
+        double new_migrate=1.0;
+        while (new_migrate > 0.5)
+            new_migrate = rand_beta(alpha, beta);
         double curr_migrate = model->pop_tree->mig_matrix[time_idx].get(from_pop, to_pop);
         double diff = new_migrate - curr_migrate;
         double curr_self_rate = model->pop_tree->mig_matrix[time_idx].get(from_pop, from_pop);
