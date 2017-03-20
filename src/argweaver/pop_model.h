@@ -62,15 +62,21 @@ class PopulationPath {
 
 class MigParam {
  public:
-    MigParam(char *cname, double mean, double sd, int time_idx,
+    MigParam(char *cname, double pseudoCount,
+             double pseudoCountTotal, int time_idx,
              int from_pop, int to_pop) :
-       mean(mean), time_idx(time_idx), from_pop(from_pop), to_pop(to_pop) {
-         var = sd*sd;
-         name = string(cname);
+    time_idx(time_idx), from_pop(from_pop), to_pop(to_pop) {
+        alpha = pseudoCount;
+        beta = pseudoCountTotal - pseudoCount;
+        assert(beta > 0);
+        assert(alpha > 0);
+        name = string(cname);
      }
      string name;
-     double mean;
-     double var;
+
+     // priors for beta distribution; mean of prior distribution is
+     // alpha/(alpha+beta)
+     double alpha, beta;
      int time_idx;
      int from_pop;
      int to_pop;
@@ -131,7 +137,6 @@ class MigMatrix {
     double get(int from_pop, int to_pop) const {
         return mat[from_pop * npop + to_pop];
     }
-    //    void addEstimate(MigParam mp,
     int npop;
     double *mat;
     bool *estimate;

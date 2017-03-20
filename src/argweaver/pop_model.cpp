@@ -605,11 +605,12 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
             pop_tree->add_migration(tidx, from_pop, to_pop, prob);
         } else if (strcmp(str, "migEstimate")==0) {
             char paramName[1000];
-            double paramMean, paramSd;
-            if (3 != fscanf(infile, "%s %lf %lf", paramName, &paramMean, &paramSd)) {
+            double pseudoCount, pseudoCountTotal;
+            if (3 != fscanf(infile, "%s %lf %lf", paramName,
+                            &pseudoCount, &pseudoCountTotal)) {
                 exitError("Expect three values after migEstimate in population file\n");
             }
-            MigParam mp(paramName, paramMean, paramSd, last_mig_tidx,
+            MigParam mp(paramName, pseudoCount, pseudoCountTotal, last_mig_tidx,
                         last_mig_from_pop, last_mig_to_pop);
             assert(last_mig_from_pop != -1);
             pop_tree->estimate_migrate(mp);
