@@ -770,6 +770,12 @@ public:
 //=============================================================================
 // tree functions
 
+void count_mig_events(int from_pop, int to_pop, int time_idx2,
+                      const ArgModel *model,
+                      const LocalTrees *trees,
+                      const vector<Spr> *invisible_recombs,
+                      int *count, int *total);
+
 void apply_spr(LocalTree *tree, const Spr &spr,
                const PopulationTree *pop_tree=NULL);
 double get_treelen(const LocalTree *tree, const double *times, int ntimes,

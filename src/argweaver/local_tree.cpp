@@ -265,6 +265,56 @@ double get_basal_branch(const LocalTree *tree, const double *times, int ntimes,
 }
 
 
+// time_idx2 is based on half-time intervals and should be odd,
+// since migrations occur between time intervals
+void count_mig_events(int from_pop, int to_pop,
+                      int time_idx2, const ArgModel *model,
+                      const LocalTrees *trees,
+                      const vector<Spr> *invisible_recombs,
+                      int *count, int *total) {
+    assert(time_idx2 % 2 == 1);
+    int lower_time = time_idx2 / 2;
+    int upper_time = lower_time+1;
+    *count = *total = 0;
+    LocalTree *tree = trees->front().tree;
+    for (int i=0; i < tree->nnodes; i++) {
+        if (tree->nodes[i].age <= lower_time &&
+            ( i == tree->root ||
+              tree->nodes[tree->nodes[i].parent].age >= upper_time)) {
+            if (model->get_pop(tree->nodes[i].pop_path, lower_time) == from_pop) {
+                (*total)++;
+                if (model->get_pop(tree->nodes[i].pop_path, upper_time) == to_pop) {
+                    (*count)++;
+                }
+            }
+        }
+    }
+    for (LocalTrees::const_iterator it=trees->begin(); it != trees->end(); ++it) {
+        const Spr *spr = &it->spr;
+        if (spr->is_null()) continue;
+        if (spr->recomb_time > lower_time || spr->coal_time < upper_time)
+            continue;
+        if (model->get_pop(spr->pop_path, lower_time) != from_pop)
+            continue;
+        (*total)++;
+        if (model->get_pop(spr->pop_path, upper_time) == to_pop)
+            (*count)++;
+    }
+    if (invisible_recombs == NULL) return;
+    for (unsigned int i=0; i < invisible_recombs->size(); i++) {
+        const Spr spr = (*invisible_recombs)[i];
+        if (spr.is_null()) continue;
+        if (spr.recomb_time > lower_time ||
+            spr.coal_time < upper_time) continue;
+        if (model->get_pop(spr.pop_path, lower_time) != from_pop)
+            continue;
+        (*total)++;
+        if (model->get_pop(spr.pop_path, upper_time) == to_pop)
+            (*count)++;
+    }
+}
+
+
 // modify a local tree by Subtree Pruning and Regrafting
 void apply_spr(LocalTree *tree, const Spr &spr,
                const PopulationTree *pop_tree)
