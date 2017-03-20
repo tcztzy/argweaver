@@ -755,81 +755,33 @@ double resample_arg_regions(
     return accept_rate;
 }
 
-
 void resample_migrates(ArgModel *model,
                        const LocalTrees *trees,
-                       vector<int> &invisible_recomb_pos,
                        vector<Spr> &invisible_recombs) {
-    double oldPrior=100;
-    double max_migrate = 0.5;
-
-    // this sets the proposal size
-    // proposals will be gamma distributed with a mean at the current
-    // value and a sd equal to target_sd.
-    const double target_sd = 0.01;
     if (model->pop_tree == NULL) return;
     for (unsigned int i=0; i < model->pop_tree->mig_params.size(); i++) {
         MigParam mp = model->pop_tree->mig_params[i];
-        double curr_migrate = model->pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop,
-                                                                           mp.to_pop);
-        double proposal_k = (curr_migrate*curr_migrate/(target_sd*target_sd));
-        double proposal_theta = curr_migrate/proposal_k;
-        double new_migrate = rand_gamma(proposal_k, proposal_theta);
-
-        if (new_migrate > max_migrate) continue;
-
-        if (oldPrior > 0) {
-            oldPrior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
-                                      invisible_recomb_pos, invisible_recombs);
-        }
-
+        int from_pop = mp.from_pop;
+        int to_pop = mp.to_pop;
+        int time_idx = mp.time_idx;
+        int count, total;
+        count_mig_events(from_pop, to_pop, time_idx,
+                         model, trees, &invisible_recombs, &count, &total);
+        double alpha = (double)count+mp.alpha;
+        double beta = (double)(total-count)+mp.beta;
+        double new_migrate = rand_beta(alpha, beta);
+        double curr_migrate = model->pop_tree->mig_matrix[time_idx].get(from_pop, to_pop);
         double diff = new_migrate - curr_migrate;
-        double curr_self_rate = model->pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop, mp.from_pop);
+        double curr_self_rate = model->pop_tree->mig_matrix[time_idx].get(from_pop, from_pop);
         model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
                                                      mp.to_pop,
                                                      new_migrate);
         model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
                                                      mp.from_pop,
                                                      curr_self_rate - diff);
-
         model->pop_tree->update_population_probs();
-        double newPrior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
-                                         invisible_recomb_pos, invisible_recombs);
-        bool accept=false;
-        if (!isinf(newPrior)) {
-            double new_proposal_k = (new_migrate*new_migrate/(target_sd*target_sd));
-            double new_proposal_theta = new_migrate/new_proposal_k;
-
-            // probability of forward direction proposal
-            double ln_proposal_prob = ln_gamma_pdf(new_migrate, proposal_k, proposal_theta);
-            double ln_proposal_prob2 = ln_gamma_pdf(curr_migrate, new_proposal_k, new_proposal_theta);
-
-            double new_param_prior = ln_gamma_pdf(new_migrate, mp.mean*mp.mean/mp.var,
-                                                  mp.var/mp.mean);
-            double curr_param_prior = ln_gamma_pdf(curr_migrate, mp.mean*mp.mean/mp.var,
-                                                   mp.var/mp.mean);
-            //MH acceptance ratio;
-            double mh = newPrior - oldPrior + ln_proposal_prob2 - ln_proposal_prob
-                + new_param_prior - curr_param_prior;
-            accept = (mh > 0 || frand() < exp(mh));
-
-        }
-        if (accept) {
-            //            printf("accept %e from %e mh=%e\n", new_migrate, curr_migrate, mh);
-            oldPrior = newPrior;
-        } else {
-            model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
-                                                         mp.to_pop,
-                                                         curr_migrate);
-            model->pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
-                                                         mp.from_pop,
-                                                         curr_self_rate);
-            model->pop_tree->update_population_probs();
-            //            printf("reject %e over %e mh=%e\n", new_migrate, curr_migrate, mh);
-        }
     }
 }
-
 
 /*
 // cut a branch in the ARG and resample branch

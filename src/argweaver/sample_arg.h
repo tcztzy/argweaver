@@ -80,7 +80,6 @@ int resample_arg_by_time_and_hap(
 
 void resample_migrates(ArgModel *model,
                        const LocalTrees *trees,
-                       vector<int> &invisible_recomb_pos,
                        vector<Spr> &invisible_recombs);
 
 } // namespace argweaver

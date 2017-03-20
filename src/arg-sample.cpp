@@ -1129,7 +1129,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         }
 
         if (model->pop_tree != NULL) {
-            resample_migrates(model, trees, invisible_recomb_pos,
+            resample_migrates(model, trees,
                               invisible_recombs);
         }
 
