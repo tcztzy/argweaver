@@ -1331,6 +1331,13 @@ bool parse_status_line(const char* line, const Config &config,
                     config.model.pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
                                                                        mp.to_pop,
                                                                        migrate);
+                    double self_mig=1.0;
+                    for (int k=0; k < config.model.num_pops(); k++) {
+                        if (k != mp.from_pop)
+                            self_mig -= config.model.pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop, k);
+                    }
+                    assert(self_mig > 0 && self_mig <= 1.0);
+                    config.model.pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop, mp.from_pop, self_mig);
                     config.model.pop_tree->update_population_probs();
                     break;
                 }
