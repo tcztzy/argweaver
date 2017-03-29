@@ -1720,10 +1720,15 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
 
 
 bool read_local_trees(FILE *infile, const double *times, int ntimes,
-                      LocalTrees *trees, vector<string> &seqnames)
+                      LocalTrees *trees, vector<string> &seqnames,
+                      vector<int> *invisible_recomb_pos,
+                      vector<Spr> *invisible_recombs)
 {
     const char *delim = "\t";
     char *line = NULL;
+
+    assert((invisible_recomb_pos==NULL && invisible_recombs==NULL) ||
+           (invisible_recomb_pos!=NULL && invisible_recombs!=NULL));
 
     // init tree
     seqnames.clear();
@@ -1800,6 +1805,25 @@ bool read_local_trees(FILE *infile, const double *times, int ntimes,
 
             last_tree = tree;
         } else if (strncmp(line, "SPR-INVIS", 9) == 0) {
+            if (invisible_recombs != NULL) {
+                int pos, val;
+                double recomb_time, coal_time;
+                Spr ispr;
+                ispr.pop_path = 0;
+                val = sscanf(&line[10],
+                             "%d\t%d\t%lf\t%d\t%lf\t%i",
+                             &pos, &ispr.recomb_node, &recomb_time,
+                             &ispr.coal_node, &coal_time, &ispr.pop_path);
+                if (val != 5 && val != 6) {
+                    printError("bad SPR-INVIS line (line %d)", lineno);
+                    delete [] line;
+                    return false;
+                }
+                ispr.recomb_time = find_time(recomb_time, times, ntimes);
+                ispr.coal_time = find_time(coal_time, times, ntimes);
+                invisible_recombs->push_back(ispr);
+                invisible_recomb_pos->push_back(pos);
+            }
             // for now just ignore these; could add argument to read them
             // into a separate object
         } else if (strncmp(line, "SPR", 3) == 0) {

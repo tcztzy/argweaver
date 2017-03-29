@@ -873,7 +873,9 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
 bool parse_local_tree(const char* newick, LocalTree *tree,
                       const double *times, int ntimes);
 bool read_local_trees(FILE *infile, const double *times, int ntimes,
-                      LocalTrees *trees, vector<string> &seqnames);
+                      LocalTrees *trees, vector<string> &seqnames,
+                      vector<int> *invisible_recomb_pos=NULL,
+                      vector<Spr> *invisible_recombs=NULL);
 bool read_local_trees(const char *filename, const double *times, int ntimes,
                       LocalTrees *trees, vector<string> &seqnames);
 
