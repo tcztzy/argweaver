@@ -214,6 +214,12 @@ double calc_log_tree_prior(const ArgModel *model, const LocalTree *tree,
 {
     lineages.count(tree, model->pop_tree);
     double lnl = 0.0;
+    int leaf_age_count[model->ntimes];
+    for (int i=0; i < model->ntimes; i++) leaf_age_count[i]=0;
+    for (int i=0; i <= tree->nnodes/2; i++) {
+        assert(tree->nodes[i].child[0] == -1);
+        leaf_age_count[tree->nodes[i].age]++;
+    }
 
     for (int pop=0; pop < model->num_pops(); pop++) {
         for (int i=0; i<model->ntimes-1; i++) {
@@ -223,7 +229,7 @@ double calc_log_tree_prior(const ArgModel *model, const LocalTree *tree,
                      lineages.nbranches_pop[pop][0])/2;
                 assert( a >= 0);
             } else {
-                a = lineages.nbranches_pop[pop][2*i-1];
+                a = lineages.nbranches_pop[pop][2*i-1] - leaf_age_count[i];
             }
             if (a <= 1) break;
             int b = lineages.nbranches_pop[pop][2*i];
