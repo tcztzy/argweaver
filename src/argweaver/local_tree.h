@@ -715,6 +715,7 @@ void count_lineages_internal(const LocalTree *tree, int ntimes,
                              int *nbranches, int *nrecombs,
                              int **nbranches_pop, int **ncoals_pop,
                              const PopulationTree *pop_tree);
+ void remove_population_paths(LocalTrees *trees);
 
 
 // A structure that stores the number of lineages within each time segment

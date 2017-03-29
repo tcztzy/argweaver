@@ -946,6 +946,20 @@ void append_local_trees(LocalTrees *trees, LocalTrees *trees2, bool merge,
     //assert_trees(trees2);
 }
 
+void remove_population_paths(LocalTrees *trees) {
+    for (LocalTrees::iterator it=trees->begin();
+         it != trees->end(); ++it)
+    {
+        LocalTree *tree = it->tree;
+        for (int i=0; i < tree->nnodes; i++)
+            tree->nodes[i].pop_path = 0;
+        Spr spr = it->spr;
+        if (!spr.is_null())
+            spr.pop_path = 0;
+    }
+}
+
+
 
 //=============================================================================
 // local tree alignment compression
