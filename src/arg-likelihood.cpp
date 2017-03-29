@@ -112,6 +112,11 @@ public:
                    ("-R", "--recombmap", "<recombination rate map file>",
                     &recombmap, "",
                     "recombination map file (optional)"));
+        config.add(new ConfigParam<double>
+                   ("-P", "--panmictic", "<Population size>",
+                    &panmictic_popsize, -1,
+                    "Ignore the population model and compute ARG likelihood"
+                    " under panmactic population model"));
 
         // misc
         config.add(new ConfigParamComment("Miscellaneous"));
@@ -187,6 +192,7 @@ public:
     string maskmap;
     ArgModel *model;
     int mcmc_rep;
+    double panmictic_popsize;
 
     // misc
     int randseed;
@@ -278,7 +284,9 @@ void log_prog_commands(int level, int argc, char **argv)
 // statistics output
 
 bool read_init_arg(const char *arg_file, const ArgModel *model,
-                   LocalTrees *trees, vector<string> &seqnames)
+                   LocalTrees *trees, vector<string> &seqnames,
+                   vector<int> *invisible_recomb_pos,
+                   vector<Spr> *invisible_recombs)
 {
     CompressStream stream(arg_file, "r");
     if (!stream.stream) {
@@ -286,7 +294,8 @@ bool read_init_arg(const char *arg_file, const ArgModel *model,
         return false;
     }
     return read_local_trees(stream.stream, model->times, model->ntimes,
-                            trees, seqnames);
+                            trees, seqnames,
+                            invisible_recomb_pos, invisible_recombs);
 }
 
 
@@ -297,8 +306,11 @@ void print_arg_likelihood(const ArgModel *model,
                           const LocalTrees *trees,
                           const Config *c,
                           const TrackNullValue *maskmap,
-                          const Region *region) {
-    double prior = calc_arg_prior(model, trees, NULL, NULL, region->start, region->end);
+                          const Region *region,
+                          const vector<int> &invisible_recomb_pos,
+                          const vector<Spr> &invisible_recombs) {
+    double prior = calc_arg_prior(model, trees, NULL, NULL, region->start, region->end,
+                                  invisible_recomb_pos, invisible_recombs);
     double prior2 = calc_arg_prior_recomb_integrate(model, trees);
     double posterior = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
     int noncompat = count_noncompat(trees, sequences);
@@ -308,7 +320,44 @@ void print_arg_likelihood(const ArgModel *model,
             nrecomb, noncompat);
 }
 
-
+void parse_status_file(string log_file, int mcmc_rep, ArgModel *model) {
+    char stat_filename[log_file.length()+3];
+    strcpy(stat_filename, log_file.c_str());
+    assert(strcmp(&stat_filename[strlen(stat_filename)-4], ".log")==0);
+    sprintf(&stat_filename[strlen(stat_filename)-4], ".stats");
+    FILE *stats_file;
+    if (!(stats_file = fopen(stat_filename, "r"))) {
+        fprintf(stderr, "cannot open %s\n", stat_filename);
+        exit(0);
+    }
+    char *line = NULL;
+    line = fgetline(stats_file);
+    if (!line) {
+        printError("stats file is empty");
+        exit(0);
+    }
+    chomp(line);
+    vector<string> header;
+    split(line, "\t", header);
+    delete [] line;
+    while ((line = fgetline(stats_file))) {
+        vector<string> tokens;
+        split(line, "\t", tokens);
+        assert(tokens.size() == header.size());
+        if (tokens[0] != "resample") continue;
+        int iter;
+        if (sscanf(tokens[1].c_str(), "%d", &iter) != 1) {
+            printError("Error getting iter from stat file\n");
+            assert(0);
+        }
+        if (iter != mcmc_rep) continue;
+        model->init_params_from_statfile(header, line);
+        fclose(stats_file);
+        return;
+    }
+    printError("Did not find rep %i in stats file\n", mcmc_rep);
+    exit(0);
+}
 
 
 
@@ -437,6 +486,15 @@ int main(int argc, char **argv)
         return EXIT_ERROR;
     }
     c.model = new ArgModel(c.log_file.c_str());
+    parse_status_file(c.log_file, c.mcmc_rep, c.model);
+    if (c.panmictic_popsize > 0) {
+        if (c.model->pop_tree != NULL) {
+            delete(c.model->pop_tree);
+            c.model->pop_tree = NULL;
+        }
+        c.model->free_popsizes();
+        c.model->set_popsizes(c.panmictic_popsize);
+    }
     // log model has compressed rates so un-compress them; they
     // will later be re-compressed
     int old_compress = get_compress_from_logfile(c.log_file);
@@ -475,7 +533,10 @@ int main(int argc, char **argv)
     trees = new LocalTrees();
     trees_ptr = auto_ptr<LocalTrees>(trees);
     vector<string> seqnames;
-    if (!read_init_arg(c.arg_file.c_str(), c.model, trees, seqnames)) {
+    vector<int> invisible_recomb_pos;
+    vector<Spr> invisible_recombs;
+    if (!read_init_arg(c.arg_file.c_str(), c.model, trees, seqnames,
+                       &invisible_recomb_pos, &invisible_recombs)) {
         printError("could not read ARG");
         return EXIT_ERROR;
     }
@@ -484,6 +545,8 @@ int main(int argc, char **argv)
                    " sequences");
         return EXIT_ERROR;
     }
+    if (c.panmictic_popsize > 0)
+        remove_population_paths(trees);
 
     printLog(LOG_LOW, "read input ARG (chrom=%s, start=%d, end=%d,"
              " nseqs=%d)\n",
@@ -533,7 +596,8 @@ int main(int argc, char **argv)
         seq_region.start = start-1;
         seq_region.end = end;
         print_arg_likelihood(c.model, &sequences, trees, &c, &maskmap,
-                             &seq_region);
+                             &seq_region,
+                             invisible_recomb_pos, invisible_recombs);
     } else {
         if (c.regions_bed_file == "") {
             printError("Need to supply --region or --region-bed");
@@ -560,7 +624,8 @@ int main(int argc, char **argv)
                 seq_region.start = atoi(tokens[1].c_str());
                 seq_region.end = atoi(tokens[2].c_str());
                 print_arg_likelihood(c.model, &sequences, trees, &c, &maskmap,
-                                     &seq_region);
+                                     &seq_region,
+                                     invisible_recomb_pos, invisible_recombs);
             }
             delete [] line;
         }
