@@ -300,6 +300,7 @@ class ArgModel
             popsizes[i] = new double[2*ntimes-1];
     }
 
+ public:
     void free_popsizes() {
         int npop = this->num_pops();
         for (int i = 0; i < npop; i++)
@@ -308,7 +309,6 @@ class ArgModel
         popsizes = NULL;
     }
 
- public:
     // Copy parameters from another model
     void copy(const ArgModel &other);
 
