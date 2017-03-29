@@ -1238,10 +1238,11 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 
 //=============================================================================
 
-bool parse_status_line(const char* line, const Config &config,
+bool parse_status_line(const char* line, Config &config,
                        string &stage, int &iter, string &arg_file,
                        vector<string> header)
 {
+    bool found=false;
     // parse stage and last iter
     vector<string> tokens;
     split(line, "\t", tokens);
@@ -1268,6 +1269,7 @@ bool parse_status_line(const char* line, const Config &config,
         stage = stage2;
         iter = iter2;
         arg_file = out_arg_file;
+        found=true;
     }
 
     // try compress output
@@ -1276,79 +1278,12 @@ bool parse_status_line(const char* line, const Config &config,
         stage = stage2;
         iter = iter2;
         arg_file = out_arg_file;
+        found=true;
     }
 
-    int npop = config.model.num_pops();
-    if (config.model.popsize_config.sample) {
-        list<PopsizeConfigParam> l=config.model.popsize_config.params;
-        for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
-             ++it) {
-            string popname=it->name;
-            set<PopTime> popset = it->intervals;
-            int found=false;
-            for (unsigned int i=0; i < header.size(); i++) {
-                if (header[i] == popname) {
-                    found=true;
-                    double tempN;
-                    sscanf(tokens[i].c_str(), "%lf", &tempN);
-                    for (set<PopTime>::iterator it2=popset.begin();
-                         it2 != popset.end(); ++it2) {
-                        int pop = it2->pop;
-                        int time = it2->time;
-                        if (pop < 0 || pop >= npop ||
-                            time < 0 || time >= 2*config.model.ntimes-1) {
-                            printError("Error in resume: popsize config does"
-                                       " not match previous run\n");
-                            abort();
-                        }
-                        config.model.popsizes[pop][time] = tempN;
-                    }
-                    break;
-                }
-            }
-            if (!found) {
-                printError("Error in resume: did not find pop %s in previous"
-                           " run stats file\n",
-                           popname.c_str());
-                abort();
-            }
-        }
-    } else if (config.popsize_em) {
-        for (int pop=0; pop < npop; pop++)
-            for (int i=0; i < config.model.ntimes - 1; i++)
-                sscanf(tokens[i].c_str(), "%lf", &config.model.popsizes[pop][i]);
-    }
-
-    if (config.model.pop_tree != NULL) {
-        for (unsigned int i=0; i < config.model.pop_tree->mig_params.size(); i++) {
-            MigParam mp = config.model.pop_tree->mig_params[i];
-            double migrate;
-            bool found=false;
-            for (unsigned int j=0; j < header.size(); j++) {
-                if (mp.name == header[j]) {
-                    found=true;
-                    sscanf(tokens[j].c_str(), "%lf", &migrate);
-                    config.model.pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
-                                                                       mp.to_pop,
-                                                                       migrate);
-                    double self_mig=1.0;
-                    for (int k=0; k < config.model.num_pops(); k++) {
-                        if (k != mp.from_pop)
-                            self_mig -= config.model.pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop, k);
-                    }
-                    assert(self_mig > 0 && self_mig <= 1.0);
-                    config.model.pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop, mp.from_pop, self_mig);
-                    config.model.pop_tree->update_population_probs();
-                    break;
-                }
-            }
-            if (!found) {
-                printError("Error resuming run; could not find mig rate estimate %s in stats file\n",
-                           mp.name.c_str());
-                abort();
-            }
-        }
-    }
+    if (found)
+        config.model.init_params_from_statfile(header, line,
+                                               config.popsize_em);
     return true;
 }
 

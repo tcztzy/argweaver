@@ -804,4 +804,102 @@ int ArgModel::discretize_time(double t, int min_idx, double tol) const {
     return time_index(t, times, ntimes, min_idx, tol);
 }
 
+
+// return iteration
+int ArgModel::init_params_from_statfile(vector<string> header, const char *line,
+                                         int popsize_em) {
+    // parse stage and last iter
+    vector<string> tokens;
+    split(line, "\t", tokens);
+    if (tokens.size() < 2) {
+        printError("incomplete line in status file");
+        return false;
+    }
+    assert(tokens.size() == header.size());
+
+    string stage2 = tokens[0];
+    int iter;
+    if (sscanf(tokens[1].c_str(), "%d", &iter) != 1) {
+        printError("iter column is not an integer");
+        return false;
+    }
+
+    // NOTE: only resume resample stage for now
+    if (stage2 != "resample")
+        return -1;
+
+    int npop = num_pops();
+    if (popsize_config.sample) {
+        list<PopsizeConfigParam> l=popsize_config.params;
+        for (list<PopsizeConfigParam>::iterator it=l.begin(); it != l.end();
+             ++it) {
+            string popname=it->name;
+            set<PopTime> popset = it->intervals;
+            int found=false;
+            for (unsigned int i=0; i < header.size(); i++) {
+                if (header[i] == popname) {
+                    found=true;
+                    double tempN;
+                    sscanf(tokens[i].c_str(), "%lf", &tempN);
+                    for (set<PopTime>::iterator it2=popset.begin();
+                         it2 != popset.end(); ++it2) {
+                        int pop = it2->pop;
+                        int time = it2->time;
+                        if (pop < 0 || pop >= npop ||
+                            time < 0 || time >= 2*ntimes-1) {
+                            printError("Error in resume: popsize config does"
+                                       " not match previous run\n");
+                            abort();
+                        }
+                        popsizes[pop][time] = tempN;
+                    }
+                    break;
+                }
+            }
+            if (!found) {
+                printError("Error in resume: did not find pop %s in previous"
+                           " run stats file\n",
+                           popname.c_str());
+                abort();
+            }
+        }
+    } else if (popsize_em) {
+        for (int pop=0; pop < npop; pop++)
+            for (int i=0; i < ntimes - 1; i++)
+                sscanf(tokens[i].c_str(), "%lf", &popsizes[pop][i]);
+    }
+
+    if (pop_tree != NULL) {
+        for (unsigned int i=0; i < pop_tree->mig_params.size(); i++) {
+            MigParam mp = pop_tree->mig_params[i];
+            double migrate;
+            bool found=false;
+            for (unsigned int j=0; j < header.size(); j++) {
+                if (mp.name == header[j]) {
+                    found=true;
+                    sscanf(tokens[j].c_str(), "%lf", &migrate);
+                    pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop,
+                                                          mp.to_pop,
+                                                          migrate);
+                    double self_mig=1.0;
+                    for (int k=0; k < npop; k++) {
+                        if (k != mp.from_pop)
+                            self_mig -= pop_tree->mig_matrix[mp.time_idx].get(mp.from_pop, k);
+                    }
+                    assert(self_mig > 0 && self_mig <= 1.0);
+                    pop_tree->mig_matrix[mp.time_idx].set(mp.from_pop, mp.from_pop, self_mig);
+                    pop_tree->update_population_probs();
+                    break;
+                }
+            }
+            if (!found) {
+                printError("Error resuming run; could not find mig rate estimate %s in stats file\n",
+                           mp.name.c_str());
+                abort();
+            }
+        }
+    }
+    return iter;
+}
+
 } // namespace argweaver

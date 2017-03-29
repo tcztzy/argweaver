@@ -537,6 +537,8 @@ class ArgModel
     int path_to_root(const spidir::Node *node, double time) const;
     void log_model() const;
     int discretize_time(double t, int min_idx=-1, double tol=1.0) const;
+    int init_params_from_statfile(vector<string> header, const char *line,
+                                  int popsize_em=false);
 
 
 protected:
