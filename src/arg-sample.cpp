@@ -85,6 +85,18 @@ public:
 		   ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
                     "mask map file (optional)"));
+        config.add(new ConfigParam<int>
+                   ("", "--mask-Ns", "<num>",
+                    &maskN, -1,
+                    "mask out any site in which at least num lineages have "
+                    "missing data (this may increase efficiency)"));
+        config.add(new ConfigParam<string>
+                   ("", "--mask-cluster", "<numsnp,window>", &mask_cluster, "",
+                    "mask any windows of size <window> which have at least"
+                    " <numsnp> variants (at least two alleles other than N"
+                    " must be observed at each site to count as a variant;"
+                    " windows are determined after applying --subsites but"
+                    " before any masking or compression is performed)"));
         config.add(new ConfigParam<string>
                    ("", "--subsites", "<subsites file>", &subsites_file,
                     "file listing NAMES from sites file (or sequences from"
@@ -262,6 +274,8 @@ public:
     string arg_file;
     string subregion_str;
     string age_file;
+    int maskN;
+    string mask_cluster;
 
     // model parameters
     double popsize;
@@ -1082,6 +1096,25 @@ int main(int argc, char **argv)
         }
     }
 
+    if (c.maskN >= 0) {
+        TrackNullValue maskNmap = get_n_regions(sites, c.maskN);
+        maskmap.merge_tracks(maskNmap);
+    }
+
+    if (c.mask_cluster != "") {
+        int numsnp, window;
+        if (2 != sscanf(c.mask_cluster.c_str(), "%i,%i", &numsnp, &window)) {
+            printError("Bad format in mask_cluster agument; expect numsnp,windowSize");
+            return EXIT_ERROR;
+        }
+        TrackNullValue cluster_mask = get_snp_clusters(sites, numsnp, window);
+        maskmap.merge_tracks(cluster_mask);
+    }
+
+    if (maskmap.size() > 0 && sites.get_num_sites() > 0) {
+        sites.remove_overlapping(maskmap);
+    }
+
     // compress sequences
     if (sites.get_num_sites() > 0) {
         // first remove any sites that fall under mask
@@ -1099,7 +1132,7 @@ int main(int argc, char **argv)
     seq_region_compress.set(seq_region.chrom, 0, sequences.length());
 
     // compress mask
-    if (c.maskmap != "") {
+    if (maskmap.size() > 0) {
         // apply mask
         // TODO: when mask is compressed, only allow it to apply to
         // whole compressed regions
@@ -1163,7 +1196,7 @@ int main(int argc, char **argv)
     if (c.age_file != "")
 	sequences.set_age(c.age_file, c.model.ntimes, c.model.times);
     else sequences.set_age();
- 
+
     c.model.set_popsizes(c.popsize_str, c.model.ntimes);
 
     // setup phasing options
