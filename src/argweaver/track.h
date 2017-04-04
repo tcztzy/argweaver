@@ -152,6 +152,77 @@ public:
         append(chrom, start, end, value);
         return true;
     }
+
+    // combines adjacent entries in sorted track
+    // loses "value" term; mainly intended for TrackNullValue
+    void merge() {
+        Track<T> oldvec = *this;
+        this->clear();
+        for (unsigned int i=0; i < oldvec.size(); ) {
+            unsigned int j=i+1;
+            int currEnd = oldvec[i].end;
+            const string chrom = oldvec[i].chrom;
+            while (j < oldvec.size()) {
+                if (oldvec[j].chrom == chrom &&
+                    oldvec[j].start <= currEnd) {
+                    currEnd = oldvec[j].end;
+                    j++;
+                } else break;
+            }
+            this->push_back(RegionValue<T>(oldvec[i].chrom,
+                                           oldvec[i].start, currEnd,
+                                           oldvec[i].value));
+            i = j;
+        }
+    }
+
+
+    // adds entries in track t to this track, assuming both are sorted
+    // note: Does not properly merge values; meant for use with TrackNullValue
+    // also: requires that all tracks come from a single chromosome
+    void merge_tracks(const Track<T> t) {
+        Track<T> oldvec = *this;
+        this->clear();
+        unsigned int idx0=0, idx1=0;
+        if (t.size() == 0 && oldvec.size() == 0) return;
+        const string chrom = ( t.size() == 0 ? oldvec[0].chrom : t[0].chrom );
+        if (t.size() > 0)
+        while (idx1 < t.size() && idx0 < oldvec.size()) {
+            const RegionValue<T> &region0 = oldvec[idx0];
+            const RegionValue<T> &region1 = t[idx1];
+            assert(region0.chrom == chrom);
+            assert(region1.chrom == chrom);
+            if (region0.end < region1.start) {
+                this->push_back(region0);
+                idx0++;
+            } else if (region1.end < region0.start) {
+                this->push_back(region1);
+                idx1++;
+            } else {
+                this->push_back(RegionValue<T>(region0.chrom,
+                                               min(region0.start, region1.start),
+                                               max(region0.end, region1.end),
+                                               region0.value));
+                idx0++;
+                idx1++;
+            }
+        }
+        if (idx1 < t.size()) {
+            assert(idx0 == oldvec.size());
+            for ( ; idx1 < t.size(); idx1++) {
+                assert(t[idx1].chrom == chrom);
+                this->push_back(t[idx1]);
+            }
+        }
+        if (idx0 < oldvec.size()) {
+            assert(idx1 == t.size());
+            for ( ; idx0 < oldvec.size(); idx0++) {
+                assert(t[idx0].chrom == chrom);
+                this->push_back(oldvec[idx0]);
+            }
+        }
+        this->merge();
+    }
 };
 
 

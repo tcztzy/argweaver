@@ -828,6 +828,65 @@ void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping)
 }
 
 
+TrackNullValue get_n_regions(const Sites &sites, int numN) {
+    TrackNullValue track;
+    int numhap = sites.get_num_seqs();
+    for (int i=0; i < sites.get_num_sites(); i++) {
+        const char *cols = sites.cols[i];
+        int count=0;
+        for (int j=0; j < numhap; j++) {
+            if (cols[j] == 'N') {
+                count++;
+                if (count >= numN) break;
+            }
+        }
+        if (count >= numN) {
+            track.push_back(RegionNullValue(sites.chrom, sites.positions[i],
+                                            sites.positions[i]+1, ' '));
+        }
+    }
+    track.merge();
+    return track;
+}
+
+TrackNullValue get_snp_clusters(const Sites &sites, int numsnp, int window) {
+    TrackNullValue track;
+    if (numsnp < 0 || numsnp > window) return track;
+    if (numsnp == 0) {  // mask everything
+        track.push_back(RegionNullValue(sites.chrom, sites.start_coord,
+                                        sites.end_coord, ' '));
+        return track;
+    }
+    int numsite = sites.get_num_sites();
+    bool isSnp[numsite];
+
+    for (int i=0; i < numsite; i++)
+        isSnp[i] = sites.is_snp(i);
+
+    for (int i=0; i < numsite; i++) {
+        if (!isSnp[i]) continue;
+        int count=1;
+        int start_pos = sites.positions[i];
+        int j=i+1;
+        for ( ; j < numsite; j++) {
+            if (sites.positions[j] - start_pos + 1 > window) break;
+            if (isSnp[j]) count++;
+        }
+        j--;
+        if (count >= numsnp) {
+            int end_pos = sites.positions[j];
+            assert(start_pos <= end_pos);
+            end_pos++;  // sites positions are zero-based; want end non-inclusive
+            int diff = window - (end_pos - start_pos);
+            track.push_back(RegionNullValue(sites.chrom, start_pos - diff,
+                                            end_pos + diff, ' '));
+        }
+    }
+    track.merge();
+    return track;
+}
+
+
 //=============================================================================
 // assert functions
 
