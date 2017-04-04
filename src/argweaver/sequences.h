@@ -272,6 +272,19 @@ public:
         return names.size();
     }
 
+    bool is_snp(int i) const {
+        if (i < 0 || i >= (int)cols.size()) return false;
+        int len = get_num_seqs();
+        int j=0;
+        for ( ; j < len; j++)
+            if (cols[i][j] != 'N') break;
+        if (j == len-1) return false;
+        for (int k=j+1; k < len; k++)
+            if (cols[i][k] != 'N' && cols[i][k] != cols[i][j])
+                return true;
+        return false;
+    }
+
     int subset(set<string> names_to_keep);
 
     template<class T>
