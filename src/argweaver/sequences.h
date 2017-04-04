@@ -374,7 +374,7 @@ public:
         for (int pos2 = start; pos2<n; pos2++) {
             if (all_sites[pos2] == pos) return pos2;
             if (all_sites[pos2] > pos) {
-                if (round_dir >= 0 || pos2 == 0 || pos2 == n - 1) return pos2;
+                if (round_dir >= 0 || pos2 == 0) return pos2;
                 else return pos2 - 1;
             }
         }

@@ -609,6 +609,7 @@ void uncompress_track(Track<T> &track, const SitesMapping *sites_mapping,
 template<class T>
 void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
 {
+    track.merge();
     if (sites_mapping) {
         int prev_start_orig = 0, prev_start_new = 0;
         for (unsigned int i=0; i<track.size(); i++) {
@@ -619,7 +620,7 @@ void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
                                                      1, prev_start_new);
             prev_start_new = track[i].start;
             track[i].end = sites_mapping->compress(track[i].end,
-                                                   -1, track[i].start);
+                                                    1, track[i].start);
         }
     }
 }
@@ -1590,7 +1591,11 @@ int main(int argc, char **argv)
     }
 
     if (maskmap.size() > 0 && sites.get_num_sites() > 0) {
+        int old_num_sites = sites.get_num_sites();
         sites.remove_overlapping(maskmap);
+        int new_num_sites = sites.get_num_sites();
+        printLog(LOG_LOW, "Removed %i sites overlapping mask (old=%i , new=%i)\n",
+                 old_num_sites - new_num_sites, old_num_sites, new_num_sites);
     }
 
     // compress sequences
@@ -1627,7 +1632,7 @@ int main(int argc, char **argv)
         for (int i=0; i<sequences.length(); i++)
             nmasked += int(masked[i]);
         delete [] masked;
-        printLog(LOG_LOW, "masked %d (%.1f%%) sites\n", nmasked,
+        printLog(LOG_LOW, "masked %d (%.1f%%) positions\n", nmasked,
                  100.0 * nmasked / double(sequences.length()));
         if (nmasked == (int)sequences.length())
             c.all_masked=true;
