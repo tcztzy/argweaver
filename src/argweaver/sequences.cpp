@@ -373,7 +373,7 @@ int Sites::subset(set<string> names_to_keep) {
     }
     cols = new_cols;
     positions = new_positions;
-    printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)",
+    printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)\n",
              names.size(), positions.size());
     return 0;
 }
