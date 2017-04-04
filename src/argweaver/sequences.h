@@ -426,6 +426,9 @@ bool find_compress_cols(const Sites *sites, int compress,
 void compress_sites(Sites *sites, const SitesMapping *sites_mapping);
 void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping);
 
+// return track containing regions where sites have >= numN ns
+TrackNullValue get_n_regions(const Sites &sites, int numN);
+ TrackNullValue get_snp_clusters(const Sites &sites, int numsnp, int window);
 
 } // namespace argweaver
 
