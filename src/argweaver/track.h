@@ -217,7 +217,7 @@ public:
         if (idx0 < oldvec.size()) {
             assert(idx1 == t.size());
             for ( ; idx0 < oldvec.size(); idx0++) {
-                assert(t[idx0].chrom == chrom);
+                assert(oldvec[idx0].chrom == chrom);
                 this->push_back(oldvec[idx0]);
             }
         }
