@@ -2,7 +2,7 @@
 
 files=""
 if [[ $# == 1 && -d $1 ]]; then
-    files=`ls $1/*.log`
+    files=`find $1 -name "*.log"`
 else
     files=$@
 fi
