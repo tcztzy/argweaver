@@ -179,10 +179,9 @@ void arghmm_forward_block(const ArgModel *model,
 
     NodeStateLookup state_lookup(states, minage, model->pop_tree);
 
-
+    double tmatrix_fgroups[max_numpath][ntimes];
+    double fgroups[max_numpath][ntimes];
     for (int i=1; i<blocklen; i++) {
-        double tmatrix_fgroups[max_numpath][ntimes];
-        double fgroups[max_numpath][ntimes];
         const double *col1 = fw[i-1];
         double *col2 = fw[i];
         const double *emit2 = emit[i];
