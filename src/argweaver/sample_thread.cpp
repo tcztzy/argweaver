@@ -178,6 +178,45 @@ void arghmm_forward_block(const ArgModel *model,
     }
 
     NodeStateLookup state_lookup(states, minage, model->pop_tree);
+    int max_idx = ntimes*nstates + max_numpath;
+    int nextState[max_idx];
+    int idx=0;
+    int age1_state[nstates];
+    for (int k=0; k<nstates; k++) {
+        const int b = states[k].time;
+        const int node2 = states[k].node;
+        int age1 = ages1[node2];
+        const int age2 = ages2[node2];
+        const int path1 = tree->nodes[node2].pop_path;
+        const int path2 = states[k].pop_path;
+        int j=state_lookup.lookup_idx(node2, age1, path2);
+        while (j < 0 && age1 <= age2) {
+            age1++;
+            j = state_lookup.lookup_idx(node2, age1, path2);
+        }
+        age1_state[k] = age1;
+        for (int a=age1; a <= age2; a++, j++) {
+            int j_state = state_lookup.lookup_by_idx(j);
+            if (j_state >= 0 &&
+                (model->pop_tree == NULL || a >= b ||
+                 model->paths_equal(path1,
+                                    path2, a, b))) {
+                nextState[idx++]=j_state;
+            } else nextState[idx++] =- 1;
+        }
+        // this setion accounts for self-recombinations that change paths
+        // (same node, same time, different path)
+        if (max_numpath > 1) {
+            for (int pa=0; pa < numpath_per_time[b]; pa++) {
+                int path_a = paths_per_time[b][pa];
+                if (!model->paths_equal(path_a, path2, minage, b))
+                    nextState[idx++] = state_lookup.lookup(node2, b, path_a);
+                else nextState[idx++] = -1;
+            }
+        }
+    }
+    assert(idx <= max_idx);
+
 
     double tmatrix_fgroups[max_numpath][ntimes];
     double fgroups[max_numpath][ntimes];
@@ -185,6 +224,7 @@ void arghmm_forward_block(const ArgModel *model,
         const double *col1 = fw[i-1];
         double *col2 = fw[i];
         const double *emit2 = emit[i];
+        idx = 0;
 
         // precompute the fgroup sums
         for (int p=0; p < max_numpath; p++)
@@ -213,40 +253,23 @@ void arghmm_forward_block(const ArgModel *model,
         for (int k=0; k<nstates; k++) {
             const int b = states[k].time;
             const int node2 = states[k].node;
-            int age1 = ages1[node2];
             const int age2 = ages2[node2];
-            const int path1 = tree->nodes[node2].pop_path;
-            const int path2 = states[k].pop_path;
-
             double sum = tmatrix_fgroups[path_map[k]][b];
 
             // same branch case
-            // note taking advantage of convention in nodestatelookup that
-            // consecutive times are in a row
-            int j=state_lookup.lookup_idx(node2, age1, path2);
-            while (j < 0 && age1 <= age2) {
-                age1++;
-                j = state_lookup.lookup_idx(node2, age1, path2);
-            }
-            for (int a=age1; a <= age2; a++, j++) {
-                int j_state = state_lookup.lookup_by_idx(j);
+            for (int a=age1_state[k]; a <= age2; a++) {
+                int j_state = nextState[idx++];
                 if (j_state >= 0 && col1[j_state] > 0) {
-                    if (model->pop_tree == NULL || a >= b ||
-                        model->paths_equal(path1,
-                                           path2, a, b))
-                        sum += tmatrix2[a][k] * col1[j_state];
+                    sum += tmatrix2[a][k] * col1[j_state];
                 }
             }
             // this setion accounts for self-recombinations that change paths
             // (same node, same time, different path)
             if (max_numpath > 1) {
                 for (int pa=0; pa < numpath_per_time[b]; pa++) {
-                    int path_a = paths_per_time[b][pa];
-                    if (!model->paths_equal(path_a, path2, minage, b)) {
-                        int j_state = state_lookup.lookup(node2, b, path_a);
-                        if (j_state >= 0 && col1[j_state] > 0) {
-                            sum += tmatrix3[pa][k] * col1[j_state];
-                        }
+                    int j_state = nextState[idx++];
+                    if (j_state >= 0 && col1[j_state] > 0) {
+                        sum += tmatrix3[pa][k] * col1[j_state];
                     }
                 }
             }
