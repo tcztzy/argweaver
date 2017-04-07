@@ -115,19 +115,19 @@ void arghmm_forward_block(const ArgModel *model,
     }
 
     // compute ntimes*ntimes and ntime*nstates temp matrices
-    double tmatrix[ntimes-1][ntimes-1][max_numpath][max_numpath];
+    double tmatrix[max_numpath][max_numpath][ntimes-1][ntimes-1];
     for (int a=0; a<ntimes-1; a++) {
         for (int b=0; b<ntimes-1; b++) {
             for (int pa=0; pa < numpath_per_time[a]; pa++) {
                 for (int pb=0; pb < numpath_per_time[b]; pb++) {
-                    tmatrix[a][b][pa][pb] =
+                    tmatrix[pa][pb][a][b] =
                         matrix->get_time(a, b, 0,
                                          paths_per_time[a][pa],
                                          paths_per_time[b][pb],
                                          -1, minage, false);
-                    //                    printf("tmatrix %i %i = %e\n", a, b, tmatrix[a][b][pa][pb]);
-                    assert(!isnan(tmatrix[a][b][pa][pb]));
-                    assert(!isinf(tmatrix[a][b][pa][pb]));
+                    //                    printf("tmatrix %i %i = %e\n", a, b, tmatrix[pa][pb][a][b]);
+                    assert(!isnan(tmatrix[pa][pb][a][b]));
+                    assert(!isinf(tmatrix[pa][pb][a][b]));
                 }
             }
         }
@@ -202,7 +202,7 @@ void arghmm_forward_block(const ArgModel *model,
                 double sum = 0.0;
                 for (int a=0; a<ntimes-1; a++) {
                     for (int pa=0; pa < numpath_per_time[a]; pa++) {
-                        sum += tmatrix[a][b][pa][pb] * fgroups[pa][a];
+                        sum += tmatrix[pa][pb][a][b] * fgroups[pa][a];
                     }
                 }
                 tmatrix_fgroups[pb][b] = sum;
