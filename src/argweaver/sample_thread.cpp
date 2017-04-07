@@ -239,12 +239,14 @@ void arghmm_forward_block(const ArgModel *model,
             }
             // this setion accounts for self-recombinations that change paths
             // (same node, same time, different path)
-            for (int pa=0; pa < numpath_per_time[b]; pa++) {
-                int path_a = paths_per_time[b][pa];
-                if (!model->paths_equal(path_a, path2, minage, b)) {
-                    int j_state = state_lookup.lookup(node2, b, path_a);
-                    if (j_state >= 0 && col1[j_state] > 0) {
-                        sum += tmatrix3[pa][k] * col1[j_state];
+            if (max_numpath > 1) {
+                for (int pa=0; pa < numpath_per_time[b]; pa++) {
+                    int path_a = paths_per_time[b][pa];
+                    if (!model->paths_equal(path_a, path2, minage, b)) {
+                        int j_state = state_lookup.lookup(node2, b, path_a);
+                        if (j_state >= 0 && col1[j_state] > 0) {
+                            sum += tmatrix3[pa][k] * col1[j_state];
+                        }
                     }
                 }
             }
