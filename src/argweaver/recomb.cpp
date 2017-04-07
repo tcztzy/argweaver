@@ -217,8 +217,8 @@ void get_possible_recomb(const ArgModel *model, const LocalTree *tree,
             candidates.push_back(Spr(state.node, k, subtree_root, state.time,
                                      tree->nodes[state.node].pop_path));
     }
-    if (state.node == last_state.node && state.time == last_state.time) {
-        assert(state.pop_path != last_state.pop_path);
+    if (state.node == last_state.node && state.time == last_state.time &&
+        state.pop_path != last_state.pop_path) {
         assert(model->pop_tree != NULL);
         int min_coal = model->pop_tree->min_matching_path(state.pop_path,
                                                           last_state.pop_path,
