@@ -115,19 +115,19 @@ void arghmm_forward_block(const ArgModel *model,
     }
 
     // compute ntimes*ntimes and ntime*nstates temp matrices
-    double tmatrix[max_numpath][max_numpath][ntimes-1][ntimes-1];
-    for (int a=0; a<ntimes-1; a++) {
-        for (int b=0; b<ntimes-1; b++) {
-            for (int pa=0; pa < numpath_per_time[a]; pa++) {
-                for (int pb=0; pb < numpath_per_time[b]; pb++) {
-                    tmatrix[pa][pb][a][b] =
+    double tmatrix[ntimes-1][max_numpath][ntimes-1][max_numpath];
+    for (int b=0; b<ntimes-1; b++) {
+        for (int pb=0; pb < numpath_per_time[b]; pb++) {
+            for (int a=0; a<ntimes-1; a++) {
+                for (int pa=0; pa < numpath_per_time[a]; pa++) {
+                    tmatrix[b][pb][a][pa] =
                         matrix->get_time(a, b, 0,
                                          paths_per_time[a][pa],
                                          paths_per_time[b][pb],
                                          -1, minage, false);
                     //                    printf("tmatrix %i %i = %e\n", a, b, tmatrix[pa][pb][a][b]);
-                    assert(!isnan(tmatrix[pa][pb][a][b]));
-                    assert(!isinf(tmatrix[pa][pb][a][b]));
+                    assert(!isnan(tmatrix[pb][b][pa][a]));
+                    assert(!isinf(tmatrix[pb][b][pa][a]));
                 }
             }
         }
@@ -136,22 +136,22 @@ void arghmm_forward_block(const ArgModel *model,
     // take advantage of fact that same branch case is only special
     // if path a and path b are same; otherwise there must be recomb
     // on branch being threaded and same branch case is not special
-    double tmatrix2[ntimes][nstates];
+    double tmatrix2[nstates][ntimes];
     for (int k=0; k<nstates; k++) {
-        for (int a=0; a < ntimes; a++) tmatrix2[a][k]=0.0;
+        for (int a=0; a < ntimes; a++) tmatrix2[k][a]=0.0;
         const int b = states[k].time;
         const int node2 = states[k].node;
         const int c = nodes[node2].age;
         const int p = states[k].pop_path;
         const int pc = nodes[node2].pop_path;
         for (int a=ages1[node2]; a <= ages2[node2]; a++) {
-            tmatrix2[a][k] =
+            tmatrix2[k][a] =
                 matrix->get_time(a, b, c, p, p, pc, minage, true, k) -
                 matrix->get_time(a, b, 0, p, p, -1, minage, false);
-            /*            printf("tmatrix2\t%i\t%i\t%e\t%e\t%e\n", a, k, tmatrix2[a][k],
+            /*            printf("tmatrix2\t%i\t%i\t%e\t%e\t%e\n", a, k, tmatrix2[k][a],
                    matrix->get_time(a, b, c, p, p, pc, minage, true, k),
                    matrix->get_time(a, b, 0, p, p, -1, minage, false));*/
-            if (isnan(tmatrix2[a][k]) || isinf(tmatrix2[a][k]) || tmatrix2[a][k] < 0) {
+            if (isnan(tmatrix2[k][a]) || isinf(tmatrix2[k][a]) || tmatrix2[k][a] < 0) {
                 printf("a=%i k=%i b=%i node2=%i c=%i p=%i pc=%i\n",
                        a, k, b, node2, c, p, pc);
                 assert(false);
@@ -160,16 +160,16 @@ void arghmm_forward_block(const ArgModel *model,
     }
 
     // there is one more special case for different path, same time, same node
-    double tmatrix3[max_numpath][nstates];
+    double tmatrix3[nstates][max_numpath];
     if (max_numpath > 1) {
         for (int k=0; k < nstates; k++) {
-            for (int i=0; i <max_numpath; i++) tmatrix3[i][k]=0.0;
+            for (int i=0; i <max_numpath; i++) tmatrix3[k][i]=0.0;
             int b = states[k].time;
             const int pb = states[k].pop_path;
             for (int j=0; j < numpath_per_time[b]; j++) {
                 int pa = paths_per_time[b][j];
                 if (!model->paths_equal(pa, pb, minage, states[k].time)) {
-                    tmatrix3[j][k] =
+                    tmatrix3[k][j] =
                         ( matrix->get_time(b, b, -1, pa, pb, -1, minage, true, k) -
                           matrix->get_time(b, b, -1, pa, pb, -1, minage, false, k));
                 }
@@ -202,7 +202,7 @@ void arghmm_forward_block(const ArgModel *model,
                  model->paths_equal(path1,
                                     path2, a, b))) {
                 nextState[idx++]=j_state;
-            } else nextState[idx++] =- 1;
+            } else nextState[idx++] = -1;
         }
         // this setion accounts for self-recombinations that change paths
         // (same node, same time, different path)
@@ -241,7 +241,7 @@ void arghmm_forward_block(const ArgModel *model,
                 double sum = 0.0;
                 for (int a=0; a<ntimes-1; a++) {
                     for (int pa=0; pa < numpath_per_time[a]; pa++) {
-                        sum += tmatrix[pa][pb][a][b] * fgroups[pa][a];
+                        sum += tmatrix[b][pb][a][pa] * fgroups[pa][a];
                     }
                 }
                 tmatrix_fgroups[pb][b] = sum;
@@ -260,7 +260,7 @@ void arghmm_forward_block(const ArgModel *model,
             for (int a=age1_state[k]; a <= age2; a++) {
                 int j_state = nextState[idx++];
                 if (j_state >= 0 && col1[j_state] > 0) {
-                    sum += tmatrix2[a][k] * col1[j_state];
+                    sum += tmatrix2[k][a] * col1[j_state];
                 }
             }
             // this setion accounts for self-recombinations that change paths
@@ -269,7 +269,7 @@ void arghmm_forward_block(const ArgModel *model,
                 for (int pa=0; pa < numpath_per_time[b]; pa++) {
                     int j_state = nextState[idx++];
                     if (j_state >= 0 && col1[j_state] > 0) {
-                        sum += tmatrix3[pa][k] * col1[j_state];
+                        sum += tmatrix3[k][pa] * col1[j_state];
                     }
                 }
             }
