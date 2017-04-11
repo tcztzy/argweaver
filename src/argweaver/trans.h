@@ -112,9 +112,202 @@ public:
     // last argument "state_a" is only used in same_node case when smc_prime
     // is turned on- it is necessary for calculating probability of an
     // invisible recomb on the tree
-    double get_time(int a, int b, int c,
+    inline double get_time(int a, int b, int c,
                     int path_a, int path_b, int path_c,
-                    int minage, bool same_node, int state_a=-1) const;
+                    int minage, bool same_node, int state_a=-1) const {
+    if (a < minage || b < minage)
+        return 0.0;
+
+    const int p = ( npaths == 1 ? ntimes :
+                    pop_tree->max_matching_path(path_a, path_b, minage));
+    if (p == -1) return 0.0;
+
+    if (!smc_prime) {
+        double prob;
+        double term1 = D[a] * E[path_b][b] * path_prob[path_b][b];
+        double minage_term = 0.0;
+        if (minage > 0) {
+            minage_term = exp(lnE2[path_b][path_b][b] +
+                              lnB[path_b][path_b][minage-1]);
+        }
+        if (p < a && p < b) {
+            prob = term1 * (exp(lnE2[path_b][path_b][b] +
+                                lnB[path_b][path_b][p])
+                            - minage_term);
+        } else if (a <= p && a < b) {
+            prob = term1 * (exp(lnE2[path_b][path_b][b] +
+                                lnB[path_b][path_b][a]) -
+                            exp(lnE2[path_b][path_b][b] +
+                                lnNegG1[path_b][path_b][a])
+                            - minage_term);
+        } else if (a == b) {
+            prob = term1 * ((b > 0 ? exp(lnE2[path_b][path_b][b] +
+                                         lnB[path_b][path_b][b-1]) : 0.0) +
+                            G3[path_b][b] - minage_term);
+        } else { // b < a
+            prob = term1 * ((b > 0 ? exp(lnE2[path_b][path_b][b] +
+                                         lnB[path_b][path_b][b-1]) : 0.0)
+                            + G2[path_b][b] - minage_term);
+        }
+        if (isnan(prob)) {
+            assert(false);
+        }
+        if (! same_node) return prob;
+
+        // now add same_node term
+        // norecomb case
+        if (a == b &&
+            (npaths == 1 || pop_tree->paths_equal(path_a, path_b, minage, a)))
+            prob += norecombs[a];
+
+        if (npaths > 1 && a < b &&
+            !(pop_tree->paths_equal(path_b, path_c, a, b) &&
+              pop_tree->paths_equal(path_a, path_b, minage, a))) {
+            if (isnan(prob))
+                assert(false);
+            return prob;
+        }
+        if (npaths > 1 && b <= a &&
+            !(pop_tree->paths_equal(path_a, path_c, b, a) &&
+              pop_tree->paths_equal(path_b, path_a, minage, b)))
+            return prob;
+
+        term1 = D[a] * E[path_c][b] * path_prob[path_c][b];
+        minage_term = 0.0;
+        if (c > 0)
+            minage_term = exp(lnE2[path_c][path_b][b]
+                              + lnB[path_c][path_b][c-1]);
+
+        if (a < b) {
+            prob += term1 * (exp(lnE2[path_c][path_b][b] +
+                                 lnB[path_c][path_b][a]) -
+                             exp(lnE2[path_c][path_b][b] +
+                                 lnNegG1[path_c][path_b][a])
+                             - minage_term);
+        } else if (a == b) {
+            prob += term1 * ((b > 0 ? exp(lnE2[path_c][path_b][b] +
+                                          lnB[path_c][path_b][b-1]) : 0.0) +
+                             G3[path_c][b] - minage_term);
+        } else { // b < a
+            prob += term1 * ((b > 0 ? exp(lnE2[path_c][path_b][b] +
+                                          lnB[path_c][path_b][b-1]) : 0.0)
+                             + G2[path_c][b] - minage_term);
+        }
+        if (isnan(prob))
+            assert(0);
+        return prob;
+    } else {  //smc prime calculations
+        double term1=0, term2=0, minage_term=-INFINITY;
+        term1 = log(D[a]*path_prob[path_b][b]);
+        if (a < b) {
+            term1 += log(E0_prime->get(path_b, b))
+                -C0_prime->get(path_b, 2*b-2)
+                + C0_prime->get(path_b, 2*a-1)
+                - C1_prime->get(path_b, path_a, 2*a-1);
+        } else if (a == b) {
+            term1 += log(E1_prime->get(path_b, path_a, b))
+                - C1_prime->get(path_b, path_a, 2*b-2);
+        } else {
+            term1 += log(E2_prime->get(path_b, path_a, b))
+                -C1_prime->get(path_b, path_a, 2*b-2);
+        }
+        int k_max = b-1;
+        if (a < k_max) k_max = a;
+        if (p < k_max) k_max = p;
+        double b_term;
+        if (k_max < a) {
+            b_term = B2_prime->get(path_b, path_a, k_max);
+        } else {
+            assert(k_max == a);
+            b_term = logadd(B2_prime->get(path_b, path_a, a-1),
+                            B1_prime->get(path_b, path_a, a));
+        }
+        if (b == a && b <= p) {
+            term2 = D[a] * G1_prime->get(path_b, path_a, b)
+                * F1_prime->get(path_b, path_a, b);
+        } else if (b < a && b <= p) {
+            term2 = D[a] * G2_prime->get(path_b, path_a, b)
+                * F2_prime->get(path_b, path_a, b);
+        }
+
+        if (minage > 0) {
+            assert(minage <= b);
+            assert(minage <= a);
+            assert(minage <= p);
+            minage_term = B2_prime->get(path_b, path_a, minage-1);
+        }
+        double prob;
+        if (b_term == -INFINITY) {
+            assert(minage_term == -INFINITY);
+            prob = term2;
+        } else prob = exp(term1 + logsub(b_term, minage_term)) + term2;
+        assert(prob >=0 && prob <= 1);
+
+        if (!same_node) return prob;  // must be recombination on threaded branch
+
+        if (npaths > 1 && a < b &&
+            !(pop_tree->paths_equal(path_b, path_c, a, b) &&
+              pop_tree->paths_equal(path_a, path_b, minage, a))) {
+            if (isnan(prob))
+                assert(false);
+            return prob;
+        }
+        if (npaths > 1 && b < a &&
+            !(pop_tree->paths_equal(path_a, path_c, b, a) &&
+              pop_tree->paths_equal(path_b, path_a, minage, b)))
+            return prob;
+
+        assert(state_a >= 0);
+        // now add same_node term
+        // no recomb or self_recomb case
+        if (a < b) {
+            prob += D[a] * path_prob[path_c][b]
+                * E0_prime->get(path_c, b)
+                * exp(-C0_prime->get(path_c, 2*b-2)
+                      +C0_prime->get(path_c, 2*a-1)
+                      -C1_prime->get(path_c, path_a, 2*a-1)
+                      + logadd(logsub(B2_prime->get(path_c, path_a, a-1),
+                                      B2_prime->get(path_c, path_a, c-1)),
+                               B1_prime->get(path_c, path_a, a)));
+        } else if (a == b) {
+            prob *= 2.0;  // because could coal to parent or sister branch
+            if (pop_tree == NULL || pop_tree->paths_equal(path_a, path_b, minage, a)) {
+                prob += norecombs[a] + self_recomb[state_a];
+                prob += 2.0 * (( D[a] * path_prob[path_c][b]
+                                 * E1_prime->get(path_c, path_a, b)
+                                 * exp(-C1_prime->get(path_c, path_a, 2*b-2)
+                                       + logsub(B2_prime->get(path_c, path_a, b-1),
+                                                B2_prime->get(path_c, path_a, c-1))))
+                               + ( D[a] * G1_prime->get(path_c, path_a, b) *
+                                   F1_prime->get(path_c, path_a, b)));
+            } else {
+                int minp = pop_tree->min_matching_path(path_a, path_b, a);
+                if (minp > minage) {
+                    assert(minp <= b);
+                    double val = logsub(B2_prime->get(path_b, path_a, p),
+                                        B2_prime->get(path_b, path_a, minage-1));
+                    double p2 = K1_prime->get(path_b, path_a, b);
+                    if (minp < b)
+                        p2 += (K2_prime->get(path_b, path_a, b-1)
+                               - K2_prime->get(path_b, path_a, minp-1));
+                    prob += D[a]*exp(val)*p2;
+                }
+            }
+        } else if (a > b) {
+            prob += D[a] * path_prob[path_c][b]
+                * E2_prime->get(path_c, path_a, b)
+                * exp(-C1_prime->get(path_c, path_a, 2*b-2)
+                      + logsub(B2_prime->get(path_c, path_a, b-1),
+                               B2_prime->get(path_c, path_a, c-1)))
+                + D[a] * G2_prime->get(path_c, path_a, b)
+                * F2_prime->get(path_c, path_a, b);
+        }
+        if (isnan(prob))
+            assert(0);
+        assert(prob >=0 && prob <= 1);
+        return prob;
+    }
+    }
 
     // Log probability of transition from state i to state j.
     inline double get_log(
