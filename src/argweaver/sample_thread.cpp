@@ -126,8 +126,8 @@ void arghmm_forward_block(const ArgModel *model,
                                          paths_per_time[b][pb],
                                          -1, minage, false);
                     //                    printf("tmatrix %i %i = %e\n", a, b, tmatrix[pa][pb][a][b]);
-                    assert(!isnan(tmatrix[pb][b][pa][a]));
-                    assert(!isinf(tmatrix[pb][b][pa][a]));
+                    assert(!isnan(tmatrix[b][pb][a][pa]));
+                    assert(!isinf(tmatrix[b][pb][a][pa]));
                 }
             }
         }
@@ -178,7 +178,7 @@ void arghmm_forward_block(const ArgModel *model,
     }
 
     NodeStateLookup state_lookup(states, minage, model->pop_tree);
-    int max_idx = ntimes*nstates + max_numpath;
+    int max_idx = ntimes*nstates + max_numpath*nstates;
     int nextState[max_idx];
     int idx=0;
     int age1_state[nstates];
