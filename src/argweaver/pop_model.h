@@ -122,7 +122,7 @@ class MigMatrix {
     }
     void update(int from_pop, int to_pop, double val) {
         set(from_pop, to_pop, val);
-        set(from_pop, from_pop, 1.0-val);
+        set(from_pop, from_pop, get(from_pop, from_pop) - val);
     }
     void resize(int new_npop) {
         if (new_npop != npop) {
