@@ -18,6 +18,7 @@
 #include "common.h"
 #include "mcmcmc.h"
 #include "pop_model.h"
+#include "sequences.h"
 
 namespace spidir {
     class Node;
@@ -584,6 +585,11 @@ protected:
     PopulationTree *pop_tree;
     bool smc_prime;
 };
+
+void compress_model(ArgModel *model, const SitesMapping *sites_mapping,
+                    double compress_seq);
+void uncompress_model(ArgModel *model, const SitesMapping *sites_mapping,
+                      double compress_seq);
 
 
 

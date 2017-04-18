@@ -141,7 +141,7 @@ public:
     }
 
     // Reads one region from a map file and adds it to the track
-    bool read_track_line(const char *line)
+    /*    bool read_track_line(const char *line)
     {
         string chrom;
         int start, end;
@@ -151,7 +151,7 @@ public:
             return false;
         append(chrom, start, end, value);
         return true;
-    }
+        }*/
 
     // combines adjacent entries in sorted track
     // loses "value" term; mainly intended for TrackNullValue

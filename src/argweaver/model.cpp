@@ -8,6 +8,8 @@
 #include "local_tree.h"
 #include "MultiArray.h"
 #include "logging.h"
+#include "sequences.h"
+#include "track.h"
 
 namespace argweaver {
 
@@ -900,6 +902,28 @@ int ArgModel::init_params_from_statfile(vector<string> header, const char *line,
         }
     }
     return iter;
+}
+
+
+void uncompress_model(ArgModel *model, const SitesMapping *sites_mapping,
+		      double compress_seq)
+{
+    model->rho /= compress_seq;
+    model->mu /= compress_seq;
+
+    uncompress_track(model->mutmap, sites_mapping, compress_seq, true);
+    uncompress_track(model->recombmap, sites_mapping, compress_seq, true);
+}
+
+
+void compress_model(ArgModel *model, const SitesMapping *sites_mapping,
+                    double compress_seq)
+{
+    model->rho *= compress_seq;
+    model->mu *= compress_seq;
+
+    compress_track(model->mutmap, sites_mapping, compress_seq, true);
+    compress_track(model->recombmap, sites_mapping, compress_seq, true);
 }
 
 } // namespace argweaver
