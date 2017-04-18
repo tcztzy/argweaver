@@ -561,6 +561,7 @@ ArgModel::ArgModel(const char *logfilename) {
     int numpath;
     char *pop_file=NULL;
     bool read_pop_file = false;
+    pop_tree = NULL;
     smc_prime=true;
     if (logfile == NULL) {
         printError("Could not open log file %s\n", logfilename);
