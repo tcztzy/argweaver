@@ -71,6 +71,15 @@ public:
         config.add(new ConfigParam<string>
                    ("-f", "--fasta", "<fasta alignment>", &fasta_file,
                     "sequence alignment in FASTA format"));
+        config.add(new ConfigParam<int>
+                   ("-c", "--compress-seq", "<compression factor>",
+                    &compress_seq, 1,
+                    "return likelihoods of compressed sequence"));
+        config.add(new ConfigSwitch
+                   ("-C", "--compress-orig", &compress_orig,
+                    "compute likelihoods with compression, using same compression"
+                    " factor that was used in arg-sample command (inferred from"
+                    " log file)"));
         config.add(new ConfigParam<string>
                    ("-o", "--output", "<outfile>", &outfile_name,
                     "likelihood.bed",
@@ -193,6 +202,8 @@ public:
     ArgModel *model;
     int mcmc_rep;
     double panmictic_popsize;
+    int compress_seq;
+    bool compress_orig;
 
     // misc
     int randseed;
@@ -312,11 +323,11 @@ void print_arg_likelihood(const ArgModel *model,
     double prior = calc_arg_prior(model, trees, NULL, NULL, region->start, region->end,
                                   invisible_recomb_pos, invisible_recombs);
     double prior2 = calc_arg_prior_recomb_integrate(model, trees);
-    double posterior = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
+    double like = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
     int noncompat = count_noncompat(trees, sequences);
     int nrecomb = trees->get_num_trees()-1;
     fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\t%f\t%i\t%i\n", region->chrom.c_str(),
-            region->start, region->end, c->mcmc_rep, prior, prior2, posterior,
+            region->start, region->end, c->mcmc_rep, prior, prior2, like,
             nrecomb, noncompat);
 }
 
@@ -395,7 +406,6 @@ int main(int argc, char **argv)
     // read sequences
     Sites sites;
     Sequences sequences;
-    auto_ptr<SitesMapping> sites_mapping_ptr;
     Region seq_region;
 
 
@@ -498,6 +508,15 @@ int main(int argc, char **argv)
     // log model has compressed rates so un-compress them; they
     // will later be re-compressed
     int old_compress = get_compress_from_logfile(c.log_file);
+    if (c.compress_orig) {
+        if (c.compress_seq != 1) {
+            printError("ERROR: --compress-seq and --compress-orig should not"
+                       " both be used");
+            return EXIT_ERROR;
+        }
+        printLog(LOG_LOW, "Using compression factor %i\n", c.compress_seq);
+        c.compress_seq = old_compress;
+    }
     c.model->rho /= (double)old_compress;
     c.model->mu /= (double)old_compress;
 
@@ -520,6 +539,18 @@ int main(int argc, char **argv)
         }
     }
 
+    SitesMapping *sites_mapping = NULL;
+    if (c.compress_seq != 1) {
+        if (sites.get_num_sites() > 0) {
+            sites_mapping = new SitesMapping();
+            if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
+                printError("unable to compress sequences at given compression level"
+                           " (--compress-seq)");
+                return EXIT_ERROR;
+            }
+        }
+        compress_model(c.model, sites_mapping, c.compress_seq);
+    }
     c.model->log_model();
 
     // setup init ARG
@@ -547,21 +578,16 @@ int main(int argc, char **argv)
     }
     if (c.panmictic_popsize > 0)
         remove_population_paths(trees);
+    if (sites_mapping) {
+        compress_local_trees(trees, sites_mapping);
+        for (unsigned int i=0; i < invisible_recomb_pos.size(); i++)
+            invisible_recomb_pos[i] = sites_mapping->compress(invisible_recomb_pos[i], 1);
+    }
 
     printLog(LOG_LOW, "read input ARG (chrom=%s, start=%d, end=%d,"
              " nseqs=%d)\n",
              trees->chrom.c_str(), trees->start_coord, trees->end_coord,
              trees->get_num_leaves());
-
-    // check ARG matches sites/sequences
-    if (trees->start_coord != seq_region.start ||
-        trees->end_coord != seq_region.end) {
-        printError("trees range does not match sites: tree(start=%d,"
-                   " end=%d), sites(start=%d, end=%d)",
-                   trees->start_coord, trees->end_coord,
-                   seq_region.start, seq_region.end);
-        return EXIT_ERROR;
-    }
 
     // get memory usage in MB
     double maxrss = get_max_memory_usage() / 1000.0;
@@ -576,7 +602,7 @@ int main(int argc, char **argv)
     }
 
     if (c.overwrite) {
-        fprintf(c.outfile, "#chrom\tstart\tend\trep\tprior\tlikelihood\tnrecomb\tncompat\n");
+        fprintf(c.outfile, "#chrom\tstart\tend\trep\tprior\tprior2\tlikelihood\tnrecomb\tncompat\n");
     }
 
     // get likelihod
@@ -595,6 +621,10 @@ int main(int argc, char **argv)
         }
         seq_region.start = start-1;
         seq_region.end = end;
+        if (sites_mapping) {
+            seq_region.start = sites_mapping->compress(seq_region.start, -1);
+            seq_region.end = sites_mapping->compress(seq_region.end, 1);
+        }
         print_arg_likelihood(c.model, &sequences, trees, &c, &maskmap,
                              &seq_region,
                              invisible_recomb_pos, invisible_recombs);
@@ -623,6 +653,10 @@ int main(int argc, char **argv)
             if (tokens[0] == sites.chrom) {
                 seq_region.start = atoi(tokens[1].c_str());
                 seq_region.end = atoi(tokens[2].c_str());
+                if (sites_mapping != NULL) {
+                    seq_region.start = sites_mapping->compress(seq_region.start, -1);
+                    seq_region.end = sites_mapping->compress(seq_region.end, 1);
+                }
                 print_arg_likelihood(c.model, &sequences, trees, &c, &maskmap,
                                      &seq_region,
                                      invisible_recomb_pos, invisible_recombs);
