@@ -592,7 +592,7 @@ void print_stats(FILE *stats_file, const char *stage, int iter,
 
     double prior = calc_arg_prior(model, trees, NULL, NULL, -1, -1,
                                   invisible_recomb_pos, invisible_recombs);
-    double prior2 = calc_arg_prior_recomb_integrate(model, trees, NULL, NULL);
+    double prior2 = calc_arg_prior_recomb_integrate(model, trees, NULL, NULL, NULL);
     double likelihood = config->all_masked ? 0.0 :
         calc_arg_likelihood(model, sequences, trees,
                             sites_mapping,

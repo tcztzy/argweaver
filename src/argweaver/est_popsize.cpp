@@ -111,7 +111,7 @@ void resample_popsizes_mh(ArgModel *model, const LocalTrees *trees,
                        bool sample_popsize_recomb, double heat) {
     list<PopsizeConfigParam> &l = model->popsize_config.params;
     double curr_like = sample_popsize_recomb ? calc_arg_prior(model, trees) :
-        calc_arg_prior_recomb_integrate(model, trees);
+        calc_arg_prior_recomb_integrate(model, trees, NULL, NULL, NULL);
 #ifdef ARGWEAVER_MPI
     MPI::Intracomm *comm = model->mc3.group_comm;
     int rank = comm->Get_rank();

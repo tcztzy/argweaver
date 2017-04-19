@@ -322,7 +322,8 @@ void print_arg_likelihood(const ArgModel *model,
                           const vector<Spr> &invisible_recombs) {
     double prior = calc_arg_prior(model, trees, NULL, NULL, region->start, region->end,
                                   invisible_recomb_pos, invisible_recombs);
-    double prior2 = calc_arg_prior_recomb_integrate(model, trees);
+    double prior2 = calc_arg_prior_recomb_integrate(model, trees,
+                                                    region->start, region->end);
     double like = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
     int noncompat = count_noncompat(trees, sequences);
     int nrecomb = trees->get_num_trees()-1;

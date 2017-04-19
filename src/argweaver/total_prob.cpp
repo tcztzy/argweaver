@@ -526,7 +526,8 @@ double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
 double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
                                        double **num_coal, double **num_nocoal,
-                                       double *first_tree_lnprob) {
+                                       double *first_tree_lnprob,
+                                       int start_coord, int end_coord) {
     double lnl = 0.0;
     LineageCounts lineages(model->ntimes, model->num_pops());
 
@@ -536,8 +537,14 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
 	    num_coal[i] = num_nocoal[i] = 0;
     }
 
+    if (start_coord == -1)
+        start_coord = trees->start_coord;
+    if (end_coord == -1)
+        end_coord = trees->end_coord;
+
     // first tree prior
-    lnl += calc_log_tree_prior(model, trees->front().tree, lineages);
+    if (start_coord <= trees->start_coord)
+        lnl += calc_log_tree_prior(model, trees->front().tree, lineages);
     if (first_tree_lnprob != NULL)
         *first_tree_lnprob = lnl;
     //    printLog(LOG_MEDIUM, "tree_prior: %f\n", lnl);
@@ -545,9 +552,16 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
     int rho_idx = 0;
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end(); ) {
+        int start = end;
         end += it->blocklen;
+        if (end <= start_coord) {++it; continue;}
+        if (start >= end_coord) break;
+        if (start < start_coord)
+            start = start_coord;
+        if (end > end_coord)
+            end = end_coord;
+        int blocklen = end - start;
         LocalTree *tree = it->tree;
-        int blocklen = it->blocklen;
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
         lineages.count(tree, model->pop_tree);
         const int root_age = tree->nodes[tree->root].age;
@@ -570,13 +584,13 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
         double log_pr_nochange  = log(pr_no_recomb + pr_self);
 
 
-        if (end >= trees->end_coord)
+        if (end >= end_coord)
             blocklen++;
         if (blocklen > 1) {
             lnl += ((double)blocklen - 1.0)*log_pr_nochange;
         }
 
-        if (end < trees->end_coord) {
+        if (end < end_coord) {
             // not last block, add probability of any recomb that results in
             // same topology as sampled SPR
 
@@ -667,6 +681,14 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
     return lnl;
 }
 
+
+double calc_arg_prior_recomb_integrate(const ArgModel *model,
+                                       const LocalTrees *trees,
+                                       int start_coord, int end_coord) {
+    return calc_arg_prior_recomb_integrate(model, trees,
+                                           NULL, NULL, NULL,
+                                           start_coord, end_coord);
+}
 
 
 // calculate the probability of the sequences given an ARG

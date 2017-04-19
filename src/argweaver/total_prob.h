@@ -30,7 +30,14 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                        const LocalTrees *trees,
                                        double **num_coal=NULL,
                                        double **num_nocoal=NULL,
-                                       double *first_tree_lnprob=NULL);
+                                       double *first_tree_lnprob=NULL,
+                                       int start_coord=-1,
+                                       int end_coord=-1);
+
+ double calc_arg_prior_recomb_integrate(const ArgModel *model,
+                                       const LocalTrees *trees,
+                                       int start_coord=-1,
+                                       int end_coord=-1);
 
 double calc_arg_prior(const ArgModel *model, const LocalTrees *trees,
                       double **num_coal=NULL, double **num_ncoal=NULL,
