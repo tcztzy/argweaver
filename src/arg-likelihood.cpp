@@ -326,7 +326,15 @@ void print_arg_likelihood(const ArgModel *model,
                                                     region->start, region->end);
     double like = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
     int noncompat = count_noncompat(trees, sequences, region->start, region->end);
-    int nrecomb = trees->get_num_trees()-1;
+    int nrecomb=0;
+    int end=trees->start_coord;
+    for (LocalTrees::const_iterator it=trees->begin(); it != trees->end(); ++it) {
+        int start = end;
+        end += it->blocklen;
+        if (end <= region->start) continue;
+        if (start >= region->end) break;
+        if (end != region->end) nrecomb++;
+    }
     fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\t%f\t%i\t%i\n", region->chrom.c_str(),
             region->start, region->end, c->mcmc_rep, prior, prior2, like,
             nrecomb, noncompat);
