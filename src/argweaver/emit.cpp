@@ -1084,7 +1084,7 @@ int parsimony_cost_seq(const LocalTree *tree, const char * const *seqs,
 
 
 int count_noncompat(const LocalTree *tree, const char * const *seqs,
-                    int nseqs, int seqlen, int *postorder)
+                    int nseqs, int block_start, int block_len, int *postorder)
 {
     // get postorder
     int postorder2[tree->nnodes];
@@ -1094,7 +1094,7 @@ int count_noncompat(const LocalTree *tree, const char * const *seqs,
     }
 
     int noncompat = 0;
-    for (int i=0; i<seqlen; i++)
+    for (int i=block_start; i<block_len; i++)
         if (!is_invariant_site(seqs, nseqs, i)) {
             int a = count_alleles(seqs, nseqs, i);
             int c = parsimony_cost_seq(tree, seqs, nseqs, i, postorder);
@@ -1108,9 +1108,12 @@ int count_noncompat(const LocalTree *tree, const char * const *seqs,
 
 
 int count_noncompat(const LocalTrees *trees, const char * const *seqs,
-                    int nseqs, int seqlen)
+                    int nseqs, int seqlen,
+                    int start_coord, int end_coord)
 {
     int noncompat = 0;
+    if (start_coord == -1) start_coord = trees->start_coord;
+    if (end_coord == -1) end_coord = trees->end_coord;
 
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin();
@@ -1118,27 +1121,37 @@ int count_noncompat(const LocalTrees *trees, const char * const *seqs,
     {
         int start = end;
         end += it->blocklen;
+        if (end <= start_coord) continue;
+        if (start >= end_coord) break;
         LocalTree *tree = it->tree;
         int blocklen = it->blocklen;
+        int block_start = 0;
+        if (start_coord > start) block_start = start_coord - start;
+        int block_end = blocklen;
+        if (end_coord < end) block_end = end_coord - start;
 
         // get subsequence block
         char const* subseqs[nseqs];
         for (int i=0; i<nseqs; i++)
             subseqs[i] = &seqs[i][start];
 
-        noncompat += count_noncompat(tree, subseqs, nseqs, blocklen, NULL);
+        noncompat += count_noncompat(tree, subseqs, nseqs, block_start,
+                                     block_end, NULL);
+
     }
 
     return noncompat;
 }
 
 
-int count_noncompat(const LocalTrees *trees, const Sequences *sequences) {
+int count_noncompat(const LocalTrees *trees, const Sequences *sequences,
+                        int start_coord, int end_coord) {
     int nseqs = trees->get_num_leaves();
     char *seqs[nseqs];
     for (int i=0; i < nseqs; i++)
         seqs[i] = sequences->seqs[trees->seqids[i]];
-    return count_noncompat(trees, seqs, nseqs, sequences->length());
+    return count_noncompat(trees, seqs, nseqs, sequences->length(),
+                           start_coord, end_coord);
 }
 
 
