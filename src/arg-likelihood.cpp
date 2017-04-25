@@ -90,7 +90,7 @@ public:
         config.add(new ConfigParam<string>
                    ("", "--region", "<start>-<end>",
                     &region, "",
-                    "sample ARG for only a region of the sites"));
+                    "return likelihood for this region only"));
         config.add(new ConfigParam<int>
                    ("", "--rep", "<MCMC_rep>",
                     &mcmc_rep, 0,
