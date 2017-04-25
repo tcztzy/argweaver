@@ -1446,7 +1446,6 @@ int main(int argc, char **argv)
                        c.maskmap.c_str());
             return EXIT_ERROR;
         }
-        maskmap_orig = maskmap;
     }
     c.all_masked=false;
 
@@ -1497,6 +1496,7 @@ int main(int argc, char **argv)
     seq_region_compress.set(seq_region.chrom, 0, sequences.length());
 
     // compress mask
+    maskmap_orig = maskmap;
     if (maskmap.size() > 0) {
         // apply mask
         // TODO: when mask is compressed, only allow it to apply to
