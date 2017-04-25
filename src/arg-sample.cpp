@@ -1465,6 +1465,12 @@ int main(int argc, char **argv)
         maskmap.merge_tracks(cluster_mask);
     }
 
+    if (c.mask_cluster != "" || c.maskN >= 0) {
+        string mask_outfn = c.out_prefix + c.mcmcmc_prefix
+            + ".combined_mask.bed";
+        maskmap.write_track_regions(mask_outfn);
+    }
+
     if (maskmap.size() > 0 && sites.get_num_sites() > 0) {
         int old_num_sites = sites.get_num_sites();
         sites.remove_overlapping(maskmap);
@@ -1512,7 +1518,6 @@ int main(int argc, char **argv)
         if (nmasked == (int)sequences.length())
             c.all_masked=true;
     }
-
 
     // setup model parameters
     if (c.times_file != "")
