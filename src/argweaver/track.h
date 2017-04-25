@@ -223,6 +223,24 @@ public:
         }
         this->merge();
     }
+
+    void write_track_regions(FILE *outfile) {
+        const Track<T> vec = *this;
+        for (unsigned int i=0; i < vec.size(); i++) {
+            fprintf(outfile, "%s\t%i\t%i\n", vec[i].chrom.c_str(),
+                    vec[i].start, vec[i].end);
+        }
+    }
+
+    void write_track_regions(const char *fn) {
+        FILE *outfile = fopen(fn, "w");
+        write_track_regions(outfile);
+        fclose(outfile);
+    }
+    void write_track_regions(string fn) {
+        write_track_regions(fn.c_str());
+    }
+
 };
 
 
@@ -330,6 +348,7 @@ bool read_track(FILE *infile, Track<T> *track)
 
     return true;
 }
+
 
 
 // Reads a track from a map stream
