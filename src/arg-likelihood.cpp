@@ -316,24 +316,34 @@ void print_arg_likelihood(const ArgModel *model,
                           const Sequences *sequences,
                           const LocalTrees *trees,
                           const Config *c,
-                          const TrackNullValue *maskmap,
                           const Region *region,
                           const vector<int> &invisible_recomb_pos,
-                          const vector<Spr> &invisible_recombs) {
-    double prior = calc_arg_prior(model, trees, NULL, NULL, region->start, region->end,
+                          const vector<Spr> &invisible_recombs,
+                          const SitesMapping *sites_mapping) {
+    int start, end;
+    if (sites_mapping != NULL) {
+        start = sites_mapping->compress(region->start, -1);
+        end = sites_mapping->compress(region->end, 1);
+    } else {
+        start = region->start;
+        end = region->end;
+    }
+    double prior = calc_arg_prior(model, trees, NULL, NULL,
+                                  start, end,
                                   invisible_recomb_pos, invisible_recombs);
     double prior2 = calc_arg_prior_recomb_integrate(model, trees,
-                                                    region->start, region->end);
-    double like = calc_arg_likelihood(model, sequences, trees, region->start, region->end);
-    int noncompat = count_noncompat(trees, sequences, region->start, region->end);
+                                                    start, end);
+    double like = calc_arg_likelihood(model, sequences, trees,
+                                      start, end);
+    int noncompat = count_noncompat(trees, sequences, start, end);
     int nrecomb=0;
-    int end=trees->start_coord;
+    int curr_end=trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it != trees->end(); ++it) {
-        int start = end;
-        end += it->blocklen;
-        if (end <= region->start) continue;
-        if (start >= region->end) break;
-        if (end != region->end) nrecomb++;
+        int curr_start = curr_end;
+        curr_end += it->blocklen;
+        if (curr_end <= start) continue;
+        if (curr_start >= end) break;
+        if (curr_end != end) nrecomb++;
     }
     fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\t%f\t%i\t%i\n", region->chrom.c_str(),
             region->start, region->end, c->mcmc_rep, prior, prior2, like,
@@ -463,10 +473,25 @@ int main(int argc, char **argv)
         }
     }
 
-    //read in mask
-    TrackNullValue maskmap;
+    if (sites.get_num_sites() == 0) {
+        fprintf(stderr, "Error: No sites\n");
+        return EXIT_ERROR;
+    }
+    SitesMapping *sites_mapping = new SitesMapping();
+    if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
+        printError("unable to compress sequences at given compression level"
+                   " (--compress-seq)");
+        return EXIT_ERROR;
+    }
+
+
+    // compress sequences
+    compress_sites(&sites, sites_mapping);
+    make_sequences_from_sites(&sites, &sequences);
+
+    // read in and compress mask
     if (c.maskmap != "") {
-        //read mask
+        TrackNullValue maskmap;
         CompressStream stream(c.maskmap.c_str(), "r");
         if (!stream.stream ||
             !read_track_filter(stream.stream, &maskmap, seq_region)) {
@@ -474,16 +499,11 @@ int main(int argc, char **argv)
                        c.maskmap.c_str());
             return EXIT_ERROR;
         }
-    }
 
-    // compress sequences
-    make_sequences_from_sites(&sites, &sequences);
-
-    // compress mask
-    if (c.maskmap != "") {
         // apply mask
         // TODO: when mask is compressed, only allow it to apply to
         // whole compressed regions
+        compress_mask(maskmap, sites_mapping);
         apply_mask_sequences(&sequences, maskmap);
 
         // report number of masked sites
@@ -548,18 +568,9 @@ int main(int argc, char **argv)
         }
     }
 
-    SitesMapping *sites_mapping = NULL;
-    if (c.compress_seq != 1) {
-        if (sites.get_num_sites() > 0) {
-            sites_mapping = new SitesMapping();
-            if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
-                printError("unable to compress sequences at given compression level"
-                           " (--compress-seq)");
-                return EXIT_ERROR;
-            }
-        }
-        compress_model(c.model, sites_mapping, c.compress_seq);
-    }
+
+    compress_model(c.model, sites_mapping, c.compress_seq);
+
     c.model->log_model();
 
     // setup init ARG
@@ -587,10 +598,16 @@ int main(int argc, char **argv)
     }
     if (c.panmictic_popsize > 0)
         remove_population_paths(trees);
+    if (c.region == "" && c.regions_bed_file == "") {
+        char tmp[1000];
+        sprintf(tmp, "%i-%i", trees->start_coord+1, trees->end_coord);
+        c.region = string(tmp);
+    }
     if (sites_mapping) {
         compress_local_trees(trees, sites_mapping);
         for (unsigned int i=0; i < invisible_recomb_pos.size(); i++)
-            invisible_recomb_pos[i] = sites_mapping->compress(invisible_recomb_pos[i], 1);
+            invisible_recomb_pos[i] = sites_mapping->compress(invisible_recomb_pos[i]-1,
+                                                              1, i==0 ? 0 : invisible_recomb_pos[i-1]);
     }
 
     printLog(LOG_LOW, "read input ARG (chrom=%s, start=%d, end=%d,"
@@ -617,11 +634,6 @@ int main(int argc, char **argv)
     // get likelihod
     printLog(LOG_LOW, "\n");
 
-    if (c.region == "" && c.regions_bed_file == "") {
-        char tmp[1000];
-        sprintf(tmp, "%i-%i", sites.start_coord+1, sites.end_coord);
-        c.region = string(tmp);
-    }
     if (c.region != "") {
         int start, end;
         if (!parse_region(c.region.c_str(), &start, &end)) {
@@ -630,13 +642,11 @@ int main(int argc, char **argv)
         }
         seq_region.start = start-1;
         seq_region.end = end;
-        if (sites_mapping) {
-            seq_region.start = sites_mapping->compress(seq_region.start, -1);
-            seq_region.end = sites_mapping->compress(seq_region.end, 1);
-        }
-        print_arg_likelihood(c.model, &sequences, trees, &c, &maskmap,
+
+        print_arg_likelihood(c.model, &sequences, trees, &c,
                              &seq_region,
-                             invisible_recomb_pos, invisible_recombs);
+                             invisible_recomb_pos, invisible_recombs,
+                             sites_mapping);
     } else {
         if (c.regions_bed_file == "") {
             printError("Need to supply --region or --region-bed");
@@ -662,13 +672,10 @@ int main(int argc, char **argv)
             if (tokens[0] == sites.chrom) {
                 seq_region.start = atoi(tokens[1].c_str());
                 seq_region.end = atoi(tokens[2].c_str());
-                if (sites_mapping != NULL) {
-                    seq_region.start = sites_mapping->compress(seq_region.start, -1);
-                    seq_region.end = sites_mapping->compress(seq_region.end, 1);
-                }
-                print_arg_likelihood(c.model, &sequences, trees, &c, &maskmap,
+                print_arg_likelihood(c.model, &sequences, trees, &c,
                                      &seq_region,
-                                     invisible_recomb_pos, invisible_recombs);
+                                     invisible_recomb_pos, invisible_recombs,
+                                     sites_mapping);
             }
             delete [] line;
         }
