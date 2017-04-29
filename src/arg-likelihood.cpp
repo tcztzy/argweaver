@@ -24,6 +24,7 @@
 #include "argweaver/coal_records.h"
 #include "argweaver/recomb.h"
 #include "argweaver/model.h"
+#include "argweaver/local_tree.h"
 
 using namespace argweaver;
 
@@ -48,6 +49,18 @@ const int DEBUG_OPT = 1;
 
 const int EXIT_ERROR = 1;
 
+
+class MigEvent {
+public:
+    MigEvent(char *name0, int from_pop, int to_pop, int time) :
+        from_pop(from_pop), to_pop(to_pop), time(time) {
+        name = string(name0);
+    }
+    string name;
+    int from_pop;
+    int to_pop;
+    int time;
+};
 
 
 // parsing command-line options
@@ -126,6 +139,16 @@ public:
                     &panmictic_popsize, -1,
                     "Ignore the population model and compute ARG likelihood"
                     " under panmactic population model"));
+        config.add(new ConfigParam<string>
+                   ("-m", "--migfile", "<mig event file>",
+                    &migfile, "",
+                    "If provided, count all occurences of migration events"
+                    " named in this file. File is in the format:"
+                    " <mig name> <from_pop> <to_pop> <time>"
+                    " and may contain multiple events. Two counts will be produced"
+                    " for each event- <event_1> is number that occur, and"
+                    " <event_0> is number that do not occur"));
+
 
         // misc
         config.add(new ConfigParamComment("Miscellaneous"));
@@ -194,6 +217,7 @@ public:
     string region;
     string log_file;
     string regions_bed_file;
+    string migfile;
 
     // model parameters
     string mutmap;
@@ -319,7 +343,8 @@ void print_arg_likelihood(const ArgModel *model,
                           const Region *region,
                           const vector<int> &invisible_recomb_pos,
                           const vector<Spr> &invisible_recombs,
-                          const SitesMapping *sites_mapping) {
+                          const SitesMapping *sites_mapping,
+                          const vector<class MigEvent> &migevents) {
     int start, end;
     if (sites_mapping != NULL) {
         start = sites_mapping->compress(region->start, -1);
@@ -345,9 +370,54 @@ void print_arg_likelihood(const ArgModel *model,
         if (curr_start >= end) break;
         if (curr_end != end) nrecomb++;
     }
-    fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\t%f\t%i\t%i\n", region->chrom.c_str(),
+    fprintf(c->outfile, "%s\t%i\t%i\t%i\t%f\t%f\t%f\t%i\t%i", region->chrom.c_str(),
             region->start, region->end, c->mcmc_rep, prior, prior2, like,
             nrecomb, noncompat);
+
+    for (unsigned int i=0; i < migevents.size(); i++) {
+        int count[2]={0,0};
+        int migtime = migevents[i].time;
+        int from_pop = migevents[i].from_pop;
+        int to_pop = migevents[i].to_pop;
+        int prev_time=0; // set prev_time to time interval immediately before migtime
+        for (int j=0; j < model->ntimes; j++) {
+            if (model->times[j] < migtime)
+                prev_time = j;
+            else break;
+        }
+        if (start <= trees->start_coord) {
+            const LocalTree *tree = trees->begin()->tree;
+            for (int j=0; j < tree->nnodes; j++) {
+                if (tree->nodes[j].age > prev_time) continue;
+                if (j != tree->root &&
+                    tree->nodes[tree->nodes[j].parent].age <= prev_time)
+                    continue;
+                if (model->get_pop(tree->nodes[j].pop_path, prev_time) == from_pop) {
+                    if (model->get_pop(tree->nodes[j].pop_path, prev_time+1) == to_pop)
+                        count[1]++;
+                    else count[0]++;
+                }
+            }
+        }
+        int curr_end = trees->start_coord;
+        for (LocalTrees::const_iterator it=trees->begin(); it != trees->end(); ++it) {
+            int curr_start = curr_end;
+            curr_end += it->blocklen;
+            if (curr_end <= start) continue;
+            if (curr_start >= end) break;
+            const Spr *spr = &it->spr;
+            if (spr->recomb_time <= prev_time && spr->coal_time >= prev_time+1 &&
+                model->get_pop(spr->pop_path, prev_time) == from_pop) {
+                if (model->get_pop(spr->pop_path, prev_time+1) == to_pop)
+                    count[1]++;
+                else count[0]++;
+            }
+        }
+        fprintf(c->outfile, "\t%i\t%i", count[1], count[0]);
+
+    }
+    fprintf(c->outfile, "\n");
+
 }
 
 void parse_status_file(string log_file, int mcmc_rep, ArgModel *model) {
@@ -422,11 +492,28 @@ int main(int argc, char **argv)
     srand(c.randseed);
     printLog(LOG_LOW, "random seed: %d\n", c.randseed);
 
+    vector<class MigEvent> migevents;
+    if (c.migfile != "") {
+        FILE *infile = fopen(c.migfile.c_str(), "r");
+        if (infile == NULL) {
+            printError("Could not open %s", c.migfile.c_str());
+            return EXIT_ERROR;
+        }
+        char tmp[1000];
+        int from_pop, to_pop, mig_time;
+        while (EOF != fscanf(infile, "%s %i %i %i",
+                             tmp, &from_pop, &to_pop, &mig_time)) {
+            migevents.push_back(MigEvent(tmp, from_pop, to_pop,
+                                         mig_time));
+        }
+        fclose(infile);
+        printf("Counting %i migevents", (int)migevents.size());
+    }
+
     // read sequences
     Sites sites;
     Sequences sequences;
     Region seq_region;
-
 
     if (c.sites_file == "") {
         printError("Error: Require --sites");
@@ -628,7 +715,11 @@ int main(int argc, char **argv)
     }
 
     if (c.overwrite) {
-        fprintf(c.outfile, "#chrom\tstart\tend\trep\tprior\tprior2\tlikelihood\tnrecomb\tncompat\n");
+        fprintf(c.outfile, "#chrom\tstart\tend\trep\tprior\tprior2\tlikelihood\tnrecomb\tncompat");
+        for (unsigned int i=0; i < migevents.size(); i++)
+            fprintf(c.outfile, "\t%s_1\t%s_0", migevents[i].name.c_str(),
+                    migevents[i].name.c_str());
+        fprintf(c.outfile, "\n");
     }
 
     // get likelihod
@@ -646,7 +737,7 @@ int main(int argc, char **argv)
         print_arg_likelihood(c.model, &sequences, trees, &c,
                              &seq_region,
                              invisible_recomb_pos, invisible_recombs,
-                             sites_mapping);
+                             sites_mapping, migevents);
     } else {
         if (c.regions_bed_file == "") {
             printError("Need to supply --region or --region-bed");
@@ -675,7 +766,7 @@ int main(int argc, char **argv)
                 print_arg_likelihood(c.model, &sequences, trees, &c,
                                      &seq_region,
                                      invisible_recomb_pos, invisible_recombs,
-                                     sites_mapping);
+                                     sites_mapping, migevents);
             }
             delete [] line;
         }
