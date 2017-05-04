@@ -37,7 +37,7 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         end = start + it->blocklen;
         LocalTree *tree = it->tree;
 
-        lnl += likelihood_tree(tree, model, seqs, nseqs, start, end);
+        lnl += likelihood_tree(tree, model, seqs, sequences->base_probs, nseqs, start, end);
     }
 
     return lnl;
@@ -60,6 +60,14 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     if (trees->nnodes < 3)
         return lnl += log(.25) * sequences->length();
 
+    bool have_base_probs = ( sequences->base_probs.size() > 0 );
+    vector<vector<BaseProbs> > base_probs;
+    if (have_base_probs) {
+        for (int j=0; j < nseqs; j++) {
+            base_probs.push_back(vector<BaseProbs>());
+        }
+    }
+
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
@@ -67,11 +75,16 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         end = start + blocklen;
         LocalTree *tree = it->tree;
 
+
         // get sequences for trees
         char *seqs[nseqs];
         char *matrix = new char [blocklen*nseqs];
         for (int j=0; j<nseqs; j++)
             seqs[j] = &matrix[j*blocklen];
+        if (have_base_probs) {
+            for (int j=0; j < nseqs; j++) base_probs[j].clear();
+        }
+
 
         // find first site within this block
         unsigned int i2 = 0;
@@ -84,16 +97,22 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
             if (i2 < sites_mapping->all_sites.size() &&
                 i == sites_mapping->all_sites[i2]) {
                 // copy site
-                for (int j=0; j<nseqs; j++)
+                for (int j=0; j<nseqs; j++) {
                     seqs[j][i-start] = sequences->seqs[trees->seqids[j]][i2];
+                    if (have_base_probs)
+                        base_probs[j].push_back(BaseProbs(sequences->base_probs[trees->seqids[j]][i2]));
+                }
             } else {
                 // copy non-variant site
-                for (int j=0; j<nseqs; j++)
+                for (int j=0; j<nseqs; j++) {
                     seqs[j][i-start] = default_char;
+                    if (have_base_probs)
+                        base_probs[j].push_back(BaseProbs(default_char));
+                }
             }
         }
 
-        lnl += likelihood_tree(tree, model, seqs, nseqs, 0, end-start);
+        lnl += likelihood_tree(tree, model, seqs, base_probs, nseqs, 0, end-start);
 
         delete [] matrix;
     }
