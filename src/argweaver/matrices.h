@@ -97,7 +97,8 @@ public:
 
 
 void calc_arghmm_matrices(
-    const ArgModel *model, const Sequences *seqs, const LocalTrees *trees,
+    const ArgModel *model, const Sequences *seqs,
+    const LocalTrees *trees,
     const LocalTreeSpr *last_tree_spr, const LocalTreeSpr *tree_spr,
     const int start, const int end, const int new_chrom,
     const StatesModel &states_model, ArgHmmMatrices *matrices,
