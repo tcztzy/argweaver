@@ -25,19 +25,47 @@ static inline bool is_invariant_site(const char *const *seqs,
     return true;
 }
 
+// Returns true if position 'pos' is invariant
+static inline bool is_invariant_site(const char *const *seqs,
+                                     const int nseqs, const int pos,
+                                     const vector<vector<BaseProbs> > &base_probs)
+{
+    if (base_probs.size() == 0)
+        return is_invariant_site(seqs, nseqs, pos);
+
+    const char c = seqs[0][pos];
+    if (c != 'N' && !base_probs[0][pos].is_certain())
+        return false;
+    for (int j=0; j<nseqs; j++) {
+        if (seqs[j][pos] != c || ! base_probs[j][pos].is_certain() ) {
+            return false;
+        }
+
+    }
+    return true;
+}
+
+
 
 // Populates array 'invariant' with status of invariant sites
 void find_invariant_sites(const char *const *seqs, int nseqs, int seqlen,
-                          bool *invariant)
+                          bool *invariant,
+                          const vector<vector<BaseProbs> > &base_probs)
 {
+    bool have_base_probs = ( base_probs.size() > 0 );
     // find invariant sites
     for (int i=0; i<seqlen; i++) {
         char c = seqs[0][i];
         bool mut = false;
-        for (int j=1; j<nseqs; j++) {
-            if (seqs[j][i] != c) {
-                mut = true;
-                break;
+        if (c != 'N' && have_base_probs && ! base_probs[0][i].is_certain())
+            mut=true;
+        else {
+            for (int j=1; j<nseqs; j++) {
+                if (seqs[j][i] != c ||
+                    (have_base_probs && ! base_probs[j][i].is_certain())) {
+                    mut = true;
+                    break;
+                }
             }
         }
         invariant[i] = !mut;
@@ -150,7 +178,9 @@ public:
 // calculate inner partial likelihood for one node and site
 inline void likelihood_site_node_inner(
     const LocalTree *tree, const int node,
-    const char *const *seqs, const int pos,
+    const char *const *seqs,
+    const vector<vector<BaseProbs> > &base_probs,
+    const int pos,
     const double *muts, const double *nomuts, lk_row* inner)
 {
     const LocalNode* nodes = tree->nodes;
@@ -164,6 +194,9 @@ inline void likelihood_site_node_inner(
             inner[j][1] = 1.0;
             inner[j][2] = 1.0;
             inner[j][3] = 1.0;
+        } else if (base_probs.size() > 0) {
+            for (int k=0; k < 4; k++)
+                inner[j][k] = base_probs[j][pos].prob[k];
         } else {
             inner[j][0] = 0.0;
             inner[j][1] = 0.0;
@@ -199,7 +232,6 @@ inline void likelihood_site_node_inner(
 // calculate outer partial likelihood for one node and site
 inline void likelihood_site_node_outer(
     const LocalTree *tree, const int root, const int node,
-    const char *const *seqs, const int pos,
     const double *muts, const double *nomuts,
     lk_row* outer, lk_row* inner)
 {
@@ -251,13 +283,14 @@ inline void likelihood_site_node_outer(
 // calculate entire inner partial likelihood table
 double likelihood_site_inner(
     const LocalTree *tree, const char *const *seqs,
+    const vector<vector<BaseProbs> > &base_probs,
     const int pos, const int *order, const int norder,
     const double *muts, const double *nomuts, lk_row* inner)
 {
     // iterate postorder through nodes
     for (int i=0; i<norder; i++)
         likelihood_site_node_inner(
-            tree, order[i], seqs, pos, muts, nomuts, inner);
+            tree, order[i], seqs, base_probs, pos, muts, nomuts, inner);
 
     // sum over root node
     double p = 0.0;
@@ -271,7 +304,7 @@ double likelihood_site_inner(
 
 // calculate eniter outer partial likelihood table
 void likelihood_site_outer(
-    const LocalTree *tree, const char *const *seqs, const int pos,
+    const LocalTree *tree,
     const double *muts, const double *nomuts, bool internal,
     lk_row *inner, lk_row *outer)
 {
@@ -284,7 +317,7 @@ void likelihood_site_outer(
     queue[top++] = maintree_root;
     while (top > 0) {
         int node = queue[--top];
-        likelihood_site_node_outer(tree, maintree_root, node, seqs, pos,
+        likelihood_site_node_outer(tree, maintree_root, node,
                                    muts, nomuts, outer, inner);
 
         // recurse
@@ -297,7 +330,9 @@ void likelihood_site_outer(
 
 
 void calc_inner_outer(const LocalTree *tree, const ArgModel *model,
-                      const char *const *seqs, const int seqlen,
+                      const char *const *seqs,
+                      const vector<vector<BaseProbs> > &base_probs,
+                      const int seqlen,
                       const bool *invariant, bool internal,
                       lk_row **inner, lk_row **outer)
 {
@@ -315,10 +350,10 @@ void calc_inner_outer(const LocalTree *tree, const ArgModel *model,
     // calculate emissions for tree at each site
     for (int i=0; i<seqlen; i++) {
         if (!invariant[i]) {
-            likelihood_site_inner(tree, seqs, i, order, norder,
+            likelihood_site_inner(tree, seqs, base_probs, i, order, norder,
                                   muts, nomuts, inner[i]);
-            likelihood_site_outer(tree, seqs, i,
-                                  muts, nomuts, internal, inner[i], outer[i]);
+            likelihood_site_outer(tree, muts, nomuts, internal,
+                                  inner[i], outer[i]);
         }
     }
 }
@@ -327,6 +362,7 @@ void calc_inner_outer(const LocalTree *tree, const ArgModel *model,
 
 void likelihood_sites(const LocalTree *tree, const ArgModel *model,
                       const char *const *seqs,
+                      const vector<vector<BaseProbs> > &base_probs,
                       const int seqlen, const int statei,
                       const bool *invariant,
                       double **emit, lk_row **table,
@@ -389,7 +425,7 @@ void likelihood_sites(const LocalTree *tree, const ArgModel *model,
                 emit[i][statei] = invariant_lk;
         } else {
             emit[i][statei] = likelihood_site_inner(
-                tree, seqs, i, order, norder, muts, nomuts, table[i]);
+                tree, seqs, base_probs, i, order, norder, muts, nomuts, table[i]);
         }
     }
 }
@@ -397,7 +433,9 @@ void likelihood_sites(const LocalTree *tree, const ArgModel *model,
 
 
 double likelihood_tree(const LocalTree *tree, const ArgModel *model,
-                       const char *const *seqs, const int nseqs,
+                       const char *const *seqs,
+                       const vector<vector<BaseProbs> > &base_probs,
+                       const int nseqs,
                        const int start, const int end)
 {
     const double *times = model->times;
@@ -428,14 +466,14 @@ double likelihood_tree(const LocalTree *tree, const ArgModel *model,
     double lnl = 0.0;
     for (int i=start; i<end; i++) {
         double lk;
-        bool invariant = is_invariant_site(seqs, nseqs, i);
+        bool invariant = is_invariant_site(seqs, nseqs, i, base_probs);
 
         if (invariant && invariant_lk > 0)
             // use precommuted invariant site likelihood
             lk = invariant_lk;
         else {
-            lk = likelihood_site_inner(tree, seqs, i, order, tree->nnodes,
-                                       muts, nomuts, table);
+            lk = likelihood_site_inner(tree, seqs, base_probs, i, order,
+                                       tree->nnodes, muts, nomuts, table);
 
             // save invariant likelihood
             if (invariant)
@@ -648,7 +686,9 @@ double calc_emit(lk_row *in, lk_row *out, lk_row *in2,
 
 // calculate emissions for external branch resampling
 void calc_emissions(const States &states, const LocalTree *tree,
-                    const char *const *seqs, int nseqs, int seqlen,
+                    const char *const *seqs,
+                    const vector<vector<BaseProbs> > &base_probs,
+                    int nseqs, int seqlen,
                     const ArgModel *model, bool internal, double **emit,
 		    PhaseProbs *phase_pr)
 {
@@ -672,7 +712,7 @@ void calc_emissions(const States &states, const LocalTree *tree,
     // find invariant sites
     bool *invariant = new bool [seqlen];
     bool *masked = new bool [seqlen];
-    find_invariant_sites(seqs, nseqs, seqlen, invariant);
+    find_invariant_sites(seqs, nseqs, seqlen, invariant, base_probs);
     find_masked_sites(seqs, nseqs, seqlen, masked, invariant);
 
 
@@ -680,7 +720,7 @@ void calc_emissions(const States &states, const LocalTree *tree,
     LikelihoodTable inner(seqlen, tree->nnodes);
     LikelihoodTable inner_subtree(seqlen, 1);
     LikelihoodTable outer(seqlen, tree->nnodes);
-    calc_inner_outer(tree, model, seqs, seqlen, invariant, internal,
+    calc_inner_outer(tree, model, seqs, base_probs, seqlen, invariant, internal,
                      inner.data, outer.data);
 
     if (!internal) {
@@ -692,6 +732,9 @@ void calc_emissions(const States &states, const LocalTree *tree,
                 inner_subtree.data[i][0][1] = 1.0;
                 inner_subtree.data[i][0][2] = 1.0;
                 inner_subtree.data[i][0][3] = 1.0;
+            } else if (base_probs.size() > 0) {
+                for (int j=0; j < 4; j++)
+                    inner_subtree.data[i][0][j] = base_probs[newleaf][i].prob[j];
             } else {
                 inner_subtree.data[i][0][0] = 0.0;
                 inner_subtree.data[i][0][1] = 0.0;
@@ -717,9 +760,19 @@ void calc_emissions(const States &states, const LocalTree *tree,
 	not_het = new bool[seqlen];
 	for (int i=0; i < seqlen; i++)
 	    not_het[i] = (seqs[phase_pr->treemap1][i] == seqs[phase_pr->treemap2][i]);
+        vector<vector<BaseProbs> > base_probs2;
+        if (base_probs.size() > 0) {
+            for (int i=0; i < nseqs; i++) {
+                if (i == phase_pr->treemap1)
+                    base_probs2[i] = base_probs[phase_pr->treemap2];
+                else if (i == phase_pr->treemap2)
+                    base_probs2[i] = base_probs[phase_pr->treemap1];
+                else base_probs2[i] = base_probs[i];
+            }
+        }
 
-	calc_inner_outer(tree, model, subseqs, seqlen, not_het, internal,
-			 inner2.data, outer2.data);
+	calc_inner_outer(tree, model, subseqs, base_probs2, seqlen, not_het,
+			 internal, inner2.data, outer2.data);
 
 	if (!internal) {
 	    // compute inner table for new leaf
@@ -730,6 +783,9 @@ void calc_emissions(const States &states, const LocalTree *tree,
 		    inner_subtree2.data[i][0][1] = 1.0;
 		    inner_subtree2.data[i][0][2] = 1.0;
 		    inner_subtree2.data[i][0][3] = 1.0;
+                } else if (base_probs2.size() > 0) {
+                    for (int j=0; j < 4; j++)
+                        inner_subtree2.data[i][0][j] = base_probs2[newleaf][i].prob[j];
 		} else {
 		    inner_subtree2.data[i][0][0] = 0.0;
 		    inner_subtree2.data[i][0][1] = 0.0;
@@ -870,22 +926,26 @@ void calc_emissions(const States &states, const LocalTree *tree,
 
 // calculate emissions for external branch resampling
 void calc_emissions_external(const States &states, const LocalTree *tree,
-                             const char *const *seqs, int nseqs, int seqlen,
+                             const char *const *seqs,
+                             const vector<vector<BaseProbs> > &base_probs,
+                             int nseqs, int seqlen,
                              const ArgModel *model, double **emit,
 			     PhaseProbs *phase_pr)
 {
-    calc_emissions(states, tree, seqs, nseqs, seqlen, model, false, emit,
-		   phase_pr);
+    calc_emissions(states, tree, seqs, base_probs, nseqs, seqlen, model, false,
+                   emit, phase_pr);
 }
 
 // calculate emissions for internal branch resampling
 void calc_emissions_internal(const States &states, const LocalTree *tree,
-                             const char *const *seqs, int nseqs, int seqlen,
+                             const char *const *seqs,
+                             const vector<vector<BaseProbs> > &base_probs,
+                             int nseqs, int seqlen,
                              const ArgModel *model, double **emit,
                              PhaseProbs *phase_pr)
 {
-    calc_emissions(states, tree, seqs, nseqs, seqlen, model, true, emit,
-		   phase_pr);
+    calc_emissions(states, tree, seqs, base_probs, nseqs, seqlen, model, true,
+		   emit, phase_pr);
 }
 
 
@@ -1139,7 +1199,8 @@ int count_noncompat(const LocalTrees *trees, const char * const *seqs,
 
 void calc_emissions_external_slow(
     const States &states, const LocalTree *tree,
-    const char *const *seqs, int nseqs, int seqlen,
+    const char *const *seqs, const vector<vector<BaseProbs> > &base_probs,
+    int nseqs, int seqlen,
     const ArgModel *model, double **emit)
 {
     const int nstates = states.size();
@@ -1152,13 +1213,14 @@ void calc_emissions_external_slow(
     tree2.copy(*tree);
 
     // find invariant sites
-    find_invariant_sites(seqs, nseqs, seqlen, invariant);
+    find_invariant_sites(seqs, nseqs, seqlen, invariant, base_probs);
 
     for (int j=0; j<nstates; j++) {
         State state = states[j];
         add_tree_branch(&tree2, state.node, state.time);
 
-        likelihood_sites(&tree2, model, seqs, seqlen, j, invariant, emit,
+        likelihood_sites(&tree2, model, seqs, base_probs,
+                         seqlen, j, invariant, emit,
                          table.data, -1, -1);
 
         remove_tree_branch(&tree2, newleaf, NULL);
@@ -1170,8 +1232,8 @@ void calc_emissions_external_slow(
 
 void calc_emissions_internal_slow(
     const States &states, const LocalTree *tree,
-    const char *const *seqs, int nseqs, int seqlen,
-    const ArgModel *model, double **emit)
+    const char *const *seqs, const vector<vector<BaseProbs> > &base_probs,
+    int nseqs, int seqlen, const ArgModel *model, double **emit)
 {
     const int nstates = states.size();
     const int subtree_root = tree->nodes[tree->root].child[0];
@@ -1193,7 +1255,7 @@ void calc_emissions_internal_slow(
     tree2.copy(*tree);
 
     // find invariant sites
-    find_invariant_sites(seqs, nseqs, seqlen, invariant);
+    find_invariant_sites(seqs, nseqs, seqlen, invariant, base_probs);
 
     for (int j=0; j<nstates; j++) {
         State state = states[j];
@@ -1202,8 +1264,8 @@ void calc_emissions_internal_slow(
         Spr add_spr(subtree_root, subtree_root_age, state.node, state.time);
         apply_spr(&tree2, add_spr);
 
-        likelihood_sites(&tree2, model, seqs, seqlen, j, invariant, emit,
-                         table.data, -1, -1);
+        likelihood_sites(&tree2, model, seqs, base_probs, seqlen, j, invariant,
+                         emit, table.data, -1, -1);
 
         Spr remove_spr(subtree_root, subtree_root_age,
                        tree2.root, maxtime);
@@ -1220,7 +1282,9 @@ void calc_emissions_internal_slow(
 // assert emissions
 
 bool assert_emissions(const States &states, const LocalTree *tree,
-                      const char *const *seqs, int nseqs, int seqlen,
+                      const char *const *seqs,
+                      const vector<vector<BaseProbs> > &base_probs,
+                      int nseqs, int seqlen,
                       const ArgModel *model)
 {
     const int nstates = states.size();
@@ -1228,13 +1292,15 @@ bool assert_emissions(const States &states, const LocalTree *tree,
     double **emit = new_matrix<double>(seqlen, nstates);
     double **emit2 = new_matrix<double>(seqlen, nstates);
 
-    calc_emissions_external(states, tree, seqs, nseqs, seqlen, model, emit, NULL);
-    calc_emissions_external_slow(states, tree, seqs, nseqs, seqlen, model, emit2);
+    calc_emissions_external(states, tree, seqs, base_probs, nseqs, seqlen,
+                            model, emit, NULL);
+    calc_emissions_external_slow(states, tree, seqs, base_probs, nseqs, seqlen,
+                                 model, emit2);
 
     // compare emission tables
     for (int j=0; j<nstates; j++) {
         for (int i=0; i<seqlen; i++) {
-            bool invar = is_invariant_site(seqs, nseqs, i);
+            bool invar = is_invariant_site(seqs, nseqs, i, base_probs);
 
             printLog(LOG_MEDIUM, ">> %d,%d: %e %e   invar=%d\n",
                      i, j, emit[i][j], emit2[i][j], invar);
@@ -1251,7 +1317,9 @@ bool assert_emissions(const States &states, const LocalTree *tree,
 
 
 bool assert_emissions_internal(const States &states, const LocalTree *tree,
-                               const char *const *seqs, int nseqs, int seqlen,
+                               const char *const *seqs,
+                               const vector<vector<BaseProbs> > &base_probs,
+                               int nseqs, int seqlen,
                                const ArgModel *model)
 {
     const int nstates = states.size();
@@ -1259,9 +1327,9 @@ bool assert_emissions_internal(const States &states, const LocalTree *tree,
     double **emit = new_matrix<double>(seqlen, nstates);
     double **emit2 = new_matrix<double>(seqlen, nstates);
 
-    calc_emissions_internal(states, tree, seqs, nseqs, seqlen,
+    calc_emissions_internal(states, tree, seqs, base_probs, nseqs, seqlen,
                               model, emit);
-    calc_emissions_internal_slow(states, tree, seqs, nseqs, seqlen,
+    calc_emissions_internal_slow(states, tree, seqs, base_probs, nseqs, seqlen,
                                    model, emit2);
 
     // compare emission tables
@@ -1297,7 +1365,10 @@ double **new_emissions(intstate *istates, int nstates,
     ArgModel model(ntimes, times, NULL, 0.0, mu);
 
     double **emit = new_matrix<double>(seqlen, nstates);
-    calc_emissions_external(states, &tree, seqs, nseqs, seqlen, &model, emit, NULL);
+    vector<vector<BaseProbs> > base_probs;
+    base_probs.clear();
+    calc_emissions_external(states, &tree, seqs, base_probs,
+                            nseqs, seqlen, &model, emit, NULL);
 
     return emit;
 }
@@ -1315,6 +1386,8 @@ bool arghmm_assert_emit(
 {
     ArgModel model(ntimes, times, NULL, 0.0, mu);
     States states;
+    vector<vector<BaseProbs> > base_probs;
+    base_probs.clear();
 
     int end = trees->start_coord;
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
@@ -1330,7 +1403,8 @@ bool arghmm_assert_emit(
         for (int j=0; j<nseqs; j++)
             seqs2[j] = &seqs[j][start];
 
-        if (!assert_emissions(states, tree, seqs2, nseqs, blocklen, &model))
+        if (!assert_emissions(states, tree, seqs2, base_probs,
+                              nseqs, blocklen, &model))
             return false;
     }
 
@@ -1345,6 +1419,8 @@ bool arghmm_assert_emit_internal(
     const int maxtime = model.ntimes + 1;
     States states;
     int *removal_path = new int [trees->get_num_trees()];
+    vector<vector<BaseProbs> > base_probs;
+    base_probs.clear();
 
     // randomly choose branch to remove
     LocalTrees trees2(*trees);
@@ -1370,7 +1446,8 @@ bool arghmm_assert_emit_internal(
         for (int j=0; j<nseqs; j++)
             seqs2[j] = &seqs[j][start];
 
-        if (!assert_emissions_internal(states, tree, seqs2, nseqs, blocklen, &model))
+        if (!assert_emissions_internal(states, tree, seqs2, base_probs,
+                                       nseqs, blocklen, &model))
             return false;
     }
 
