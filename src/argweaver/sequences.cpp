@@ -50,7 +50,7 @@ bool read_fasta(FILE *infile, Sequences *seqs)
                 // add new sequence
                 char *full_seq = concat_strs(&seq[0], seq.size());
                 int seqlen2 = strlen(full_seq);
-                if (!seqs->append(key, full_seq, seqlen2)) {
+                if (!seqs->append(key, full_seq, vector<BaseProbs>(), seqlen2)) {
                     printError("sequences are not the same length: %d != %d",
                                seqs->length(), seqlen2);
                     delete [] full_seq;
@@ -75,7 +75,7 @@ bool read_fasta(FILE *infile, Sequences *seqs)
     if (seq.size() > 0) {
         char *full_seq = concat_strs(&seq[0], seq.size());
         int seqlen2 = strlen(full_seq);
-        if (!seqs->append(key, full_seq, seqlen2)) {
+        if (!seqs->append(key, full_seq, vector<BaseProbs>(), seqlen2)) {
             printError("sequences are not the same length: %d != %d",
                        seqs->length(), seqlen2);
             delete [] full_seq;
@@ -309,6 +309,305 @@ bool read_sites(const char *filename, Sites *sites,
 }
 
 
+class GenoFilter {
+public:
+    string code;
+    int cutoff;
+    bool is_min;
+    int index;
+
+    GenoFilter(const char *str) {
+        vector <string>tmp;
+        split(str, ">", tmp);
+        if (tmp.size() == 2) {
+            is_min = true;
+        } else {
+            tmp.clear();
+            split(str, "<", tmp);
+            if (tmp.size() != 2) {
+                printError("Could not parse genotype filter %s\n", str);
+                assert(0);
+            }
+            is_min = false;
+        }
+        code = tmp[0];
+        cutoff = atoi(tmp[1].c_str());
+        index = -1;
+    }
+};
+
+
+bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
+              bool parse_genotype_pl, double min_base_prob) {
+    const char *delim = "\t";
+    char *line;
+    int nseqs = 0, nsample=0;
+    bool error = false;
+    int numskip=0;
+    const char *headerStart = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
+    string chrname = "";
+    vector<GenoFilter> gf;
+    int num_masked=0, total=0;
+
+    if (genotype_filter != NULL && strlen(genotype_filter) > 0) {
+        vector<string> tmp;
+        split(genotype_filter, ";", tmp);
+        for (int i=0; i < (int)tmp.size(); i++) {
+            gf.push_back(GenoFilter(tmp[i].c_str()));
+        }
+    }
+
+    sites->clear();
+
+    int lineno = 0;
+    while (!error && (line = fgetline(infile))) {
+        chomp(line);
+        lineno++;
+        if (strncmp(line, "##", 2) == 0) {
+            delete [] line;
+            continue;
+        }
+        if (strncmp(line, headerStart, strlen(headerStart)) == 0) {
+            vector<string> diploid_names;
+            split(&line[strlen(headerStart)], delim, diploid_names);
+            nsample = (int)diploid_names.size();
+            nseqs = nsample * 2;
+            for (int i=0; i < (int)diploid_names.size(); i++) {
+                for (int j=0; j < 2; j++) {
+                    char tmp[diploid_names[i].length()+3];
+                    sprintf(tmp, "%s_%i", diploid_names[i].c_str(), j+1);
+                    sites->names.push_back(string(tmp));
+                }
+            }
+            printf("nseqs = %i\n", nseqs);
+            if (nseqs < 2) {
+                printError("Need at least 2 sequences in VCF file\n");
+                return false;
+            }
+            delete [] line;
+            continue;
+        }
+        // otherwise this line contains a variant
+        if (nseqs == 0) {
+            printError("Did not find header with sequence names in VCF file\n");
+            return false;
+        }
+        vector<string> fields;
+        split(line, delim, fields);
+        if ((int)fields.size() != 9 + nsample) {
+            printError("Not enough fields in line %i of VCF file", lineno);
+            return false;
+        }
+        if (chrname == "")
+            chrname = fields[0];
+        else if (chrname != fields[0]) {
+            printError("VCF file contains multiple chromosomes. Must supply region str (chr:start-end)");
+            return false;
+        }
+        int position;
+        if (1 != sscanf(fields[1].c_str(), "%i", &position)) {
+            printError("Error parsing position field in VCF\n");
+            return false;
+        }
+        position--;  //convert to 0-index
+        char alleles[5];  // alleles can only be A,C,G,T,N
+        int num_alleles=1;
+        if (fields[3].length() != 1) {
+            printError("Reference allele is not length one on line %i of VCF",
+                       lineno);
+            return false;
+        }
+        alleles[0] = fields[3].c_str()[0];
+        vector<string> alt;
+        split(fields[4].c_str(), ",", alt);
+        if (alt.size() > 4) {
+            printError("length of ALT allele should not be more than 4 on line %i of VCF\n",
+                       lineno);
+            return false;
+        }
+        static bool badAlleleWarn=false;
+        for (int i=0; i < (int)alt.size(); i++) {
+            if (alt[i].length() != 1) {
+                if (!badAlleleWarn) {
+                    printError("ReadVCF can only handle alleles A,C,G,T,N currently;"
+                               " got allele %s on line %i; skipping this variant and"
+                               " other similar ones",
+                               alt[i].c_str());
+                    badAlleleWarn=true;
+                }
+                numskip++;
+                delete [] line;
+                continue;
+            }
+            alleles[num_alleles++] = alt[i].c_str()[0];
+        }
+        // next: parse FORMAT in fields[8] and figure out where to find
+        // GT
+        vector<string> format;
+        split(fields[8].c_str(), ":", format);
+        int gt_idx=-1;
+        int pl_idx=-1;
+        for (int i=0; i < (int)format.size(); i++) {
+            if (strcmp(format[i].c_str(), "GT")==0) {
+                gt_idx=i;
+            }
+            if (strcmp(format[i].c_str(), "PL")==0) {
+                pl_idx = i;
+            }
+        }
+        if (gt_idx == -1) {
+            printError("Did not find GT in format field in VCF file line %i",
+                       lineno);
+            return false;
+        }
+        if (parse_genotype_pl && pl_idx == -1) {
+            printError("Did not find PL in format field in VCF file line %i",
+                       lineno);
+            return false;
+        }
+        vector<BaseProbs> base_probs;
+        // get positions for genotype filter(s)
+        for (int i=0; i < (int)gf.size(); i++) {
+            gf[i].index = -1;
+            for (int j=0; j < (int)format.size(); j++) {
+                if (format[j] == gf[i].code) {
+                    gf[i].index = j;
+                    break;
+                }
+            }
+        }
+
+        vector<string> seqfields;
+        string gtstr;
+        char col[nseqs+1];
+        col[nseqs] = '\0';
+        int idx=0;
+        for (int i=0; i < nsample; i++) {
+            split(fields[9+i].c_str(), ":", seqfields);
+            if (seqfields.size() != format.size()) {
+                printError("Field %i does not match format string on line %i of VCF file\n",
+                           9+i+1, lineno);
+                return false;
+            }
+            assert(seqfields.size() == format.size());
+            bool masked=false;
+            for (int j=0; j < (int)gf.size(); j++) {
+                if (gf[j].index >= 0) {
+                    int val = atoi(seqfields[gf[j].index].c_str());
+                    if ((  gf[j].is_min  && val < gf[j].cutoff) ||
+                        ((!gf[j].is_min) && val > gf[j].cutoff)) {
+                        masked=true;
+                        break;
+                    }
+                }
+            }
+            if (num_alleles > 2) masked=true;
+            if (parse_genotype_pl) {
+                for (int j=0; j < 2; j++) {
+                    BaseProbs bp = num_alleles == 2 ?
+                        BaseProbs(alleles[0], alleles[1], seqfields[pl_idx], j) :
+                        BaseProbs('N');
+                    base_probs.push_back(bp);
+                    if (bp.maxProb() < min_base_prob)
+                        masked=true;
+                }
+            }
+            total++;
+            if (masked) {
+                col[idx] = 'N';
+                col[idx+1] = 'N';
+                if (parse_genotype_pl) {
+                    base_probs[idx].set_mask();
+                    base_probs[idx+1].set_mask();
+                }
+                idx += 2;
+                num_masked++;
+                continue;
+            }
+
+            gtstr = seqfields[gt_idx];
+            if (gtstr.length() != 3) {
+                printError("genotype not lenghth three on line %i of VCF",
+                           lineno);
+                return false;
+            }
+            if (gtstr.c_str()[1] != '|' &&
+                gtstr.c_str()[1] != '/') {
+                printError("genotype middle character not '|' or '/' on line %i",
+                           lineno);
+                return false;
+            }
+            for (int j=0; j <=2; j+=2) {
+                char allele = gtstr.c_str()[j];
+                if (allele == '.') {
+                    col[idx] = 'N';
+                    base_probs[idx].set_mask();
+                } else {
+                    int ia = allele - '0';
+                    if (ia < 0 || ia >= num_alleles) {
+                        printError("Bad GT in field %i,line %i of VCF",
+                                   i+9+1, lineno);
+                        return false;
+                    }
+                    col[idx] = alleles[ia];
+                }
+                idx++;
+            }
+        }
+        sites->append(position, col, true);
+        if (parse_genotype_pl)
+            sites->base_probs.push_back(base_probs);
+    }
+    printLog(LOG_LOW, "Read %i sites from %i lines of VCF file (numskip=%i)\n",
+             sites->get_num_sites(), lineno, numskip);
+    if (gf.size() > 0) printLog(LOG_LOW, "Masked %i out of %i genotypes\n",
+                                num_masked, total);
+    return true;
+}
+
+
+bool read_vcf(const char *filename, Sites *sites, const char *region,
+              const char *genotype_filter, bool parse_genotype_pl,
+              double min_base_prob, const char *tabixdir) {
+    TabixStream ts(filename, region, tabixdir);
+    char chr[10000];
+    int start_coord, end_coord;
+    if (region == NULL || strlen(region) == 0) {
+        printError("read_vcf requires --region string\n");
+        return false;
+    }
+    vector<string> tmp;
+    split(region, ":", tmp);
+    if (tmp.size() != 2) {
+        printError("Error parsing region string %s. Must be in format chr:start-end\n", region);
+        return false;
+    }
+    strcpy(chr, tmp[0].c_str());
+    if (2 != (sscanf(tmp[1].c_str(), "%i-%i", &start_coord, &end_coord))) {
+        printError("Error parsing region string %s. Must be in format chr:start-end\n", tmp[1].c_str());
+        return false;
+    }
+    if (ts.stream == NULL) {
+        return false;
+    }
+    if ( ! read_vcf(ts.stream, sites, genotype_filter,
+                    parse_genotype_pl, min_base_prob)) return false;
+    sites->start_coord = start_coord - 1;
+    sites->end_coord = end_coord;
+    sites->chrom = string(chr);
+    return true;
+}
+
+bool read_vcf(const string filename, Sites *sites, const string region,
+              const string genotype_filter, bool parse_genotype_pl,
+              double min_base_prob, const string tabixdir) {
+    return read_vcf(filename.c_str(), sites, region.c_str(),
+                    genotype_filter.c_str(), parse_genotype_pl,
+                    min_base_prob, tabixdir.c_str());
+}
+
+
+
 // Converts a Sites alignment to a Sequences alignment
 void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
                                char default_char)
@@ -317,24 +616,30 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     int seqlen = sites->length();
     int start = sites->start_coord;
     int nsites = sites->get_num_sites();
+    bool have_base_probs = ( sites->base_probs.size() > 0 );
 
     sequences->clear();
     sequences->set_owned(true);
 
     for (int i=0; i<nseqs; i++) {
         char *seq = new char [seqlen];
-
+        vector<BaseProbs> base_probs;
         int col = 0;
         for (int j=0; j<seqlen; j++) {
             if (col < nsites && start+j == sites->positions[col]) {
                 // variant site
-                seq[j] = sites->cols[col++][i];
+                seq[j] = sites->cols[col][i];
+                if (have_base_probs)
+                    base_probs.push_back(sites->base_probs[col][i]);
+                col++;
             } else {
                 seq[j] = default_char;
+                if (have_base_probs)
+                    base_probs.push_back(BaseProbs(default_char));
             }
         }
 
-        sequences->append(sites->names[i], seq);
+        sequences->append(sites->names[i], seq, base_probs);
     }
 
     sequences->set_length(seqlen);
@@ -342,6 +647,7 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
 
 int Sites::subset(set<string> names_to_keep) {
     vector<int> keep;
+    bool have_base_probs = ( base_probs.size() > 0 );
     for (unsigned int i=0; i < names.size(); i++) {
         if (names_to_keep.find(names[i]) != names_to_keep.end())
             keep.push_back(i);
@@ -357,11 +663,18 @@ int Sites::subset(set<string> names_to_keep) {
     names = new_names;
     vector<int> new_positions;
     vector<char*> new_cols;
+    vector<vector<BaseProbs> > new_base_probs;
     for (unsigned int i=0; i < positions.size(); i++) {
         char *tmp = new char[keep.size()+1];
         bool variant=false;
+        vector<BaseProbs> bp;
         for (unsigned int j=0; j < keep.size(); j++) {
             tmp[j] = cols[i][keep[j]];
+            if (have_base_probs) {
+                if (!base_probs[i][keep[j]].is_certain())
+                    variant=true;
+                else bp.push_back(base_probs[i][keep[j]]);
+            }
             if (tmp[j]=='N' || tmp[j] != tmp[0]) variant=true;
         }
         tmp[keep.size()] = '\0';
@@ -369,10 +682,12 @@ int Sites::subset(set<string> names_to_keep) {
         if (variant) {
             new_cols.push_back(tmp);
             new_positions.push_back(positions[i]);
+            if (have_base_probs) new_base_probs.push_back(bp);
         } else delete [] tmp;
     }
     cols = new_cols;
     positions = new_positions;
+    if (have_base_probs) base_probs = new_base_probs;
     printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)\n",
              names.size(), positions.size());
     return 0;
@@ -380,26 +695,62 @@ int Sites::subset(set<string> names_to_keep) {
 
 template<>
 int Sites::remove_overlapping(const TrackNullValue &track) {
+    bool have_base_probs = ( base_probs.size() > 0 );
     for (int i=positions.size()-1; i >= 0; i--) {
         if (track.index(positions[i]) != -1) {
             positions.erase(positions.begin() + i);
             cols.erase(cols.begin() + i);
+            if (have_base_probs)
+                base_probs.erase(base_probs.begin() + i);
         }
     }
     return 0;
 }
 
 
-template<>
-void apply_mask_sequences<NullValue>(Sequences *sequences,
-                                     const TrackNullValue &maskmap)
+void apply_mask_sequences(Sequences *sequences,
+                          const TrackNullValue &maskmap,
+                          const char *ind)
 {
     const char maskchar = 'N';
+    int maskind[sequences->get_num_seqs()];
+    int num_mask=0;
+    if (ind == NULL) {
+        num_mask = (int)sequences->get_num_seqs();
+        for (int i=0; i < num_mask; i++)
+            maskind[i]=i;
+    } else {
+        // first see if there is an exact match
+        for (int i=0; i < (int)sequences->get_num_seqs(); i++) {
+            if (strcmp(sequences->names[i].c_str(), ind)==0) {
+                num_mask = 1;
+                maskind[0] = i;
+                break;
+            }
+        }
+        // else check to see if it is a diploid match
+        if (num_mask == 0) {
+            for (int j=0; j < 2; j++) {
+                char hapname[strlen(ind)+3];
+                sprintf(hapname, "%s_%i", ind, j);
+                for (int i=0; i < (int)sequences->get_num_seqs(); i++) {
+                    if (strcmp(sequences->names[i].c_str(), hapname)==0) {
+                        maskind[num_mask++] = i;
+                        break;
+                    }
+                }
+            }
+            if (num_mask != 2) {
+                printError("Warning: No sequences matched ind mask name %s; mask not applied\n", ind);
+                return;
+            }
+        }
+    }
 
     for (unsigned int k=0; k<maskmap.size(); k++) {
         for (int i=maskmap[k].start; i<maskmap[k].end; i++) {
-            for (int j=0; j<sequences->get_num_seqs(); j++)
-                sequences->seqs[j][i] = maskchar;
+            for (int j=0; j < num_mask; j++)
+                sequences->seqs[maskind[j]][i] = maskchar;
         }
     }
 }
@@ -944,6 +1295,8 @@ void resample_align(Sequences *aln, Sequences *aln2)
     assert(aln->get_num_seqs() == aln2->get_num_seqs());
     char **seqs = aln->get_seqs();
     char **seqs2 = aln2->get_seqs();
+    if (aln->base_probs.size() > 0)
+        printError("Warning: resample_align not implemented for base_probs\n");
 
     for (int j=0; j<aln2->length(); j++) {
         // randomly choose a column (with replacement)
