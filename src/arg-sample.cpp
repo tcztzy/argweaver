@@ -70,6 +70,17 @@ public:
 	config.add(new ConfigParam<string>
 		   ("-f", "--fasta", "<fasta alignment>", &fasta_file,
 		    "sequence alignment in FASTA format"));
+        config.add(new ConfigParam<string>
+                   ("", "--vcf", "<.vcf.gz file>", &vcf_file,
+                    "sequence alignment in gzipped vcf format. Must also supply"
+                    "--region in format chr:start-end, and tabix index file (.vcf.gz.tbi)"
+                    "must also be present. Assumes samples are diploid."));
+        config.add(new ConfigParam<string>
+                   ("", "--vcf-genotype-filter", "<filter string>", &vcf_filter,
+                    "String describing filtering for individual genotypes in VCF file."
+                    " For example: \"GQ<5;DP<4;DP>30\" will mask genotypes with"
+                    " GQ < 5 or DP < 4 or DP > 30. Currently the comparison operator"
+                    " can only be < or >."));
 	config.add(new ConfigParam<string>
 		   ("-o", "--output", "<output prefix>", &out_prefix,
                     "arg-sample",
@@ -78,13 +89,23 @@ public:
                    ("-a", "--arg", "<SMC file>", &arg_file, "",
                     "initial ARG file (*.smc) for resampling (optional)"));
         config.add(new ConfigParam<string>
-                   ("", "--region", "<start>-<end>",
+                   ("", "--region", "[chr:]<start>-<end>",
                     &subregion_str, "",
-                    "sample ARG for only a region of the sites (optional)"));
+                    "sample ARG for only a region of the sites (optional). Note"
+                    "the [chr:] prefix should be added ONLY if alignment is in"
+                    "vcf format. If this option is given, the vcf must also"
+                    "be indexed with tabix"));
 	config.add(new ConfigParam<string>
 		   ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
                     "mask map file (optional)"));
+        config.add(new ConfigParam<string>
+                   ("", "--ind-maskmap", "<ind mask file>",
+                    &ind_maskmap, "",
+                    "File with two columns giving sample name and file with"
+                    " mask for that sample. Sample name can refer to haploid or"
+                    " diploid. If they are diploid, will append _1 and _2 to"
+                    " names to search for relevant lineages to mask"));
         config.add(new ConfigParam<int>
                    ("", "--mask-Ns", "<num>",
                     &maskN, -1,
@@ -97,6 +118,11 @@ public:
                     " must be observed at each site to count as a variant;"
                     " windows are determined after applying --subsites but"
                     " before any masking or compression is performed)"));
+        config.add(new ConfigParam<double>
+                   ("", "--mask-uncertain", "<cutoff>", &mask_uncertain, 0.9,
+                    "(for use with VCF files with PL fields in each genotype)."
+                    " Mask any genotype if probability of most likely call < cutoff"
+                    " according to PL score in VCF file"));
         config.add(new ConfigParam<string>
                    ("", "--subsites", "<subsites file>", &subsites_file,
                     "file listing NAMES from sites file (or sequences from"
@@ -107,6 +133,10 @@ public:
 		    " first column is sample name, second age in generations)."
 		    " Age will be rounded to nearest discrete time point in"
 		    " the model, with a maximum of the second-to-oldest point."));
+        config.add(new ConfigParam<string>
+                   ("", "--tabix-dir", "<directory>", &tabix_dir,
+                    " path to tabix executable. May be required if using --vcf"
+                    " and tabix is not in PATH"));
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
         config.add(new ConfigParam<string>
@@ -269,13 +299,19 @@ public:
     // input/output
     string fasta_file;
     string sites_file;
+    string vcf_file;
+    string vcf_filter;
     string subsites_file;
     string out_prefix;
     string arg_file;
     string subregion_str;
     string age_file;
+    string maskmap;
+    string ind_maskmap;
     int maskN;
     string mask_cluster;
+    string tabix_dir;
+    double mask_uncertain;
 
     // model parameters
     double popsize;
@@ -290,7 +326,6 @@ public:
     string times_file;
     string mutmap;
     string recombmap;
-    string maskmap;
     ArgModel model;
 
     // search
@@ -1059,7 +1094,21 @@ int main(int argc, char **argv)
             return EXIT_ERROR;
         }
         seq_region.set(sites.chrom, sites.start_coord, sites.end_coord);
-
+    } else if (c.vcf_file != "") {
+        if (!read_vcf(c.vcf_file, &sites, c.subregion_str, c.vcf_filter,
+                      true, c.mask_uncertain, c.tabix_dir)) {
+            printError("Could not read VCF file");
+            return EXIT_ERROR;
+        }
+        printLog(LOG_LOW, "read input sites from VCF (chrom=%s, start=%d, end=%d, length=%d, nseqs=%d, nsites=%d)\n",
+                 sites.chrom.c_str(), sites.start_coord, sites.end_coord,
+                 sites.length(), sites.get_num_seqs(),
+                 sites.get_num_sites());
+        if (sites.get_num_sites() == 0) {
+            printLog(LOG_LOW, "no sites given.  terminating.\n");
+            return EXIT_ERROR;
+        }
+        seq_region.set(sites.chrom, sites.start_coord, sites.end_coord);
     } else {
         // no input sequence specified
         printError("must specify sequences (use --fasta or --sites)");
@@ -1155,6 +1204,27 @@ int main(int argc, char **argv)
         delete [] masked;
         printLog(LOG_LOW, "masked %d (%.1f%%) positions\n", nmasked,
                  100.0 * nmasked / double(sequences.length()));
+    }
+    if (c.ind_maskmap != "") {
+        FILE *infile = fopen(c.ind_maskmap.c_str(), "r");
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening ind_maskmap %s\n", c.ind_maskmap.c_str());
+            return EXIT_ERROR;
+        }
+        char ind[10000], maskfile[100000];
+        while (EOF != fscanf(infile, "%s %s", ind, maskfile)) {
+            CompressStream stream(maskfile, "r");
+            TrackNullValue indmask;
+            if (!stream.stream ||
+                !read_track_filter(stream.stream, &indmask, seq_region)) {
+                printError("cannot read mask %s for ind %s\n", maskfile, ind);
+                return EXIT_ERROR;
+            }
+            if (sites_mapping)
+                compress_mask(indmask, sites_mapping);
+            apply_mask_sequences(&sequences, indmask, ind);
+        }
+        fclose(infile);
     }
 
 
