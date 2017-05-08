@@ -638,7 +638,8 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     sequences->set_owned(true);
 
     for (int i=0; i<nseqs; i++) {
-        char *seq = new char [seqlen];
+        char *seq = new char [seqlen+1];
+        seq[seqlen] = '\0';
         vector<BaseProbs> base_probs;
         int col = 0;
         for (int j=0; j<seqlen; j++) {
@@ -812,7 +813,8 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
 
     for (int i=0; i<seqlen; i++) {
         if (!is_invariant_site(seqs, nseqs, i)) {
-            char *col = new char [nseqs];
+            char *col = new char [nseqs+1];
+            col[nseqs]='\0';
             for (int j=0; j<nseqs; j++)
                 col[j] = seqs[j][i];
             sites->append(i, col);
