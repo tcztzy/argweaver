@@ -764,10 +764,10 @@ void calc_emissions(const States &states, const LocalTree *tree,
         if (base_probs.size() > 0) {
             for (int i=0; i < nseqs; i++) {
                 if (i == phase_pr->treemap1)
-                    base_probs2[i] = base_probs[phase_pr->treemap2];
+                    base_probs2.push_back(base_probs[phase_pr->treemap2]);
                 else if (i == phase_pr->treemap2)
-                    base_probs2[i] = base_probs[phase_pr->treemap1];
-                else base_probs2[i] = base_probs[i];
+                    base_probs2.push_back(base_probs[phase_pr->treemap1]);
+                else base_probs2.push_back(base_probs[i]);
             }
         }
 
