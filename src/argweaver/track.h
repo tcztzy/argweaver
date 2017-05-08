@@ -9,7 +9,7 @@
 // arghmm includes
 #include "logging.h"
 #include "parsing.h"
-
+#include "compress.h"
 
 namespace argweaver {
 
@@ -380,15 +380,14 @@ template <class T>
 bool read_track_filter(const char *filename, Track<T> *track,
                        string chrom, int start, int end)
 {
-    FILE *infile;
-    if ((infile = fopen(filename, "r")) == NULL) {
+    CompressStream stream(filename, "r");
+    if (!stream.stream) {
         printError("cannot read file '%s'", filename);
         return false;
     }
 
-    bool result = read_track_filter(infile, track, chrom, start, end);
+    bool result = read_track_filter(stream.stream, track, chrom, start, end);
 
-    fclose(infile);
     return result;
 }
 
