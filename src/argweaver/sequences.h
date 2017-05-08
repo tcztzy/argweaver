@@ -20,7 +20,8 @@
 // arghmm includes
 #include "track.h"
 #include "common.h"
-//#include "local_tree.h"
+#include "tabix.h"
+#include "seq.h"
 
 namespace argweaver {
 
@@ -28,7 +29,86 @@ using namespace std;
  class LocalTrees;
  class ArgModel;
 
-// The alignment of sequences
+
+class BaseProbs
+{
+ public:
+    BaseProbs() {}
+    BaseProbs(char c) {
+        int pos = dna2int[(int)c];
+        if (pos < 0 || pos >= 4) {
+            for (int i=0; i < 4; i++) prob[i]=1;
+        } else {
+            for (int i=0; i < 4; i++) prob[i]=0;
+            prob[pos] = 1;
+        }
+    }
+
+    // pl is normalized phred-like score for genotypes REF/REF,
+    // REF/ALT, ALT/ALT. hap_id is 0 or 1
+    BaseProbs(const char refAllele, const char altAllele, const string &pl,
+              const int hap_id) {
+        if (pl == ".") {
+            for (int i=0; i < 4; i++) prob[i]=1;
+            return;
+        }
+        vector<string> pl_score_strings;
+        double pl_scores[3];
+        split(pl.c_str(), ",", pl_score_strings);
+        if (pl_score_strings.size() != 3) {
+            printError("Error parsing PL string %s\n", pl.c_str());
+            assert(0);
+        }
+        double sum=0.0;
+        for (int i=0; i < 3; i++) {
+            pl_scores[i] = atof(pl_score_strings[i].c_str());
+            pl_scores[i] = pow(10, -pl_scores[i]/10.0);
+            sum += pl_scores[i];
+        }
+        for (int i=0; i < 4; i++) prob[i]=0.0;
+        int refNum = dna2int[(int)refAllele];
+        int altNum = dna2int[(int)altAllele];
+        assert(refNum >= 0 && altNum >= 0);
+        prob[refNum] += pl_scores[0] / sum;
+        prob[altNum] += pl_scores[2] / sum;
+        prob[hap_id == 0 ? refNum : altNum] += pl_scores[1] / sum;
+    }
+    BaseProbs(const BaseProbs &other) {
+        for (int i=0; i < 4; i++) prob[i] = other.prob[i];
+    }
+    double maxProb() {
+        double rv = prob[0];
+        for (int i=1; i < 4; i++)
+            if (prob[i] > rv) rv = prob[i];
+        return rv;
+    }
+    void set_mask() {
+        for (int i=0; i < 4; i++)
+            prob[i] = 1.0;
+    }
+    bool is_masked() {
+        for (int i=0; i < 4; i++)
+            if (prob[i] < 0.99) return false;
+        return true;
+    }
+    bool is_certain(double tol=1e-8) const {
+        int numPossible=0;
+        for (int i=0; i < 4; i++)
+            if (prob[i] > tol) {
+                numPossible++;
+                if (numPossible > 1) return false;
+            }
+        if (numPossible == 0) {
+            printError("is_certain: got no allele possible\n");
+            assert(0);
+        }
+        return true;
+    }
+    double prob[4];
+};
+
+
+ // The alignment of sequences
 class Sequences
 {
 public:
@@ -54,7 +134,8 @@ public:
             seqlen = sequences->length();
 
         for (int i=0; i<nseqs; i++)
-            append(sequences->names[i], &sequences->seqs[i][offset]);
+            append(sequences->names[i], &sequences->seqs[i][offset],
+                   vector<BaseProbs>());
 
 	if (sequences->pairs.size() > 0) {
 	  pairs = vector<int>(nseqs);
@@ -67,6 +148,11 @@ public:
                 pops[i] = sequences->pops[i];
         }
 	ages = sequences->ages;
+        if (sequences->base_probs.size() > 0) {
+            for (int i=0; i < (int)base_probs.size(); i++) {
+                base_probs.push_back(sequences->base_probs[i]);
+            }
+        }
     }
 
     ~Sequences()
@@ -123,9 +209,10 @@ public:
         }
     }
 
-    bool append(string name, char *seq, int new_seqlen=-1, int pop=0)
+    bool append(string name, char *seq, vector<BaseProbs> bp, int pop=0)
     {
         // check sequence length
+        int new_seqlen = strlen(seq);
         if (new_seqlen > 0) {
             if (seqs.size() > 0) {
                 if (new_seqlen != seqlen)
@@ -133,8 +220,12 @@ public:
             } else
                 seqlen = new_seqlen;
         }
-
+        if (seqs.size() > 0) {
+            if (base_probs.size() > 0) assert(bp.size() > 0);
+            else assert(bp.size() == 0);
+        }
         seqs.push_back(seq);
+        if (bp.size() > 0) base_probs.push_back(bp);
         names.push_back(name);
         pops.push_back(pop);
 	if (pairs.size() > 0) pairs.push_back(-1);
@@ -153,6 +244,7 @@ public:
         pops.clear();
         pairs.clear();
         non_singleton_snp.clear();
+        base_probs.clear();
     }
 
 
@@ -212,6 +304,11 @@ public:
       char tmp = seqs[seq1][coord];
       seqs[seq1][coord] = seqs[seq2][coord];
       seqs[seq2][coord] = tmp;
+      if (base_probs.size() > 0) {
+          BaseProbs tmp = base_probs[seq1][coord];
+          base_probs[seq1][coord] = base_probs[seq2][coord];
+          base_probs[seq2][coord] = tmp;
+      }
     }
 
     void randomize_phase(double frac);
@@ -226,6 +323,7 @@ public:
     vector <bool> non_singleton_snp;  //true if snp w frequency > 1
     vector <int> ages; // set to non-zero for ancient samples
     vector <double> real_ages;
+    vector<vector<BaseProbs> > base_probs;
 
 protected:
     int seqlen;
@@ -307,6 +405,7 @@ public:
         positions.clear();
         cols.clear();
         pops.clear();
+        base_probs.clear();
     }
 
     inline int length() const
@@ -324,6 +423,7 @@ public:
         return names.size();
     }
 
+    // note: does not consider base_probs so just returns most likely bases
     bool is_snp(int i) const {
         if (i < 0 || i >= (int)cols.size()) return false;
         int len = get_num_seqs();
@@ -349,6 +449,7 @@ public:
     vector<int> pops;
     vector<int> positions;
     vector<char*> cols;
+    vector<vector<BaseProbs> > base_probs;
 };
 
 
@@ -474,13 +575,22 @@ bool read_sites(FILE *infile, Sites *sites,
                  int subregion_start=-1, int subregion_end=-1);
 bool read_sites(const char *filename, Sites *sites,
                  int subregion_start=-1, int subregion_end=-1);
-
+bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
+              bool parse_genotype_pl, double min_base_prob);
+bool read_vcf(const char *filename, Sites *sites, const char *region,
+              const char *genotype_filter,
+              bool parse_genotype_pl, double min_base_prob,
+              const char *tabix_dir=NULL);
+bool read_vcf(const string filename, Sites *sites, const string region,
+              const string genotype_filter,
+              bool parse_genotype_pl, double min_base_prob,
+              const string tabix_dir="");
 void make_sequences_from_sites(const Sites *sites, Sequences *sequencess,
                                char default_char='A');
 void make_sites_from_sequences(const Sequences *sequences, Sites *sites);
 
-template<class T>
-void apply_mask_sequences(Sequences *sequences, const Track<T> &maskmap);
+void apply_mask_sequences(Sequences *sequences, const TrackNullValue &maskmap,
+                          const char *ind=NULL);
 
 // sequence compression
 bool find_compress_cols(const Sites *sites, int compress,

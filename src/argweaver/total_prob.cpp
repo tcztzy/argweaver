@@ -49,7 +49,8 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
 
         //note: this is approximate, uses mu/rho from center of block
         model->get_local_model((start+end)/2, local_model, &mu_idx, &rho_idx);
-        lnl += likelihood_tree(tree, &local_model, seqs, nseqs, start, end);
+        lnl += likelihood_tree(tree, &local_model, seqs, sequences->base_probs,
+                               nseqs, start, end);
     }
 
     return lnl;
@@ -82,6 +83,14 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     if (trees->nnodes < 3)
         return lnl += log(.25) * (end_coord - start_coord);
 
+    bool have_base_probs = ( sequences->base_probs.size() > 0 );
+    vector<vector<BaseProbs> > base_probs;
+    if (have_base_probs) {
+        for (int j=0; j < nseqs; j++) {
+            base_probs.push_back(vector<BaseProbs>());
+        }
+    }
+
     int end = trees->start_coord;
     int mu_idx = 0;
     int rho_idx = 0;
@@ -98,11 +107,16 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
         int blocklen = end - start;
         LocalTree *tree = it->tree;
 
+
         // get sequences for trees
         char *seqs[nseqs];
         char *matrix = new char [blocklen*nseqs];
         for (int j=0; j<nseqs; j++)
             seqs[j] = &matrix[j*blocklen];
+        if (have_base_probs) {
+            for (int j=0; j < nseqs; j++) base_probs[j].clear();
+        }
+
 
         // find first site within this block
         unsigned int i2 = 0;
@@ -115,22 +129,29 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
             if (i2 < sites_mapping->all_sites.size() &&
                 i == sites_mapping->all_sites[i2]) {
                 // copy site
-                for (int j=0; j<nseqs; j++)
+                for (int j=0; j<nseqs; j++) {
                     seqs[j][i-start] = sequences->seqs[trees->seqids[j]][i2];
+                    if (have_base_probs)
+                        base_probs[j].push_back(BaseProbs(sequences->base_probs[trees->seqids[j]][i2]));
+                }
             } else {
                 // copy non-variant site
                 char c=default_char;
                 if (maskmap_uncompressed->find(i, &mask_pos))
                     c='N';
-                for (int j=0; j<nseqs; j++)
+                for (int j=0; j<nseqs; j++) {
                     seqs[j][i-start] = c;
+                    if (have_base_probs)
+                        base_probs[j].push_back(BaseProbs(default_char));
+                }
             }
         }
 
         ArgModel local_model;
         model->get_local_model((start+end)/2, local_model,
                                &mu_idx, &rho_idx);
-        lnl += likelihood_tree(tree, &local_model, seqs, nseqs, 0, end-start);
+        lnl += likelihood_tree(tree, &local_model, seqs, base_probs,
+                               nseqs, 0, end-start);
 
         delete [] matrix;
     }
