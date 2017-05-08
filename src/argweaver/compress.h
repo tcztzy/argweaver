@@ -31,7 +31,8 @@ public:
         int len = strlen(filename);
         compress = false;
 
-        if (len > 3 && strcmp(&filename[len - 3], ".gz") == 0) {
+        if ((len > 3 && strcmp(&filename[len - 3], ".gz") == 0) ||
+            (len > 4 && strcmp(&filename[len - 4], ".bgz") == 0)) {
             compress = true;
             if (mode[0] == 'r')
                 stream = read_compress(filename, command);
