@@ -483,30 +483,33 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
         col[nseqs] = '\0';
         int idx=0;
         for (int i=0; i < nsample; i++) {
+            bool masked = ( num_alleles > 2 );
             split(fields[9+i].c_str(), ":", seqfields);
             if (seqfields.size() != format.size()) {
-                printError("Field %i does not match format string on line %i of VCF file\n",
-                           9+i+1, lineno);
-                return false;
-            }
-            assert(seqfields.size() == format.size());
-            bool masked=false;
-            for (int j=0; j < (int)gf.size(); j++) {
-                if (gf[j].index >= 0) {
-                    int val = atoi(seqfields[gf[j].index].c_str());
-                    if ((  gf[j].is_min  && val < gf[j].cutoff) ||
-                        ((!gf[j].is_min) && val > gf[j].cutoff)) {
-                        masked=true;
-                        break;
+                if (gt_idx < (int)seqfields.size() && seqfields[gt_idx] == "./.")
+                    masked=true;
+                else {
+                    printError("Field %i does not match format string on line %i of VCF file\n",
+                               9+i+1, lineno);
+                    return false;
+                }
+            } else {
+                for (int j=0; j < (int)gf.size(); j++) {
+                    if (gf[j].index >= 0) {
+                        int val = atoi(seqfields[gf[j].index].c_str());
+                        if ((  gf[j].is_min  && val < gf[j].cutoff) ||
+                            ((!gf[j].is_min) && val > gf[j].cutoff)) {
+                            masked=true;
+                            break;
+                        }
                     }
                 }
             }
-            if (num_alleles > 2) masked=true;
             if (parse_genotype_pl) {
                 for (int j=0; j < 2; j++) {
-                    BaseProbs bp = num_alleles == 2 ?
-                        BaseProbs(alleles[0], alleles[1], seqfields[pl_idx], j) :
-                        BaseProbs('N');
+                    BaseProbs bp = ( masked ?
+                        BaseProbs('N') :
+                        BaseProbs(alleles[0], alleles[1], seqfields[pl_idx], j) );
                     base_probs.push_back(bp);
                     if (bp.maxProb() < min_base_prob)
                         masked=true;
@@ -725,23 +728,26 @@ void apply_mask_sequences(Sequences *sequences,
             if (strcmp(sequences->names[i].c_str(), ind)==0) {
                 num_mask = 1;
                 maskind[0] = i;
+                printLog(LOG_LOW, "Applying individual mask to %s\n", ind);
                 break;
             }
         }
         // else check to see if it is a diploid match
         if (num_mask == 0) {
-            for (int j=0; j < 2; j++) {
+            for (int j=0; j <= 2; j++) {
                 char hapname[strlen(ind)+3];
                 sprintf(hapname, "%s_%i", ind, j);
                 for (int i=0; i < (int)sequences->get_num_seqs(); i++) {
                     if (strcmp(sequences->names[i].c_str(), hapname)==0) {
                         maskind[num_mask++] = i;
+                        printLog(LOG_LOW, "Applying individual mask to %s\n",
+                                 sequences->names[i].c_str());
                         break;
                     }
                 }
             }
             if (num_mask != 2) {
-                printError("Warning: No sequences matched ind mask name %s; mask not applied\n", ind);
+                printLog(LOG_LOW, "Warning: No sequences matched ind mask name %s; mask not applied\n", ind);
                 return;
             }
         }
