@@ -677,7 +677,7 @@ int Sites::subset(set<string> names_to_keep) {
             if (have_base_probs) {
                 if (!base_probs[i][keep[j]].is_certain())
                     variant=true;
-                else bp.push_back(base_probs[i][keep[j]]);
+                bp.push_back(base_probs[i][keep[j]]);
             }
             if (tmp[j]=='N' || tmp[j] != tmp[0]) variant=true;
         }
