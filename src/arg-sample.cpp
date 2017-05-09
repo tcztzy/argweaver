@@ -1484,17 +1484,19 @@ int main(int argc, char **argv)
     }
 
     //read in mask
-    TrackNullValue maskmap;
     TrackNullValue maskmap_orig;
+    TrackNullValue maskmap = sites.remove_masked();
     if (c.maskmap != "") {
         //read mask
+        TrackNullValue curr_maskmap;
         CompressStream stream(c.maskmap.c_str(), "r");
         if (!stream.stream ||
-            !read_track_filter(stream.stream, &maskmap, seq_region)) {
+            !read_track_filter(stream.stream, &curr_maskmap, seq_region)) {
             printError("cannot read mask map '%s'",
                        c.maskmap.c_str());
             return EXIT_ERROR;
         }
+        maskmap.merge_tracks(curr_maskmap);
     }
     c.all_masked=false;
 
@@ -1521,6 +1523,10 @@ int main(int argc, char **argv)
 
     if (maskmap.size() > 0 && sites.get_num_sites() > 0) {
         int old_num_sites = sites.get_num_sites();
+        // this is done so that compression is not affected by missing data
+        // sites (because compression does not actually reduce the number of
+        // sites and will fail if too many sites exist). After compression,
+        // sites are converted to sequences and a compressed mask applied
         sites.remove_overlapping(maskmap);
         int new_num_sites = sites.get_num_sites();
         printLog(LOG_LOW, "Removed %i sites overlapping mask (old=%i , new=%i)\n",
@@ -1528,20 +1534,18 @@ int main(int argc, char **argv)
     }
 
     // compress sequences
-    if (sites.get_num_sites() > 0) {
-        // first remove any sites that fall under mask
+    // first remove any sites that fall under mask
 
-        sites_mapping = new SitesMapping();
-        sites_mapping_ptr = auto_ptr<SitesMapping>(sites_mapping);
+    sites_mapping = new SitesMapping();
+    sites_mapping_ptr = auto_ptr<SitesMapping>(sites_mapping);
 
-        if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
-            printError("unable to compress sequences at given compression level"
-                       " (--compress-seq)");
-            return EXIT_ERROR;
-        }
-        compress_sites(&sites, sites_mapping);
-        make_sequences_from_sites(&sites, &sequences);
+    if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
+        printError("unable to compress sequences at given compression level"
+                   " (--compress-seq)");
+        return EXIT_ERROR;
     }
+    compress_sites(&sites, sites_mapping);
+    make_sequences_from_sites(&sites, &sequences);
     seq_region_compress.set(seq_region.chrom, 0, sequences.length());
 
     // compress mask

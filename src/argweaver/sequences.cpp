@@ -697,7 +697,7 @@ int Sites::subset(set<string> names_to_keep) {
             if (have_base_probs) {
                 if (!base_probs[i][keep[j]].is_certain())
                     variant=true;
-                else bp.push_back(base_probs[i][keep[j]]);
+                bp.push_back(base_probs[i][keep[j]]);
             }
             if (tmp[j]=='N' || tmp[j] != tmp[0]) variant=true;
         }
@@ -720,17 +720,64 @@ int Sites::subset(set<string> names_to_keep) {
 template<>
 int Sites::remove_overlapping(const TrackNullValue &track) {
     bool have_base_probs = ( base_probs.size() > 0 );
-    for (int i=positions.size()-1; i >= 0; i--) {
-        if (track.index(positions[i]) != -1) {
-            positions.erase(positions.begin() + i);
-            cols.erase(cols.begin() + i);
+    int numhap = get_num_seqs();
+    int idx=0;
+    for (int i=0; i < (int)positions.size(); i++) {
+        bool overlapping = (track.index(positions[i]) != -1);
+        if (overlapping) continue;
+        if (i != idx) {
+            positions[idx] = positions[i];
+            strncpy(cols[idx], cols[i], numhap);
             if (have_base_probs)
-                base_probs.erase(base_probs.begin() + i);
+                base_probs[idx] = base_probs[i];
         }
+        idx++;
     }
+    for (unsigned int i=idx; i < cols.size(); i++)
+        delete [] cols[i];
+    positions.resize(idx);
+    cols.resize(idx);
+    if (have_base_probs)
+        base_probs.resize(idx);
     return 0;
 }
 
+
+TrackNullValue Sites::remove_masked() {
+    TrackNullValue masked_regions;
+    int numhap = get_num_seqs();
+    bool have_base_probs = ( base_probs.size() > 0 );
+    int idx=0;
+    for (int i=0; i < (int)positions.size(); i++) {
+        bool masked=true;
+        for (int j=0; j < numhap; j++) {
+            if (cols[i][j] != 'N') {
+                masked=false;
+                break;
+            }
+        }
+        if (masked) {
+            masked_regions.push_back(RegionNullValue(chrom, positions[i],
+                                                     positions[i]+1, ' '));
+        } else {
+            if (idx != i) {
+                positions[idx] = positions[i];
+                strncpy(cols[idx], cols[i], numhap);
+                if (have_base_probs)
+                    base_probs[idx] = base_probs[i];
+            }
+            idx++;
+        }
+    }
+    for (unsigned int i=idx; i < cols.size(); i++)
+        delete [] cols[i];
+    positions.resize(idx);
+    cols.resize(idx);
+    if (have_base_probs)
+        base_probs.resize(idx);
+    masked_regions.merge();
+    return masked_regions;
+}
 
 void apply_mask_sequences(Sequences *sequences,
                           const TrackNullValue &maskmap,
@@ -784,26 +831,13 @@ void apply_mask_sequences(Sequences *sequences,
 
 
 
-// Returns true if alignment column is invariant
-static inline bool is_invariant_site(const char *const *seqs,
-                                     const int nseqs, const int pos)
-{
-    const char c = seqs[0][pos];
-    for (int j=1; j<nseqs; j++) {
-        if (seqs[j][pos] != c) {
-            return false;
-        }
-    }
-    return true;
-}
-
-
 // Converts a Sequences alignment to a Sites alignment
 void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
 {
     int nseqs = sequences->get_num_seqs();
     int seqlen = sequences->length();
     const char * const *seqs = sequences->get_seqs();
+    bool have_base_probs = ( sequences->base_probs.size() > 0 );
 
     sites->clear();
     sites->start_coord = 0;
@@ -812,12 +846,28 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
                         sequences->names.begin(), sequences->names.end());
 
     for (int i=0; i<seqlen; i++) {
-        if (!is_invariant_site(seqs, nseqs, i)) {
-            char *col = new char [nseqs+1];
-            col[nseqs]='\0';
-            for (int j=0; j<nseqs; j++)
-                col[j] = seqs[j][i];
-            sites->append(i, col);
+        bool isSite=false;  //need to make site if position is N or varaint or
+                            // has baseprobs and is not certain
+        for (int j=0; j < nseqs; j++) {
+            if (seqs[j][i] == 'N' ||
+                seqs[j][i] != seqs[j][0] ||
+                (have_base_probs && !sequences->base_probs[j][i].is_certain())) {
+                isSite=true;
+                break;
+            }
+        }
+        if (!isSite) continue;
+
+        char *col = new char [nseqs+1];
+        col[nseqs]='\0';
+        for (int j=0; j<nseqs; j++)
+            col[j] = seqs[j][i];
+        sites->append(i, col);
+        if (have_base_probs) {
+            vector<BaseProbs> bp;
+            for (int j=0; j < nseqs; j++)
+                bp.push_back(sequences->base_probs[j][i]);
+            sites->base_probs.push_back(bp);
         }
     }
 }
@@ -1162,27 +1212,11 @@ void compress_sites(Sites *sites, const SitesMapping *sites_mapping)
 void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping)
 {
     const int ncols = sites->cols.size();
-    if (ncols > (int)sites_mapping->old_sites.size() ||
-        sites_mapping->old_sites.size() != sites_mapping->new_sites.size()) {
-        fprintf(stderr, "Error; uncompress_sites got incompatible sites_mapping\n");
-        abort();
-    }
     sites->start_coord = sites_mapping->old_start;
     sites->end_coord = sites_mapping->old_end;
 
-    unsigned int j=0;
-    for (int i=0; i<ncols; i++) {
-        while (sites_mapping->new_sites[j] != sites->positions[i]) {
-            j++;
-            if (j == sites_mapping->new_sites.size()) {
-                fprintf(stderr,
-                        "Error; could not find position %i in sites mapping\n",
-                         sites->positions[i]);
-                abort();
-            }
-        }
-        sites->positions[i] = sites_mapping->old_sites[j];
-    }
+    for (int i=0; i<ncols; i++)
+        sites->positions[i] = sites_mapping->uncompress(sites->positions[i]);
 }
 
 
