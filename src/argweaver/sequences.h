@@ -389,6 +389,7 @@ public:
 
     template<class T>
     int remove_overlapping(const Track<T> &track);
+    TrackNullValue remove_masked();
 
     string chrom;
     int start_coord;

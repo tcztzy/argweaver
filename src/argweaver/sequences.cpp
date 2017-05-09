@@ -700,17 +700,64 @@ int Sites::subset(set<string> names_to_keep) {
 template<>
 int Sites::remove_overlapping(const TrackNullValue &track) {
     bool have_base_probs = ( base_probs.size() > 0 );
-    for (int i=positions.size()-1; i >= 0; i--) {
-        if (track.index(positions[i]) != -1) {
-            positions.erase(positions.begin() + i);
-            cols.erase(cols.begin() + i);
+    int numhap = get_num_seqs();
+    int idx=0;
+    for (int i=0; i < (int)positions.size(); i++) {
+        bool overlapping = (track.index(positions[i]) != -1);
+        if (overlapping) continue;
+        if (i != idx) {
+            positions[idx] = positions[i];
+            strncpy(cols[idx], cols[i], numhap);
             if (have_base_probs)
-                base_probs.erase(base_probs.begin() + i);
+                base_probs[idx] = base_probs[i];
         }
+        idx++;
     }
+    for (unsigned int i=idx; i < cols.size(); i++)
+        delete [] cols[i];
+    positions.resize(idx);
+    cols.resize(idx);
+    if (have_base_probs)
+        base_probs.resize(idx);
     return 0;
 }
 
+
+TrackNullValue Sites::remove_masked() {
+    TrackNullValue masked_regions;
+    int numhap = get_num_seqs();
+    bool have_base_probs = ( base_probs.size() > 0 );
+    int idx=0;
+    for (int i=0; i < (int)positions.size(); i++) {
+        bool masked=true;
+        for (int j=0; j < numhap; j++) {
+            if (cols[i][j] != 'N') {
+                masked=false;
+                break;
+            }
+        }
+        if (masked) {
+            masked_regions.push_back(RegionNullValue(chrom, positions[i],
+                                                     positions[i]+1, ' '));
+        } else {
+            if (idx != i) {
+                positions[idx] = positions[i];
+                strncpy(cols[idx], cols[i], numhap);
+                if (have_base_probs)
+                    base_probs[idx] = base_probs[i];
+            }
+            idx++;
+        }
+    }
+    for (unsigned int i=idx; i < cols.size(); i++)
+        delete [] cols[i];
+    positions.resize(idx);
+    cols.resize(idx);
+    if (have_base_probs)
+        base_probs.resize(idx);
+    masked_regions.merge();
+    return masked_regions;
+}
 
 void apply_mask_sequences(Sequences *sequences,
                           const TrackNullValue &maskmap,
