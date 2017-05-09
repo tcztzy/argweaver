@@ -811,26 +811,13 @@ void apply_mask_sequences(Sequences *sequences,
 
 
 
-// Returns true if alignment column is invariant
-static inline bool is_invariant_site(const char *const *seqs,
-                                     const int nseqs, const int pos)
-{
-    const char c = seqs[0][pos];
-    for (int j=1; j<nseqs; j++) {
-        if (seqs[j][pos] != c) {
-            return false;
-        }
-    }
-    return true;
-}
-
-
 // Converts a Sequences alignment to a Sites alignment
 void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
 {
     int nseqs = sequences->get_num_seqs();
     int seqlen = sequences->length();
     const char * const *seqs = sequences->get_seqs();
+    bool have_base_probs = ( sequences->base_probs.size() > 0 );
 
     sites->clear();
     sites->start_coord = 0;
@@ -839,12 +826,28 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
                         sequences->names.begin(), sequences->names.end());
 
     for (int i=0; i<seqlen; i++) {
-        if (!is_invariant_site(seqs, nseqs, i)) {
-            char *col = new char [nseqs+1];
-            col[nseqs]='\0';
-            for (int j=0; j<nseqs; j++)
-                col[j] = seqs[j][i];
-            sites->append(i, col);
+        bool isSite=false;  //need to make site if position is N or varaint or
+                            // has baseprobs and is not certain
+        for (int j=0; j < nseqs; j++) {
+            if (seqs[j][i] == 'N' ||
+                seqs[j][i] != seqs[j][0] ||
+                (have_base_probs && !sequences->base_probs[j][i].is_certain())) {
+                isSite=true;
+                break;
+            }
+        }
+        if (!isSite) continue;
+
+        char *col = new char [nseqs+1];
+        col[nseqs]='\0';
+        for (int j=0; j<nseqs; j++)
+            col[j] = seqs[j][i];
+        sites->append(i, col);
+        if (have_base_probs) {
+            vector<BaseProbs> bp;
+            for (int j=0; j < nseqs; j++)
+                bp.push_back(sequences->base_probs[j][i]);
+            sites->base_probs.push_back(bp);
         }
     }
 }
