@@ -43,6 +43,9 @@ class BaseProbs
             prob[pos] = 1;
         }
     }
+    BaseProbs(double prob0[4]) {
+        for (int i=0; i < 4; i++) prob[i] = prob0[i];
+    }
 
     // pl is normalized phred-like score for genotypes REF/REF,
     // REF/ALT, ALT/ALT. hap_id is 0 or 1
