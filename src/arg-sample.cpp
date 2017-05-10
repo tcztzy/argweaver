@@ -730,6 +730,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         print_stats(config->stats_file, "resample", 0, model, sequences, trees,
                     sites_mapping, config);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0);
+        if (config->sample_phase > 0)
+            log_sequences(trees->chrom, sequences, config, sites_mapping, 0);
     }
 
 
