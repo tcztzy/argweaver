@@ -830,6 +830,8 @@ void apply_mask_sequences(Sequences *sequences,
     const char maskchar = 'N';
     int maskind[sequences->get_num_seqs()];
     int num_mask=0;
+    bool have_base_probs = ( sequences->base_probs.size() > 0 );
+
     if (ind == NULL) {
         num_mask = (int)sequences->get_num_seqs();
         for (int i=0; i < num_mask; i++)
@@ -867,8 +869,11 @@ void apply_mask_sequences(Sequences *sequences,
 
     for (unsigned int k=0; k<maskmap.size(); k++) {
         for (int i=maskmap[k].start; i<maskmap[k].end; i++) {
-            for (int j=0; j < num_mask; j++)
+            for (int j=0; j < num_mask; j++) {
                 sequences->seqs[maskind[j]][i] = maskchar;
+                if (have_base_probs)
+                    sequences->base_probs[maskind[j]][i].set_mask();
+            }
         }
     }
 }
