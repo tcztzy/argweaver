@@ -1034,11 +1034,11 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
             // TODO: implement popsize updates
             /*	if (config->popsize_em > 0 && i % config->popsize_em == 0)
 	    mle_popsize(model, trees, config->popsize_em_min_event);
-        else if (model->popsize_config.sample > 0 && i % model->popsize_config.sample == 0) {
-            printError("Have not implemented popsize update for multipop yet\n");
-	    ////      resample_popsizes(model, trees, config->sample_popsize_recomb, heat);
+            else */
+        if (model->popsize_config.sample > 0 && i % model->popsize_config.sample == 0) {
+            resample_popsizes_mh(model, trees, true, heat);
             //	    update_popsize_hmc(model, trees);
-        } else {
+        } /*else {
             printError("Have not implemented popsize update for multipop yet\n");
             //no_update_popsize(model, trees);
             }*/
