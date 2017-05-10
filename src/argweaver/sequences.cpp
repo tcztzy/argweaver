@@ -144,8 +144,9 @@ void write_sites(FILE *stream, Sites *sites) {
   }
   for (unsigned int i=0; i < sites->positions.size(); i++) {
     unsigned int j=0;
-    for (j=1; j < sites->names.size(); j++)
-      if (sites->cols[i][j] != sites->cols[i][0]) break;
+    for (j=0; j < sites->names.size(); j++)
+      if (sites->cols[i][j] != sites->cols[i][0] ||
+          sites->cols[i][j] == 'N') break;
     if (j != sites->names.size()) {
       fprintf(stream, "%i\t", sites->positions[i]+1);
       for (unsigned int k=0; k < sites->names.size(); k++)
