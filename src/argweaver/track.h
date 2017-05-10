@@ -95,13 +95,24 @@ public:
             return Track<T>::back().end;
     }
 
-    bool find(int pos, int *start_idx=NULL) const {
+    bool is_sorted() const {
+        for (unsigned int i=0; i < Track<T>::size()-1; i++) {
+            const RegionValue<T> &region1 = Track<T>::at(i);
+            const RegionValue<T> &region2 = Track<T>::at(i+1);
+            if (region1.end > region2.start) return false;
+        }
+        return true;
+    }
+
+    bool find(int pos, int *start_idx=NULL, bool assume_sorted=false) const {
         int start = (start_idx == NULL ? 0 : *start_idx );
         for (unsigned int i=start; i<Track<T>::size(); i++) {
             const RegionValue<T> &region = Track<T>::at(i);
             if (region.start <= pos && pos < region.end) {
                 if (start_idx != NULL) *start_idx = i;
                 return true;
+            } else if (assume_sorted && region.start > pos) {
+                return false;
             }
         }
         // region not found

@@ -95,6 +95,7 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
     int mu_idx = 0;
     int rho_idx = 0;
     int mask_pos=0;
+    bool mask_sorted = maskmap_uncompressed->is_sorted();
     for (LocalTrees::const_iterator it=trees->begin(); it!=trees->end(); ++it) {
         int start = end;
         end = start + it->blocklen;
@@ -137,7 +138,7 @@ double calc_arg_likelihood(const ArgModel *model, const Sequences *sequences,
             } else {
                 // copy non-variant site
                 char c=default_char;
-                if (maskmap_uncompressed->find(i, &mask_pos))
+                if (maskmap_uncompressed->find(i, &mask_pos, mask_sorted))
                     c='N';
                 for (int j=0; j<nseqs; j++) {
                     seqs[j][i-start] = c;
