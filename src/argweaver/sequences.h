@@ -444,6 +444,7 @@ public:
 
     template<class T>
     int remove_overlapping(const Track<T> &track);
+    TrackNullValue get_masked_regions() const;
     TrackNullValue remove_masked();
 
     string chrom;
@@ -574,7 +575,7 @@ bool check_seq_name(const char *name);
 void resample_align(Sequences *aln, Sequences *aln2);
 
 // sites functions
-void write_sites(FILE *stream, Sites *sites);
+void write_sites(FILE *stream, Sites *sites, bool write_masked=false);
 bool read_sites(FILE *infile, Sites *sites,
                  int subregion_start=-1, int subregion_end=-1);
 bool read_sites(const char *filename, Sites *sites,
@@ -595,6 +596,8 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites);
 
 void apply_mask_sequences(Sequences *sequences, const TrackNullValue &maskmap,
                           const char *ind=NULL);
+
+void print_masked_sites_regions(const Sites &sites, string filename);
 
 // sequence compression
 bool find_compress_cols(const Sites *sites, int compress,

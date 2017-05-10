@@ -130,10 +130,14 @@ void write_fasta(FILE *stream, Sequences *seqs)
 //=============================================================================
 // input/output: sites file format
 
-void write_sites(FILE *stream, Sites *sites) {
+void write_sites(FILE *stream, Sites *sites, bool write_masked) {
   bool have_base_probs = sites->base_probs.size() > 0;
+  char masked_str[sites->names.size() + 1];
+  int nseq = (int)sites->names.size();
+  for (int j=0; j<nseq; j++) masked_str[j]='N';
+  masked_str[nseq]='\0';
   fprintf(stream, "NAMES");
-  for (unsigned int i=0; i < sites->names.size(); i++)
+  for (int i=0; i < nseq; i++)
     fprintf(stream, "\t%s", sites->names[i].c_str());
   fprintf(stream, "\n");
   fprintf(stream, "REGION\t%s\t%i\t%i\n",
@@ -144,20 +148,21 @@ void write_sites(FILE *stream, Sites *sites) {
     exit(-1);
   }
   for (unsigned int i=0; i < sites->positions.size(); i++) {
-    unsigned int j=0;
-    for (j=0; j < sites->names.size(); j++)
+     int j=0;
+    for (j=0; j < nseq; j++)
       if (sites->cols[i][j] != sites->cols[i][0] ||
           sites->cols[i][j] == 'N') break;
-    if (j != sites->names.size()) {
-      fprintf(stream, "%i\t", sites->positions[i]+1);
-      for (unsigned int k=0; k < sites->names.size(); k++)
+    if (j != nseq) continue;
+    if ((!write_masked) && strncmp(sites->cols[i], masked_str, nseq)==0)
+        continue;
+    fprintf(stream, "%i\t", sites->positions[i]+1);
+    for (unsigned int k=0; k < sites->names.size(); k++)
 	fprintf(stream, "%c", sites->cols[i][k]);
-      if (have_base_probs)
-          for (int k=0; k < (int)sites->names.size(); k++)
-              for (int l=0; l<4; l++)
-                  fprintf(stream, "\t%f", sites->base_probs[i][k].prob[l]);
-      fprintf(stream, "%c", '\n');
-    }
+    if (have_base_probs)
+        for (int k=0; k < (int)sites->names.size(); k++)
+            for (int l=0; l<4; l++)
+                fprintf(stream, "\t%f", sites->base_probs[i][k].prob[l]);
+    fprintf(stream, "%c", '\n');
   }
 }
 
@@ -787,6 +792,27 @@ int Sites::remove_overlapping(const TrackNullValue &track) {
 }
 
 
+TrackNullValue Sites::get_masked_regions() const {
+    TrackNullValue masked_regions;
+    int numhap = get_num_seqs();
+    for (int i=0; i < (int)positions.size(); i++) {
+        bool masked=true;
+        for (int j=0; j < numhap; j++) {
+            if (cols[i][j] != 'N') {
+                masked=false;
+                break;
+            }
+        }
+        if (masked) {
+            masked_regions.push_back(RegionNullValue(chrom, positions[i],
+                                                     positions[i]+1, ' '));
+        }
+    }
+    masked_regions.merge();
+    return masked_regions;
+}
+
+
 TrackNullValue Sites::remove_masked() {
     TrackNullValue masked_regions;
     int numhap = get_num_seqs();
@@ -1325,6 +1351,12 @@ TrackNullValue get_snp_clusters(const Sites &sites, int numsnp, int window) {
     }
     track.merge();
     return track;
+}
+
+
+void print_masked_sites_regions(const Sites &sites, string filename) {
+    TrackNullValue masked_regions = sites.get_masked_regions();
+    masked_regions.write_track_regions(filename);
 }
 
 
