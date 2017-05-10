@@ -49,8 +49,8 @@ double kineticEnergy(double *x, int len);
 //void leapFrogL(double *theta, double *r, double epsilon, int L,
 
 // Metropolis-Hastings resampling; no longer used in favor of HMC
-void resample_popsizes(ArgModel *model, const LocalTrees *trees,
-                       bool sample_popsize_recomb, double heat=1.0);
+void resample_popsizes_mh(ArgModel *model, const LocalTrees *trees,
+                          bool sample_popsize_recomb, double heat=1.0);
 
 }; // namespace argweaver
 

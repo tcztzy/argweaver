@@ -25,7 +25,7 @@ double resample_single_popsize_mh(ArgModel *model, const LocalTrees *trees,
     list<PopsizeConfigParam> &l = model->popsize_config.params;
     double new_popsize, curr_popsize;
     bool accept;
-    if (l.size()==1) return curr_like;
+    if (l.size()==0) return curr_like;
 
     set<PopTime>::iterator it2 = it->intervals.begin();
     int pop = it2->pop;
@@ -38,7 +38,6 @@ double resample_single_popsize_mh(ArgModel *model, const LocalTrees *trees,
     if (rank == 0) {
 #endif
 
-        //        new_popsize = 1000.0 * frand() - 500.0;
         new_popsize = exp(rand_norm(log(curr_popsize), 0.2));
 
 #ifdef ARGWEAVER_MPI
@@ -84,9 +83,10 @@ double resample_single_popsize_mh(ArgModel *model, const LocalTrees *trees,
         lr *= heat;
         accept = (lr > 0 ? true : frand() < exp(lr));
 
-        printLog(LOG_LOW, "%i\t%.1f\t%.1f\t%f\t%f\t%f\t%s\n",
-                 index, num_coal[pop][tidx], num_nocoal[pop][tidx],
-                 model->popsizes[pop][tidx], new_popsize, lr,
+        printLog(LOG_LOW, "%i\t%f\t%f\t%f\t%f\t%s\n",
+                 index,
+                 //num_coal[pop][tidx], num_nocoal[pop][tidx],
+                 lr, curr_popsize, new_popsize, lr,
                  accept ? "accept" : "reject");
 
 #ifdef ARGWEAVER_MPI
@@ -97,7 +97,7 @@ double resample_single_popsize_mh(ArgModel *model, const LocalTrees *trees,
     if (!accept) {
         for (set<PopTime>::iterator it2=it->intervals.begin();
              it2 != it->intervals.end(); it2++) {
-            model->popsizes[it2->pop][it2->time] -= new_popsize;
+            model->popsizes[it2->pop][it2->time] = curr_popsize;
         }
     } else {
         curr_like = new_like;
