@@ -793,6 +793,34 @@ TrackNullValue Sites::get_masked_regions() const {
 }
 
 
+TrackNullValue Sequences::get_masked_regions(string chrom,
+                                             const SitesMapping *sites_mapping)
+    const {
+    TrackNullValue masked_regions;
+    int numhap = get_num_seqs();
+    for (int i=0; i < length(); i++) {
+        bool masked=true;
+        for (int j=0; j < numhap; j++) {
+            if (seqs[j][i] != 'N') {
+                masked=false;
+                break;
+            }
+        }
+        if (masked) {
+            int start = i;
+            int end = i+1;
+            if (sites_mapping) {
+                start = sites_mapping->uncompress(start);
+                end = sites_mapping->uncompress(end);
+            }
+            masked_regions.push_back(RegionNullValue(chrom, start, end, ' '));
+        }
+    }
+    masked_regions.merge();
+    return masked_regions;
+}
+
+
 TrackNullValue Sites::remove_masked() {
     TrackNullValue masked_regions;
     int numhap = get_num_seqs();
@@ -1298,6 +1326,16 @@ TrackNullValue get_snp_clusters(const Sites &sites, int numsnp, int window) {
     }
     track.merge();
     return track;
+}
+
+
+void print_masked_regions(const Sequences &sequences,
+                          const SitesMapping *sites_mapping,
+                          string chrom,
+                          string filename) {
+    TrackNullValue masked_regions = sequences.get_masked_regions(chrom,
+                                                                 sites_mapping);
+    masked_regions.write_track_regions(filename);
 }
 
 

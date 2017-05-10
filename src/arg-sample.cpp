@@ -1177,8 +1177,6 @@ int main(int argc, char **argv)
                  old_num_sites - new_num_sites, old_num_sites, new_num_sites);
     }
 
-    print_masked_sites_regions(sites, c.out_prefix + ".masked_sites.bed");
-
     // compress sequences
     // first remove any sites that fall under mask
 
@@ -1235,6 +1233,8 @@ int main(int argc, char **argv)
         fclose(infile);
     }
 
+    print_masked_regions(sequences, sites_mapping, sites.chrom,
+                         c.out_prefix + ".masked_regions.bed");
 
     // setup model parameters
     if (c.times_file != "") {

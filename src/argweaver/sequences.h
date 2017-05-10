@@ -29,6 +29,7 @@ using namespace std;
  class LocalTrees;
  class ArgModel;
 
+class SitesMapping;
 
 class BaseProbs
 {
@@ -270,6 +271,10 @@ public:
 
     // set vector to true for each snp which has frequency > 1
     bool get_non_singleton_snp(vector<bool> &nonsing);
+
+    TrackNullValue get_masked_regions(string chrom,
+                                      const SitesMapping *sites_mapping = NULL)
+        const;
 
     vector <char*> seqs;
     vector <string> names;
@@ -535,6 +540,10 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites);
 void apply_mask_sequences(Sequences *sequences, const TrackNullValue &maskmap,
                           const char *ind=NULL);
 
+void print_masked_regions(const Sequences &sequences,
+                          const SitesMapping *sites_mapping,
+                          string chrom,
+                          string filename);
 void print_masked_sites_regions(const Sites &sites, string filename);
 
 // sequence compression
