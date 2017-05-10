@@ -1517,12 +1517,6 @@ int main(int argc, char **argv)
         maskmap.merge_tracks(cluster_mask);
     }
 
-    if (c.mask_cluster != "" || c.maskN >= 0) {
-        string mask_outfn = c.out_prefix + c.mcmcmc_prefix
-            + ".combined_mask.bed";
-        maskmap.write_track_regions(mask_outfn);
-    }
-
     if (maskmap.size() > 0 && sites.get_num_sites() > 0) {
         int old_num_sites = sites.get_num_sites();
         // this is done so that compression is not affected by missing data
@@ -1535,7 +1529,8 @@ int main(int argc, char **argv)
                  old_num_sites - new_num_sites, old_num_sites, new_num_sites);
     }
 
-    print_masked_sites_regions(sites, c.out_prefix + ".masked_sites.bed");
+    print_masked_sites_regions(sites, c.out_prefix + c.mcmcmc_prefix +
+                               ".masked_sites.bed");
 
     // compress sequences
     // first remove any sites that fall under mask
