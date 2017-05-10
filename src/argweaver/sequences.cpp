@@ -131,39 +131,37 @@ void write_fasta(FILE *stream, Sequences *seqs)
 // input/output: sites file format
 
 void write_sites(FILE *stream, Sites *sites, bool write_masked) {
-  bool have_base_probs = sites->base_probs.size() > 0;
-  char masked_str[sites->names.size() + 1];
-  int nseq = (int)sites->names.size();
-  for (int j=0; j<nseq; j++) masked_str[j]='N';
-  masked_str[nseq]='\0';
-  fprintf(stream, "NAMES");
-  for (int i=0; i < nseq; i++)
-    fprintf(stream, "\t%s", sites->names[i].c_str());
-  fprintf(stream, "\n");
-  fprintf(stream, "REGION\t%s\t%i\t%i\n",
-	  sites->chrom.c_str(), sites->start_coord + 1, sites->end_coord);
-  if (sites->positions.size() != sites->cols.size()) {
-    fprintf(stderr, "Error in write_sites: positions.size()=%i cols.size=%i\n",
-	    (int)sites->positions.size(), (int)sites->cols.size());
-    exit(-1);
-  }
-  for (unsigned int i=0; i < sites->positions.size(); i++) {
-     int j=0;
-    for (j=0; j < nseq; j++)
-      if (sites->cols[i][j] != sites->cols[i][0] ||
-          sites->cols[i][j] == 'N') break;
-    if (j != nseq) continue;
-    if ((!write_masked) && strncmp(sites->cols[i], masked_str, nseq)==0)
-        continue;
-    fprintf(stream, "%i\t", sites->positions[i]+1);
-    for (unsigned int k=0; k < sites->names.size(); k++)
-	fprintf(stream, "%c", sites->cols[i][k]);
-    if (have_base_probs)
-        for (int k=0; k < (int)sites->names.size(); k++)
-            for (int l=0; l<4; l++)
-                fprintf(stream, "\t%f", sites->base_probs[i][k].prob[l]);
-    fprintf(stream, "%c", '\n');
-  }
+    bool have_base_probs = sites->base_probs.size() > 0;
+    int nseq = (int)sites->names.size();
+    fprintf(stream, "NAMES");
+    for (int i=0; i < nseq; i++)
+        fprintf(stream, "\t%s", sites->names[i].c_str());
+    fprintf(stream, "\n");
+    fprintf(stream, "REGION\t%s\t%i\t%i\n",
+            sites->chrom.c_str(), sites->start_coord + 1, sites->end_coord);
+    if (sites->positions.size() != sites->cols.size()) {
+        fprintf(stderr, "Error in write_sites: positions.size()=%i cols.size=%i\n",
+                (int)sites->positions.size(), (int)sites->cols.size());
+        exit(-1);
+    }
+    for (unsigned int i=0; i < sites->positions.size(); i++) {
+        int j;
+        for (j=1; j < nseq; j++)
+            if (sites->cols[i][j] != sites->cols[i][0]) break;
+        if (j == nseq) {
+            // this site is invariant though it may be masked
+            if (!write_masked) continue;
+            if (sites->cols[i][0] != 'N') continue;
+        }
+        fprintf(stream, "%i\t", sites->positions[i]+1);
+        for (unsigned int k=0; k < sites->names.size(); k++)
+            fprintf(stream, "%c", sites->cols[i][k]);
+        if (have_base_probs)
+            for (int k=0; k < (int)sites->names.size(); k++)
+                for (int l=0; l<4; l++)
+                    fprintf(stream, "\t%f", sites->base_probs[i][k].prob[l]);
+        fprintf(stream, "%c", '\n');
+    }
 }
 
 bool validate_site_column(char *col, int nseqs)
