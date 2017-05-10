@@ -134,6 +134,7 @@ void write_fasta(FILE *stream, Sequences *seqs)
 
 
 void write_sites(FILE *stream, Sites *sites) {
+  bool have_base_probs = sites->base_probs.size() > 0;
   fprintf(stream, "NAMES");
   for (unsigned int i=0; i < sites->names.size(); i++)
     fprintf(stream, "\t%s", sites->names[i].c_str());
@@ -154,6 +155,10 @@ void write_sites(FILE *stream, Sites *sites) {
       fprintf(stream, "%i\t", sites->positions[i]+1);
       for (unsigned int k=0; k < sites->names.size(); k++)
 	fprintf(stream, "%c", sites->cols[i][k]);
+      if (have_base_probs)
+          for (int k=0; k < (int)sites->names.size(); k++)
+              for (int l=0; l<4; l++)
+                  fprintf(stream, "\t%f", sites->base_probs[i][k].prob[l]);
       fprintf(stream, "%c", '\n');
     }
   }
@@ -180,6 +185,7 @@ bool read_sites(FILE *infile, Sites *sites,
 
     sites->clear();
     bool error = false;
+    bool have_base_probs=false;
 
     // parse lines
     int lineno = 0;
@@ -232,10 +238,13 @@ bool read_sites(FILE *infile, Sites *sites,
 
         } else {
             // parse a site line
+            vector<string> fields;
+            split(line, "\t", fields);
+            assert(fields.size() >= 2);
 
             // parse site
             int position;
-            if (sscanf(line, "%d\t", &position) != 1) {
+            if (sscanf(fields[0].c_str(), "%d", &position) != 1) {
                 printError("first column is not an integer (line %d)", lineno);
                 delete [] line;
                 return false;
@@ -248,13 +257,9 @@ bool read_sites(FILE *infile, Sites *sites,
                 continue;
             }
 
-            // skip first word
-            int i=0;
-            for (; line[i] != '\t'; i++) {}
-            i++;
-            char *col = &line[i];
-
             // parse bases
+            char col[fields[1].length()+1];
+            strcpy(col, fields[1].c_str());
             unsigned int len = strlen(col);
             if (len != (unsigned int) nseqs) {
                 printError(
@@ -283,6 +288,44 @@ bool read_sites(FILE *infile, Sites *sites,
 
             // record site.
             sites->append(position, col, true);
+
+
+            if (fields.size() == 2) {
+                if (npos == 1) {
+                    have_base_probs = false;
+                } else if (have_base_probs) {
+                    printError("Error parsing line %d of sites file\n",
+                               lineno);
+                    delete [] line;
+                    return false;
+                }
+            } else {
+                if (npos == 1) {
+                    have_base_probs = true;
+                } else if (!have_base_probs) {
+                    printError("Error parsing line %d of sites file\n",
+                               lineno);
+                    delete [] line;
+                    return false;
+                }
+                if ((int)fields.size() != 4*nseqs + 2) {
+                    printError("Error parsing base probs on line %i of sites file\n",
+                               lineno);
+                    delete [] line;
+                    return false;
+                }
+                vector<BaseProbs> bp_vec;
+                bp_vec.clear();
+                int pos=2;
+                for (int i=0; i < nseqs; i++) {
+                    BaseProbs bp;
+                    for (int j=0; j < 4; j++)
+                        sscanf(fields[pos++].c_str(), "%lf", &bp.prob[j]);
+                    bp_vec.push_back(bp);
+                }
+                sites->base_probs.push_back(bp_vec);
+            }
+
         }
 
         delete [] line;
