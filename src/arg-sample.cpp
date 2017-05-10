@@ -997,6 +997,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                     sites_mapping, config, maskmap_orig);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0,
                         invisible_recomb_pos, invisible_recombs);
+        if (config->sample_phase > 0)
+            log_sequences(trees->chrom, sequences, config, sites_mapping, 0);
     }
 
 
