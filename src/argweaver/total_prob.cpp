@@ -324,6 +324,8 @@ double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
     // get tree length, if it is not already given
     if (treelen < 0)
         treelen = get_treelen(tree, model->times, model->ntimes, false);
+    if (treelen == 0.0)
+        return -INFINITY;
 
     // get lineage counts
     if (!lineages_counted) {
