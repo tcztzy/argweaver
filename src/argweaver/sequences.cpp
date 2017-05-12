@@ -379,7 +379,7 @@ public:
         vector <string>tmp;
         split(str, ">", tmp);
         if (tmp.size() == 2) {
-            is_min = true;
+            is_min = false;
         } else {
             tmp.clear();
             split(str, "<", tmp);
@@ -387,7 +387,7 @@ public:
                 printError("Could not parse genotype filter %s\n", str);
                 assert(0);
             }
-            is_min = false;
+            is_min = true;
         }
         code = tmp[0];
         cutoff = atoi(tmp[1].c_str());
