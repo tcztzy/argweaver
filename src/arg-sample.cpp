@@ -304,6 +304,12 @@ public:
         config.add(new ConfigParam<int>
                    ("-x", "--randseed", "<random seed>", &randseed, 0,
                     "seed for random number generator (default=current time)"));
+        config.add(new ConfigSwitch
+                   ("", "--write-sites", &write_sites,
+                    "Write sites (after all masking options) to <outroot>.sites.gz"));
+        config.add(new ConfigSwitch
+                   ("", "--write-sites-only", &write_sites_only,
+                    "Same as --write-sites, but exit after reading and writing sites\n"));
 
         // advance options
         config.add(new ConfigParamComment("Advanced Options", DEBUG_OPT));
@@ -497,6 +503,8 @@ public:
     double randomize_phase;
     int sample_phase;
     bool all_masked;
+    bool write_sites;
+    bool write_sites_only;
 
     // help/information
     bool quiet;
@@ -711,7 +719,11 @@ string get_out_cr_file(const Config &config, int iter)
 string get_out_sites_file(const Config &config, int iter)
 {
     char iterstr[10];
-    snprintf(iterstr, 10, ".%d", iter);
+    if (iter < 0) {
+        iterstr[0]='\0';
+    } else {
+        snprintf(iterstr, 10, ".%d", iter);
+    }
     return config.out_prefix + config.mcmcmc_prefix + iterstr + SITES_SUFFIX;
 }
 
@@ -1591,6 +1603,12 @@ int main(int argc, char **argv)
 
     print_masked_regions(sequences, sites_mapping, sites.chrom,
                          c.out_prefix + c.mcmcmc_prefix + ".masked_regions.bed");
+    if (c.write_sites || c.write_sites_only) {
+        log_sequences(sites.chrom, &sequences, &c, sites_mapping, -1);
+        printLog(LOG_LOW, "Wrote sites\n");
+        if (c.write_sites_only) return(0);
+    }
+
 
     // setup model parameters
     if (c.times_file != "")
