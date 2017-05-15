@@ -96,6 +96,7 @@ public:
     }
 
     bool is_sorted() const {
+        if (Track<T>::size() <= 1) return true;
         for (unsigned int i=0; i < Track<T>::size()-1; i++) {
             const RegionValue<T> &region1 = Track<T>::at(i);
             const RegionValue<T> &region2 = Track<T>::at(i+1);
