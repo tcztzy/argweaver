@@ -768,9 +768,10 @@ template<>
 int Sites::remove_overlapping(const TrackNullValue &track) {
     bool have_base_probs = ( base_probs.size() > 0 );
     int numhap = get_num_seqs();
-    int idx=0;
+    int idx=0, mask_idx=0;
+    assert(track.is_sorted());
     for (int i=0; i < (int)positions.size(); i++) {
-        bool overlapping = (track.index(positions[i]) != -1);
+        bool overlapping = track.find(positions[i], &mask_idx, true);
         if (overlapping) continue;
         if (i != idx) {
             positions[idx] = positions[i];
