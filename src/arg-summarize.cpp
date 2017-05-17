@@ -134,7 +134,8 @@ public:
 		    " then distance between leaf1 and leaf2"));
         config.add(new ConfigSwitch
                    ("", "--node-dist-all", &node_dist_all,
-                    "return distance between all pairs of leaf nodes"));
+                    "return distance between all pairs of leaf nodes."
+                    "Requires --subset option (which may specify a file with all leaves)"));
 	config.add(new ConfigParam<string>
 		   ("-I", "--ind-dist", "<ind1_hap1,ind1_hap2;ind2_hap1,ind2_hap2,...>",
 		    &ind_dist,
@@ -1023,6 +1024,21 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    set <string>inds;
+    if (!c.indfile.empty()) {
+        ifstream in(c.indfile.c_str());
+        string line;
+        if (in.is_open()) {
+            while ( getline(in, line) ) {
+                inds.insert(line);
+            }
+            in.close();
+        } else {
+            fprintf(stderr, "Error opening %s.\n", c.indfile.c_str());
+            return 1;
+        }
+    }
+
     vector<double> times;
     if (!c.timefile.empty()) {
         FILE *infile = fopen(c.timefile.c_str(), "r");
@@ -1091,6 +1107,22 @@ int main(int argc, char *argv[]) {
 	    }
         }
     }
+    if (c.node_dist_all) {
+        if (inds.size() == 0) {
+            fprintf(stderr, "Must use --subset argument with --node-dist-all\n");
+            return 1;
+        }
+        for (set<string>::iterator it=inds.begin(); it != inds.end(); it++) {
+            for (set<string>::iterator it2 = it; it2 != inds.end(); it2++) {
+                if (it != it2) {
+                    statname.push_back(string("node_dist-") + *it + string(",") + *it2);
+                    node_dist_leaf1.push_back(*it);
+                    node_dist_leaf2.push_back(*it2);
+                }
+            }
+        }
+    }
+
     if (!c.ind_dist.empty()) {
 	vector<string> tokens1, tokens2;
 	split(c.ind_dist.c_str(), ';', tokens1);
@@ -1219,20 +1251,6 @@ int main(int argc, char *argv[]) {
     }
 
 
-    set <string>inds;
-    if (!c.indfile.empty()) {
-        ifstream in(c.indfile.c_str());
-        string line;
-        if (in.is_open()) {
-            while ( getline(in, line) ) {
-                inds.insert(line);
-            }
-            in.close();
-        } else {
-            fprintf(stderr, "Error opening %s.\n", c.indfile.c_str());
-            return 1;
-        }
-    }
 
     if (c.bedfile.empty()) {
         summarizeRegion(&c, c.region.empty() ? NULL : c.region.c_str(),
