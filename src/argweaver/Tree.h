@@ -366,14 +366,13 @@ private:
     void update_spr_pruned();
 
     //update object by parsing newick string
-    void update_slow(char *newick, const set<string> inds,
-                     const vector<double> &times = vector<double>());
+    void update_slow(char *newick, const vector<double> &times = vector<double>());
 public:
     SprPruned(char *newick, const set<string> inds,
-              const vector<double> &times = vector<double>())
+              const vector<double> &times = vector<double>()) : inds(inds)
         {
             orig_tree = pruned_tree = NULL;
-            update_slow(newick, inds, times);
+            update_slow(newick, times);
         }
 
     ~SprPruned() {
@@ -398,7 +397,7 @@ public:
 
     //apply spr on both trees and get next SPR from newick string. Don't
     //parse the newick string unless previous SPR not set
-    void update(char *newick, const set<string> inds,
+    void update(char *newick,
                 const vector<double> &times = vector<double>());
 
     Tree *orig_tree;
@@ -406,6 +405,7 @@ public:
     NodeSpr orig_spr;
     NodeSpr pruned_spr;
     NodeMap node_map;
+    set<string> inds;
 };
 
 

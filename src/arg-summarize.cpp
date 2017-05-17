@@ -717,7 +717,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 last_entry[sample] = l;
             } else {
                 l = it->second;
-                l->trees->update(newick, inds, times);
+                l->trees->update(newick, times);
                 free(l->newick);
                 l->newick = (char*)malloc((strlen(newick)+1)*sizeof(char));
                 strcpy(l->newick, newick);
@@ -936,7 +936,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
             trees[sample] = new SprPruned(newick, inds, times);
-        else trees[sample]->update(newick, inds, times);
+        else trees[sample]->update(newick, times);
 
         map<int,BedLine*>::iterator it3 = bedlineMap.find(sample);
         BedLine *currline;
