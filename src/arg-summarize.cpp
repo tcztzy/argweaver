@@ -1369,16 +1369,18 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: must specify argfile\n");
         return 1;
     }
-
-    if (!c.logfile.empty())
-        data.model = new ArgModel(c.logfile.c_str());
+    if (c.logfile.empty()) {
+        fprintf(stderr, "Error: must specify logfile\n");
+    }
+    data.model = new ArgModel(c.logfile.c_str());
     if (c.html) {
-      html=true;
-      printf("<html>\n");
-      //printf("<link rel=\"stylesheet\" type=\"text/css\" href=\"ARGweaver.css\" />\n");
-      if (c.rawtrees) {
-          printf("<frameset cols=\"66%%,*\">\n");
-      }
+        html=true;
+        printf("<html>\n");
+        //printf("<link rel=\"stylesheet\" type=\"text/css\" href=\"ARGweaver.css\" />\n");
+        if (c.rawtrees) {
+            printf("<frameset cols=\"66%%,*\">\n");
+        }
+    }
     set <string>inds;
     if (!c.indfile.empty()) {
         ifstream in(c.indfile.c_str());
@@ -1580,7 +1582,8 @@ int main(int argc, char *argv[]) {
         split(c.spr_leaf_names.c_str(), ',', data.spr_leaf);
         for (unsigned int i=0; i < data.spr_leaf.size(); i++) {
             statname.push_back(string("spr_leaf-") + data.spr_leaf[i]);
-
+        }
+    }
 
     if (!c.ind_dist.empty()) {
 	vector<string> tokens1, tokens2;
