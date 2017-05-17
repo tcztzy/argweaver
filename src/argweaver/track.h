@@ -152,7 +152,7 @@ public:
             while (j < oldvec.size()) {
                 if (oldvec[j].chrom == chrom &&
                     oldvec[j].start <= currEnd) {
-                    currEnd = oldvec[j].end;
+                    currEnd = max(oldvec[j].end, currEnd);
                     j++;
                 } else break;
             }
