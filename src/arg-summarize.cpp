@@ -132,6 +132,9 @@ public:
                     "leaf branch length *or* distance between pairs of"
 		    " leafs. In this example return length of leaf leaf0,"
 		    " then distance between leaf1 and leaf2"));
+        config.add(new ConfigSwitch
+                   ("", "--node-dist-all", &node_dist_all,
+                    "return distance between all pairs of leaf nodes"));
 	config.add(new ConfigParam<string>
 		   ("-I", "--ind-dist", "<ind1_hap1,ind1_hap2;ind2_hap1,ind2_hap2,...>",
 		    &ind_dist,
@@ -214,6 +217,7 @@ public:
     bool popsize;
     bool allele_age;
     string node_dist;
+    bool node_dist_all;
     string ind_dist;
     bool zero;
     bool coalcounts;
@@ -917,15 +921,6 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         if (c!='#') break;
         while ('\n' != (c=fgetc(infile->stream))) {
             if (c==EOF) return 0;
-        }
-    }
-    int parse_tree = (inds.size() > 0);
-    if (!parse_tree) {
-        for (unsigned int i=0; i < statname.size(); i++) {
-            if (statname[i]!="tree") {
-                parse_tree=1;
-                break;
-            }
         }
     }
 
