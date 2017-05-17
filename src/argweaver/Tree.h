@@ -378,13 +378,12 @@ private:
     void update_spr_pruned(const ArgModel *model);
 
     //update object by parsing newick string
-    void update_slow(char *newick, const set<string> inds,
-                     const ArgModel *model);
+    void update_slow(char *newick, const ArgModel *model);
 public:
     SprPruned(char *newick, const set<string> inds,
-              const ArgModel *model) {
+              const ArgModel *model) : inds(inds) {
             orig_tree = pruned_tree = NULL;
-            update_slow(newick, inds, model);
+            update_slow(newick, model);
         }
 
     ~SprPruned() {
@@ -409,14 +408,14 @@ public:
 
     //apply spr on both trees and get next SPR from newick string. Don't
     //parse the newick string unless previous SPR not set
-    void update(char *newick, const set<string> inds,
-                const ArgModel *model);
+    void update(char *newick, const ArgModel *model);
 
     Tree *orig_tree;
     Tree *pruned_tree;
     NodeSpr orig_spr;
     NodeSpr pruned_spr;
     NodeMap node_map;
+    set<string> inds;
 };
 
 

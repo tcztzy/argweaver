@@ -206,6 +206,10 @@ public:
                     "leaf branch length *or* distance between pairs of"
 		    " leafs. In this example return length of leaf leaf0,"
 		    " then distance between leaf1 and leaf2"));
+        config.add(new ConfigSwitch
+                   ("", "--node-dist-all", &node_dist_all,
+                    "return distance between all pairs of leaf nodes."
+                    "Requires --subset option (which may specify a file with all leaves)"));
 	config.add(new ConfigParam<string>
 		   ("-I", "--ind-dist", "<ind1_hap1,ind1_hap2;ind2_hap1,ind2_hap2,...>",
 		    &ind_dist,
@@ -329,6 +333,7 @@ public:
     bool popsize;
     bool allele_age;
     string node_dist;
+    bool node_dist_all;
     string ind_dist;
     bool zero;
     bool coalcounts;
@@ -1020,7 +1025,7 @@ int summarizeRegionBySnp(Config *config, const char *region,
                 last_entry[sample] = l;
             } else {
                 l = it->second;
-                l->trees->update(newick, inds, model);
+                l->trees->update(newick, model);
                 free(l->newick);
                 l->newick = (char*)malloc((strlen(newick)+1)*sizeof(char));
                 strcpy(l->newick, newick);
@@ -1259,15 +1264,6 @@ int summarizeRegionNoSnp(Config *config, const char *region,
             if (c==EOF) return 0;
         }
     }
-    int parse_tree = (inds.size() > 0);
-    if (!parse_tree) {
-        for (unsigned int i=0; i < statname.size(); i++) {
-            if (statname[i]!="tree") {
-                parse_tree=1;
-                break;
-            }
-        }
-    }
 
     while (EOF != fscanf(infile->stream, "%s %i %i %i",
                          chrom, &start, &end, &sample)) {
@@ -1285,7 +1281,7 @@ int summarizeRegionNoSnp(Config *config, const char *region,
         it = trees.find(sample);
         if (it == trees.end())   //first tree from this sample
             trees[sample] = new SprPruned(newick, inds, model);
-        else trees[sample]->update(newick, inds, model);
+        else trees[sample]->update(newick, model);
 
         map<int,BedLine*>::iterator it3 = bedlineMap.find(sample);
         BedLine *currline;
@@ -1383,6 +1379,19 @@ int main(int argc, char *argv[]) {
       if (c.rawtrees) {
           printf("<frameset cols=\"66%%,*\">\n");
       }
+    set <string>inds;
+    if (!c.indfile.empty()) {
+        ifstream in(c.indfile.c_str());
+        string line;
+        if (in.is_open()) {
+            while ( getline(in, line) ) {
+                inds.insert(line);
+            }
+            in.close();
+        } else {
+            fprintf(stderr, "Error opening %s.\n", c.indfile.c_str());
+            return 1;
+        }
     }
 
     vector<string> statname;
@@ -1552,12 +1561,26 @@ int main(int argc, char *argv[]) {
 	    }
         }
     }
+    if (c.node_dist_all) {
+        if (inds.size() == 0) {
+            fprintf(stderr, "Must use --subset argument with --node-dist-all\n");
+            return 1;
+        }
+        for (set<string>::iterator it=inds.begin(); it != inds.end(); it++) {
+            for (set<string>::iterator it2 = it; it2 != inds.end(); it2++) {
+                if (it != it2) {
+                    statname.push_back(string("node_dist-") + *it + string(",") + *it2);
+                    node_dist_leaf1.push_back(*it);
+                    node_dist_leaf2.push_back(*it2);
+                }
+            }
+        }
+    }
     if (!c.spr_leaf_names.empty()) {
         split(c.spr_leaf_names.c_str(), ',', data.spr_leaf);
         for (unsigned int i=0; i < data.spr_leaf.size(); i++) {
             statname.push_back(string("spr_leaf-") + data.spr_leaf[i]);
-        }
-    }
+
 
     if (!c.ind_dist.empty()) {
 	vector<string> tokens1, tokens2;
@@ -1733,20 +1756,6 @@ int main(int argc, char *argv[]) {
     } else if (html) printf("<table valing=\"top\">\n");
 
 
-    set <string>inds;
-    if (!c.indfile.empty()) {
-        ifstream in(c.indfile.c_str());
-        string line;
-        if (in.is_open()) {
-            while ( getline(in, line) ) {
-                inds.insert(line);
-            }
-            in.close();
-        } else {
-            fprintf(stderr, "Error opening %s.\n", c.indfile.c_str());
-            return 1;
-        }
-    }
 
     for (unsigned int i=0; i < groupfiles.size(); i++) {
         ifstream in(groupfiles[i].c_str());

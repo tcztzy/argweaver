@@ -689,7 +689,6 @@ void SprPruned::update_spr_pruned(const ArgModel *model) {
     if (pruned_spr.recomb_node != NULL) assert(pruned_spr.coal_node != NULL);
 }
 
-
 bool NodeSpr::is_invisible() const {
     if (recomb_node == NULL || coal_node == NULL) return false;
     if (recomb_node == coal_node) return true;
@@ -710,15 +709,14 @@ bool NodeSpr::is_invisible() const {
 }
 
 
-void SprPruned::update(char *newick, const set<string> inds,
-                       const ArgModel *model) {
+void SprPruned::update(char *newick, const ArgModel *model) {
     //in this first case need to parse newick tree again
     if (orig_spr.recomb_node == NULL) {
         // this should only happen at the end of regions analyzed
         // by arg-sample, there will be no SPR there, so need to
         // parse the newick. The pruned tree can have NULL recomb_node
         // though because the SPR operation may have been pruned.
-        update_slow(newick, inds, model);
+        update_slow(newick, model);
     } else {
         //otherwise, apply the SPR and node map, and get next SPR
         orig_tree->apply_spr(&orig_spr, inds.size() > 0 ? &node_map : NULL,
@@ -829,12 +827,21 @@ NodeMap Tree::prune(set<string> leafs, bool allBut) {
     return NodeMap(node_map);
 }
 
-void SprPruned::update_slow(char *newick, const set<string> inds,
-                            const ArgModel *model) {
+void SprPruned::update_slow(char *newick, const ArgModel *model) {
     if (orig_tree  != NULL) delete(orig_tree);
     if (pruned_tree != NULL) delete(pruned_tree);
     orig_tree = new Tree(newick, model);
     orig_spr = NodeSpr(orig_tree, newick, model);
+    if ((int)inds.size() >= (orig_tree->nnodes+1)/2) {
+        bool have_all_leafs = true;
+        for (int i=0; i < orig_tree->nnodes; i++)
+            if (orig_tree->nodes[i]->children == NULL &&
+                inds.find(orig_tree->nodes[i]->longname) == inds.end()) {
+                have_all_leafs = false;
+                break;
+            }
+        if (have_all_leafs) inds.clear();
+    }
     if (inds.size() > 0) {
         pruned_tree = orig_tree->copy();
         pruned_spr = orig_spr;
