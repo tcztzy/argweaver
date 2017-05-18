@@ -108,6 +108,12 @@ class BaseProbs
         }
         return true;
     }
+    bool is_equal(const BaseProbs &other, double tol=1e-8) {
+        for (int i=0; i < 4; i++)
+            if (fabs(prob[i] - other.prob[i]) > tol)
+                return false;
+        return true;
+    }
     double prob[4];
 };
 
