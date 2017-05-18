@@ -294,7 +294,7 @@ bool read_sites(FILE *infile, Sites *sites,
 
 
             if (fields.size() == 2) {
-                if (npos == 1) {
+                if (npos == 0) {
                     have_base_probs = false;
                 } else if (have_base_probs) {
                     printError("Error parsing line %d of sites file\n",
@@ -303,7 +303,7 @@ bool read_sites(FILE *infile, Sites *sites,
                     return false;
                 }
             } else {
-                if (npos == 1) {
+                if (npos == 0) {
                     have_base_probs = true;
                 } else if (!have_base_probs) {
                     printError("Error parsing line %d of sites file\n",
