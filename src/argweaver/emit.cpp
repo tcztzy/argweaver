@@ -47,38 +47,37 @@ static inline bool is_invariant_site(const char *const *seqs,
 
 
 
-// Populates array 'invariant' with status of invariant sites
-void find_invariant_sites(const char *const *seqs, int nseqs, int seqlen,
-                          bool *invariant,
-                          const vector<vector<BaseProbs> > &base_probs)
+// Populates array 'variant' with false for invariant sites and true otherwise
+void find_variant_sites(const char *const *seqs, int nseqs, int seqlen,
+                        bool *variant,
+                        const vector<vector<BaseProbs> > &base_probs)
 {
     bool have_base_probs = ( base_probs.size() > 0 );
     // find invariant sites
     for (int i=0; i<seqlen; i++) {
         char c = seqs[0][i];
-        bool mut = false;
         if (c != 'N' && have_base_probs && ! base_probs[0][i].is_certain())
-            mut=true;
+            variant[i] = true;
         else {
+            variant[i] = false;
             for (int j=1; j<nseqs; j++) {
                 if (seqs[j][i] != c ||
                     (have_base_probs && ! base_probs[j][i].is_certain())) {
-                    mut = true;
+                    variant[i] = true;
                     break;
                 }
             }
         }
-        invariant[i] = !mut;
     }
 }
 
 
 void find_masked_sites(const char *const *seqs, int nseqs, int seqlen,
-                       bool *masked, bool *invariant)
+                       bool *masked, bool *variant)
 {
-    if (invariant) {
+    if (variant) {
         for (int i=0; i<seqlen; i++)
-            masked[i] = (seqs[0][i] == 'N' && invariant[i]);
+            masked[i] = (seqs[0][i] == 'N' && !variant[i]);
     } else {
         for (int i=0; i<seqlen; i++)
             masked[i] = (seqs[0][i] == 'N' && is_invariant_site(seqs, nseqs, i));
@@ -333,7 +332,7 @@ void calc_inner_outer(const LocalTree *tree, const ArgModel *model,
                       const char *const *seqs,
                       const vector<vector<BaseProbs> > &base_probs,
                       const int seqlen,
-                      const bool *invariant, bool internal,
+                      const bool *variant, bool internal,
                       lk_row **inner, lk_row **outer)
 {
     // get postorder
@@ -349,7 +348,7 @@ void calc_inner_outer(const LocalTree *tree, const ArgModel *model,
 
     // calculate emissions for tree at each site
     for (int i=0; i<seqlen; i++) {
-        if (!invariant[i]) {
+        if (variant[i]) {
             likelihood_site_inner(tree, seqs, base_probs, i, order, norder,
                                   muts, nomuts, inner[i]);
             likelihood_site_outer(tree, muts, nomuts, internal,
@@ -364,7 +363,7 @@ void likelihood_sites(const LocalTree *tree, const ArgModel *model,
                       const char *const *seqs,
                       const vector<vector<BaseProbs> > &base_probs,
                       const int seqlen, const int statei,
-                      const bool *invariant,
+                      const bool *variant,
                       double **emit, lk_row **table,
                       const int prev_node=-1, const int new_node=-1)
 {
@@ -417,7 +416,7 @@ void likelihood_sites(const LocalTree *tree, const ArgModel *model,
 
     // calculate emissions for tree at each site
     for (int i=0; i<seqlen; i++) {
-        if (invariant && invariant[i]) {
+        if (variant && !variant[i]) {
             // use precommuted invariant site likelihood
             if (seqs[0][i] == 'N')
                 emit[i][statei] = 1.0; // masked case
@@ -494,7 +493,7 @@ double likelihood_tree(const LocalTree *tree, const ArgModel *model,
 
 void get_infinite_sites_states(const States &states, const LocalTree *tree,
                                const char *const *seqs, int nseqs, int seqlen,
-                               bool *invariant,
+                               bool *variant,
                                bool internal, bool **valid_states)
 {
     const int nstates = states.size();
@@ -514,7 +513,7 @@ void get_infinite_sites_states(const States &states, const LocalTree *tree,
         reverse(mainnodes, mainnodes + nmainnodes);
 
         for (int i=0; i<seqlen; i++) {
-            if (invariant[i])
+            if (!variant[i])
                 continue;
 
             // get set of all bases in the subtree
@@ -579,7 +578,7 @@ void get_infinite_sites_states(const States &states, const LocalTree *tree,
         tree->get_postorder(postorder);
 
         for (int i=0; i<seqlen; i++) {
-            if (invariant[i])
+            if (!variant[i])
                 continue;
 
             // get set of all bases in the tree
@@ -629,10 +628,10 @@ void get_infinite_sites_states(const States &states, const LocalTree *tree,
 
 void get_infinite_sites_states(const States &states, const LocalTree *tree,
                                const char *const *seqs, int nseqs, int seqlen,
-                               bool *invariant,
+                               bool *variant,
                                bool internal, bool **valid_states,
                                PhaseProbs *phase_pr) {
-    get_infinite_sites_states(states, tree, seqs, nseqs, seqlen, invariant,
+    get_infinite_sites_states(states, tree, seqs, nseqs, seqlen, variant,
                               internal, valid_states);
     if (phase_pr != NULL &&
         phase_pr->treemap1 >= 0    && phase_pr->treemap2 >= 0 &&
@@ -645,7 +644,7 @@ void get_infinite_sites_states(const States &states, const LocalTree *tree,
         flipSeqs[phase_pr->treemap1] = seqs[phase_pr->treemap2];
         flipSeqs[phase_pr->treemap2] = seqs[phase_pr->treemap1];
         get_infinite_sites_states(states, tree, flipSeqs, nseqs, seqlen,
-                                  invariant, internal, valid_states2);
+                                  variant, internal, valid_states2);
 
         for (int i=0; i < seqlen; i++)
             for (int j=0; j < nstates; j++)
@@ -710,17 +709,17 @@ void calc_emissions(const States &states, const LocalTree *tree,
 
 
     // find invariant sites
-    bool *invariant = new bool [seqlen];
+    bool *variant = new bool [seqlen];
     bool *masked = new bool [seqlen];
-    find_invariant_sites(seqs, nseqs, seqlen, invariant, base_probs);
-    find_masked_sites(seqs, nseqs, seqlen, masked, invariant);
+    find_variant_sites(seqs, nseqs, seqlen, variant, base_probs);
+    find_masked_sites(seqs, nseqs, seqlen, masked, variant);
 
 
     // compute inner and outer likelihood tables
     LikelihoodTable inner(seqlen, tree->nnodes);
     LikelihoodTable inner_subtree(seqlen, 1);
     LikelihoodTable outer(seqlen, tree->nnodes);
-    calc_inner_outer(tree, model, seqs, base_probs, seqlen, invariant, internal,
+    calc_inner_outer(tree, model, seqs, base_probs, seqlen, variant, internal,
                      inner.data, outer.data);
 
     if (!internal) {
@@ -748,7 +747,7 @@ void calc_emissions(const States &states, const LocalTree *tree,
     LikelihoodTable inner2(seqlen, tree->nnodes);
     LikelihoodTable inner_subtree2(seqlen, 1);
     LikelihoodTable outer2(seqlen, tree->nnodes);
-    bool *not_het = NULL;
+    bool *het = NULL;
     if (model->unphased && phase_pr != NULL &&
 	phase_pr->treemap1 >= 0 && phase_pr->treemap1 < nseqs &&
 	phase_pr->treemap2 >= 0 && phase_pr->treemap2 < nseqs) {
@@ -757,9 +756,9 @@ void calc_emissions(const States &states, const LocalTree *tree,
 	    subseqs[i] = seqs[i];
 	subseqs[phase_pr->treemap1] = seqs[phase_pr->treemap2];
 	subseqs[phase_pr->treemap2] = seqs[phase_pr->treemap1];
-	not_het = new bool[seqlen];
+	het = new bool[seqlen];
 	for (int i=0; i < seqlen; i++)
-	    not_het[i] = (seqs[phase_pr->treemap1][i] == seqs[phase_pr->treemap2][i]);
+	    het[i] = (seqs[phase_pr->treemap1][i] != seqs[phase_pr->treemap2][i]);
         vector<vector<BaseProbs> > base_probs2;
         if (base_probs.size() > 0) {
             for (int i=0; i < nseqs; i++) {
@@ -771,7 +770,7 @@ void calc_emissions(const States &states, const LocalTree *tree,
             }
         }
 
-	calc_inner_outer(tree, model, subseqs, base_probs2, seqlen, not_het,
+	calc_inner_outer(tree, model, subseqs, base_probs2, seqlen, het,
 			 internal, inner2.data, outer2.data);
 
 	if (!internal) {
@@ -879,7 +878,7 @@ void calc_emissions(const States &states, const LocalTree *tree,
             if (masked[i]) {
                 // masked site
                 emit[i][j] = 1.0;
-            } else if (invariant[i]) {
+            } else if (!variant[i]) {
                 // invariant site
                 emit[i][j] = invariant_lk;
             } else {
@@ -887,7 +886,8 @@ void calc_emissions(const States &states, const LocalTree *tree,
 				       internal ? inner.data[i] : inner_subtree.data[i],
 				       i, node1, node2, maintree_root,
 				       nomut, mut);
-		if (not_het != NULL && not_het[i]==0) {
+                assert(!isnan(emit[i][j]));
+		if (het != NULL && het[i]) {
 		    double emit2 = calc_emit(inner2.data[i], outer2.data[i],
 					    internal ? inner2.data[i] : inner_subtree2.data[i],
 					    i, node1, node2, maintree_root,
@@ -895,6 +895,7 @@ void calc_emissions(const States &states, const LocalTree *tree,
 		    phase_pr->add(i, j, emit[i][j]/(emit[i][j] + emit2), nstates);
 		    emit[i][j] += emit2;
 		    emit[i][j] *= 0.5;
+                    assert(!isnan(emit[i][j]));
 		}
             }
         }
@@ -905,10 +906,10 @@ void calc_emissions(const States &states, const LocalTree *tree,
 
         bool **valid_states = new_matrix<bool>(seqlen, nstates);
         get_infinite_sites_states(states, tree, seqs, nseqs, seqlen,
-                                  invariant, internal, valid_states,
+                                  variant, internal, valid_states,
                                   model->unphased ? phase_pr : NULL);
         for (int i=0; i<seqlen; i++) {
-            if (!invariant[i]) {
+            if (variant[i]) {
                 for (int j=0; j<nstates; j++)
                     if (!valid_states[i][j])
                         emit[i][j] *= model->infsites_penalty;
@@ -919,9 +920,9 @@ void calc_emissions(const States &states, const LocalTree *tree,
 
 
     // clean up
-    delete [] invariant;
+    delete [] variant;
     delete [] masked;
-    if (not_het != NULL) delete [] not_het;
+    if (het != NULL) delete [] het;
 }
 
 // calculate emissions for external branch resampling
@@ -1205,7 +1206,7 @@ void calc_emissions_external_slow(
 {
     const int nstates = states.size();
     const int newleaf = tree->get_num_leaves();
-    bool *invariant = new bool [seqlen];
+    bool *variant = new bool [seqlen];
     LikelihoodTable table(seqlen, tree->nnodes+2);
 
     // create local tree we can edit
@@ -1213,20 +1214,20 @@ void calc_emissions_external_slow(
     tree2.copy(*tree);
 
     // find invariant sites
-    find_invariant_sites(seqs, nseqs, seqlen, invariant, base_probs);
+    find_variant_sites(seqs, nseqs, seqlen, variant, base_probs);
 
     for (int j=0; j<nstates; j++) {
         State state = states[j];
         add_tree_branch(&tree2, state.node, state.time);
 
         likelihood_sites(&tree2, model, seqs, base_probs,
-                         seqlen, j, invariant, emit,
+                         seqlen, j, variant, emit,
                          table.data, -1, -1);
 
         remove_tree_branch(&tree2, newleaf, NULL);
     }
 
-    delete [] invariant;
+    delete [] variant;
 }
 
 
@@ -1247,15 +1248,15 @@ void calc_emissions_internal_slow(
         return;
     }
 
-    bool *invariant = new bool [seqlen];
+    bool *variant = new bool [seqlen];
     LikelihoodTable table(seqlen, tree->nnodes+2);
 
     // create local tree we can edit
     LocalTree tree2(tree->nnodes, tree->nnodes + 2);
     tree2.copy(*tree);
 
-    // find invariant sites
-    find_invariant_sites(seqs, nseqs, seqlen, invariant, base_probs);
+    // find variant sites
+    find_variant_sites(seqs, nseqs, seqlen, variant, base_probs);
 
     for (int j=0; j<nstates; j++) {
         State state = states[j];
@@ -1264,7 +1265,7 @@ void calc_emissions_internal_slow(
         Spr add_spr(subtree_root, subtree_root_age, state.node, state.time);
         apply_spr(&tree2, add_spr);
 
-        likelihood_sites(&tree2, model, seqs, base_probs, seqlen, j, invariant,
+        likelihood_sites(&tree2, model, seqs, base_probs, seqlen, j, variant,
                          emit, table.data, -1, -1);
 
         Spr remove_spr(subtree_root, subtree_root_age,
@@ -1273,7 +1274,7 @@ void calc_emissions_internal_slow(
     }
 
     // clean up
-    delete [] invariant;
+    delete [] variant;
 }
 
 
