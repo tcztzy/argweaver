@@ -757,8 +757,12 @@ void calc_emissions(const States &states, const LocalTree *tree,
 	subseqs[phase_pr->treemap1] = seqs[phase_pr->treemap2];
 	subseqs[phase_pr->treemap2] = seqs[phase_pr->treemap1];
 	het = new bool[seqlen];
-	for (int i=0; i < seqlen; i++)
+	for (int i=0; i < seqlen; i++) {
 	    het[i] = (seqs[phase_pr->treemap1][i] != seqs[phase_pr->treemap2][i]);
+            if (base_probs.size() > 0 && !het[i])
+                het[i] = ! (base_probs[phase_pr->treemap1][i].is_equal(
+                            base_probs[phase_pr->treemap2][i]));
+        }
         vector<vector<BaseProbs> > base_probs2;
         if (base_probs.size() > 0) {
             for (int i=0; i < nseqs; i++) {

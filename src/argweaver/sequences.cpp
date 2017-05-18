@@ -1062,11 +1062,14 @@ void PhaseProbs::sample_phase(int *thread_path) {
     int sing_tot=0, sing_switch=0, non_sing_tot=0, non_sing_switch=0;
     if (probs.size() == 0)
         return;
+    bool have_base_probs = (seqs->base_probs.size() > 0);
     for (map<int,vector<double> >::iterator it=probs.begin(); it != probs.end();
        it++) {
         int coord = it->first;
         vector<double> prob = it->second;
-        if (seqs->seqs[hap1][coord] != seqs->seqs[hap2][coord]) {
+        if (seqs->seqs[hap1][coord] != seqs->seqs[hap2][coord] ||
+            (have_base_probs &&
+             !seqs->base_probs[hap1][coord].is_equal(seqs->base_probs[hap2][coord]))) {
             if (frand() > prob[thread_path[coord]]) {
                 seqs->switch_alleles(coord, hap1, hap2);
                 if (non_singleton_snp[coord])
