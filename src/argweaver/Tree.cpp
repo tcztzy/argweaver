@@ -1306,6 +1306,28 @@ double Tree::tmrca() {
 
 // Returns an estimate of population size based on coalescence times
 // in local tree
+double Tree::avg_pairwise_distance() {
+    ExtendArray<Node*> postnodes;
+    int numDec[nnodes];
+    int num_leaf = (nnodes+1)/2;
+    double pi=0.0;
+    getTreePostOrder(this, &postnodes);
+    for (int i=0; i < postnodes.size(); i++) {
+        if (postnodes[i]->parent == NULL) continue;
+        int id = postnodes[i]->name;
+        if (postnodes[i]->nchildren == 0)
+            numDec[id] = 1;
+        else {
+            numDec[id] = 0;
+            for (int j=0; j < postnodes[i]->nchildren; j++)
+                numDec[id] += numDec[postnodes[i]->children[j]->name];
+        }
+        pi += postnodes[i]->dist * (double)(num_leaf - numDec[id])*numDec[id];
+    }
+    return pi*2.0/(num_leaf * (num_leaf-1));
+}
+
+
 double Tree::popsize() {
     int numleaf = (nnodes+1)/2;
     vector<double>ages;
