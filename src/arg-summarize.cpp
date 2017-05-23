@@ -105,6 +105,9 @@ public:
                    ("-T", "--tmrca", &tmrca,
                     "time to the most recent common ancestor"));
         config.add(new ConfigSwitch
+                   ("-p", "--pi", &pi,
+                    "average distance between two lineages in tree"));
+        config.add(new ConfigSwitch
                    ("-B", "--branchlen", &branchlen, "total branch length"));
         config.add(new ConfigSwitch
                    ("-R", "--recomb", &recomb,
@@ -210,6 +213,7 @@ public:
 
     bool rawtrees;
     bool tmrca;
+    bool pi;
     bool branchlen;
     bool recomb;
     bool breaks;
@@ -325,6 +329,8 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
             line->stats[i] = tree->tmrca();
         else if (statname[i]=="tmrca_half")
             line->stats[i] = tree->tmrca_half();
+        else if (statname[i]=="pi")
+            line->stats[i] = tree->avg_pairwise_distance();
         else if (statname[i]=="branchlen") {
             if (bl < 0) {
                 line->stats[i] = tree->total_branchlength();
@@ -1056,6 +1062,8 @@ int main(int argc, char *argv[]) {
     vector<string> statname;
     if (c.tmrca)
         statname.push_back(string("tmrca"));
+    if (c.pi)
+        statname.push_back(string("pi"));
     if (c.branchlen)
         statname.push_back(string("branchlen"));
     if (c.recomb)
@@ -1178,7 +1186,7 @@ int main(int argc, char *argv[]) {
     if (summarize && statname.size()==0) {
         fprintf(stderr,
                 "Error: need to specify a tree statistic (e.g., --tmrca,"
-                " --popsize, --recomb, --allele-age, etc)\n");
+                " --pi, --popsize, --recomb, --allele-age, etc)\n");
         return 1;
     }
     if (summarize && c.rawtrees) {
