@@ -283,6 +283,7 @@ public:
 
     double total_branchlength();
     double tmrca();
+    double avg_pairwise_distance();
     double tmrca_half();
     double rth();
     double popsize();
