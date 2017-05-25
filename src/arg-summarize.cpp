@@ -45,6 +45,7 @@ vector<string> node_dist_leaf1;
 vector<string> node_dist_leaf2;
 vector<string> ind_dist_leaf1;
 vector<string> ind_dist_leaf2;
+set<string> cluster_group;
 
 const int EXIT_ERROR = 1;
 
@@ -154,6 +155,12 @@ public:
                    ("-C", "--coalcounts", &coalcounts,
                     "number of coal events at each discretized time point"
                     " (requires --timefile)"));
+        config.add(new ConfigParam<string>
+                   ("", "--cluster-test", "<group_file>", &cluster_group_file,
+                    "Return log likelihood ratio for test of whether tree bifurcates"
+                    " randomly with respect to a particular group of samples."
+                    " group_file should contain a subset of sample names which"
+                    " which constitute the group to be tested."));
         config.add(new ConfigSwitch
                    ("-N", "--numsample", &numsample,
                     "number of MCMC samples covering each region"));
@@ -223,6 +230,7 @@ public:
     bool allele_age;
     string node_dist;
     bool node_dist_all;
+    string cluster_group_file;
     string ind_dist;
     bool zero;
     bool coalcounts;
@@ -399,6 +407,9 @@ void scoreBedLine(BedLine *line, vector<string> &statname, vector<double> times,
                 line->stats[i+j] = coal_counts[j];
             }
             i += coal_counts.size()-1;
+        }
+        else if (statname[i] == "cluster_stat") {
+            line->stats[i] = tree->cluster_test(cluster_group);
         }
         else {
             fprintf(stderr, "Error: unknown stat %s\n", statname[i].c_str());
@@ -1129,6 +1140,19 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
+    }
+    if (!c.cluster_group_file.empty()) {
+        FILE *infile = fopen(c.cluster_group_file.c_str(), "r");
+        char leaf_name[10000];
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening %s\n", c.cluster_group_file.c_str());
+            return 0;
+        }
+        while (EOF != fscanf(infile, "%s", leaf_name)) {
+            cluster_group.insert(string(leaf_name));
+        }
+        fclose(infile);
+        statname.push_back(string("cluster_stat"));
     }
 
     if (!c.ind_dist.empty()) {
