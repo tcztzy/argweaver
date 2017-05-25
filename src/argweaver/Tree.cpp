@@ -1102,8 +1102,8 @@ bool Tree::assertTree()
 
 
 
-void getTreeSortedPostOrder(Tree *tree, ExtendArray<Node*> *nodes,
-                            int *ordering, Node *node)
+void getTreeSortedPostOrder(const Tree *tree, ExtendArray<Node*> *nodes,
+                       int *ordering, Node *node)
 {
     if (!node)
         node = tree->root;
@@ -1128,7 +1128,7 @@ void getTreeSortedPostOrder(Tree *tree, ExtendArray<Node*> *nodes,
     nodes->append(node);
 }
 
-void getTreePostOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node)
+void getTreePostOrder(const Tree *tree, ExtendArray<Node*> *nodes, Node *node)
 {
     if (!node)
         node = tree->root;
@@ -1141,7 +1141,7 @@ void getTreePostOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node)
     nodes->append(node);
 }
 
-void getTreePreOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node)
+void getTreePreOrder(const Tree *tree, ExtendArray<Node*> *nodes, Node *node)
 {
     if (!node)
         node = tree->root;

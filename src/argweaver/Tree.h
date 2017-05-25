@@ -431,11 +431,11 @@ struct HashTopology {
 //=============================================================================
 // Tree traversals
 
-void getTreeSortedPostOrder(Tree *tree, ExtendArray<Node*> *nodes,
+void getTreeSortedPostOrder(const Tree *tree, ExtendArray<Node*> *nodes,
                             int *ordering, Node *node=NULL);
-void getTreePostOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
+void getTreePostOrder(const Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
 
-void getTreePreOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
+void getTreePreOrder(const Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
 
 
 //=============================================================================
