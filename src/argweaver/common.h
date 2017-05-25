@@ -323,6 +323,11 @@ inline bool fequal(double f1, double f2, double rel=.0001, double eabs=1e-12)
 }
 
 
+inline double lbinom(int n, int k) {
+    if (k > n) return -INFINITY;
+    return lgamma((double)n+1.0)
+        - lgamma((double)k+1.0)
+        - lgamma((double)n-k+1.0);
 } // namespace argweaver
-
+}
 #endif // ARGWEAVER_COMMON_H
