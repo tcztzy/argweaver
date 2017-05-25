@@ -317,6 +317,7 @@ public:
     vector<double> coalGroup(string hap1, string hap2, map<string,int> groups,
                              int ngroup);
     bool isGroup(set<string> group);
+    double cluster_test(const set<string> &cluster_group) const;
     set<Node*> lca(set<Node*> derived);
     bool haveMig(int p[2], int t[2], const ArgModel *model);
 
@@ -441,11 +442,11 @@ struct HashTopology {
 //=============================================================================
 // Tree traversals
 
-void getTreeSortedPostOrder(Tree *tree, ExtendArray<Node*> *nodes,
+void getTreeSortedPostOrder(const Tree *tree, ExtendArray<Node*> *nodes,
                             int *ordering, Node *node=NULL);
-void getTreePostOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
+void getTreePostOrder(const Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
 
-void getTreePreOrder(Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
+void getTreePreOrder(const Tree *tree, ExtendArray<Node*> *nodes, Node *node=NULL);
 
 
 //=============================================================================
