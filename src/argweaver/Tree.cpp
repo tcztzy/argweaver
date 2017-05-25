@@ -1248,6 +1248,42 @@ double Tree::avg_pairwise_distance() {
 }
 
 
+double Tree::cluster_test(const set<string> &cluster_groups) const {
+    ExtendArray<Node*> postnodes;
+    int count[nnodes];
+    int total[nnodes];
+    double stat=0.0;
+    getTreePostOrder(this, &postnodes);
+    for (int i=0; i < nnodes; i++) {
+        int id = postnodes[i]->name;
+        if (postnodes[i]->nchildren == 0) { // leaf node
+            if (cluster_groups.find(postnodes[i]->longname) != cluster_groups.end()) {
+                count[id] = 1;
+            } else count[id]=0;
+            total[id]=1;
+        } else {
+            if (postnodes[i]->nchildren != 2) {
+                fprintf(stderr, "cluster_test is only designed for bifurcating trees\n");
+                exit(-1);
+            }
+            int c[2];
+            for (int j=0; j < postnodes[i]->nchildren; j++) {
+                c[j] = postnodes[i]->children[j]->name;
+                count[id] += count[c[j]];
+                total[id] += total[c[j]];
+            }
+            if (count[0] + count[1] == 0) continue;
+            double p0 = (double)total[0]/((double)total[0] + total[1]);
+            double p1 = (double)count[0]/((double)count[0] + count[1]);
+            if (count[0] > 0)
+                stat += (double)count[0]*(log(p1) - log(p0));
+            if (count[1] > 0)
+                stat += (double)count[1] * (log(1.0-p1) - log(1.0-p0));
+        }
+    }
+    return stat;
+}
+
 double Tree::popsize() {
     int numleaf = (nnodes+1)/2;
     vector<double>ages;

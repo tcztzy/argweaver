@@ -308,6 +308,7 @@ public:
         return distBetweenLeaves(nodes[nodename_map.find(n1)->second],
                                  nodes[nodename_map.find(n2)->second]);
     }
+    double cluster_test(const set<string> &cluster_group) const;
     set<Node*> lca(set<Node*> derived);
 
 protected:
