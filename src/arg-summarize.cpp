@@ -260,10 +260,9 @@ public:
                     "leaf"));
         config.add(new ConfigParam<string>
                    ("", "--cluster-test", "<group_file>", &cluster_group_file,
-                    "Return log likelihood ratio for test of whether tree bifurcates"
-                    " randomly with respect to a particular group of samples."
-                    " group_file should contain a subset of sample names which"
-                    " which constitute the group to be tested."));
+                    "Return minimum number of pruning operations required to "
+                    " reduce each local tree to the lineages named in <group_file>."
+                    " (Lower numbers indicate clustering)"));
         config.add(new ConfigSwitch
                    ("-N", "--numsample", &numsample,
                     "number of MCMC samples covering each region"));
@@ -636,7 +635,8 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
             }
         }
         else if (statname[i] == "cluster_stat") {
-            line->stats[i] = tree->cluster_test(cluster_group);
+            //            line->stats[i] = tree->cluster_test(cluster_group);
+            line->stats[i] = (double)tree->num_prune_to_group(cluster_group);
         }
         else {
             fprintf(stderr, "Error: unknown stat %s\n", statname[i].c_str());

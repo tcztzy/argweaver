@@ -1328,6 +1328,43 @@ double Tree::avg_pairwise_distance() {
 }
 
 
+int Tree::num_prune_to_group(const set<string> &cluster_groups) const {
+    ExtendArray<Node*> postnodes;
+    int count[nnodes];
+    int num_prune = 0;
+    int set_size = cluster_groups.size();
+    getTreePostOrder(this, &postnodes);
+    for (int i=0; i < nnodes; i++) {
+        int id = postnodes[i]->name;
+        if (postnodes[i]->nchildren == 0) { // leaf node
+            if (cluster_groups.find(postnodes[i]->longname) != cluster_groups.end()) {
+                count[id] = 1;
+            } else count[id]=0;
+        } else {
+            if (postnodes[i]->nchildren != 2) {
+                fprintf(stderr, "num_prune_to_group is only designed for bifurcating trees\n");
+                exit(-1);
+            }
+            int c1 = count[postnodes[i]->children[0]->name];
+            int c2 = count[postnodes[i]->children[1]->name];
+            if (c1 == set_size) {
+                assert(c2 == 0);
+                return num_prune;
+            }
+            if (c2 == set_size) {
+                assert(c1 == 0);
+                return num_prune;
+            }
+            if ((c1 > 0 && c2 == 0) ||
+                (c2 > 0 && c1 == 0))
+                num_prune++;
+            count[postnodes[i]->name] = c1 + c2;
+        }
+    }
+    return num_prune;
+}
+
+
 double Tree::cluster_test(const set<string> &cluster_groups) const {
     ExtendArray<Node*> postnodes;
     int count[nnodes];
@@ -1347,18 +1384,32 @@ double Tree::cluster_test(const set<string> &cluster_groups) const {
                 exit(-1);
             }
             int c[2];
+            count[id] = total[id] = 0;
             for (int j=0; j < postnodes[i]->nchildren; j++) {
                 c[j] = postnodes[i]->children[j]->name;
                 count[id] += count[c[j]];
                 total[id] += total[c[j]];
             }
-            if (count[0] + count[1] == 0) continue;
-            double p0 = (double)total[0]/((double)total[0] + total[1]);
-            double p1 = (double)count[0]/((double)count[0] + count[1]);
-            if (count[0] > 0)
-                stat += (double)count[0]*(log(p1) - log(p0));
-            if (count[1] > 0)
-                stat += (double)count[1] * (log(1.0-p1) - log(1.0-p0));
+            int n = total[c[0]] + total[c[1]];
+            int x = total[c[0]];
+            int n1 = count[c[0]] + count[c[1]];
+            int n0 = n - n1;
+            int x1 = count[c[0]];
+            int x0 = x - x1;
+
+            if (n <= 2) continue;
+            if (n0 == 0 || n1 == 0) continue;
+
+            double p = (double)x/(double)n;
+            double nullLog = x*log(p) + (n-x)*log(1.0-p);
+            double p0 = (double)x0/(double)n0;
+            double p1 = (double)x1/(double)n1;
+            double altLog=0.0;
+            if (x0 > 0 && x0 < n0)
+                altLog += x0*log(p0) + (n0-x0)*log(1.0-p0);
+            if (x1 > 0 && x1 < n1)
+                altLog += x1*log(p1) + (n1-x1)*log(1.0-p1);
+            stat += altLog - nullLog;
         }
     }
     return stat;
