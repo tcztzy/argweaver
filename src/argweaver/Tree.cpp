@@ -1328,17 +1328,20 @@ double Tree::avg_pairwise_distance() {
 }
 
 
+
 int Tree::num_prune_to_group(const set<string> &cluster_groups) const {
     ExtendArray<Node*> postnodes;
     int count[nnodes];
     int num_prune = 0;
-    int set_size = cluster_groups.size();
+    int numleaf = (nnodes+1)/2;
+    int cluster_size = 0;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < nnodes; i++) {
         int id = postnodes[i]->name;
         if (postnodes[i]->nchildren == 0) { // leaf node
             if (cluster_groups.find(postnodes[i]->longname) != cluster_groups.end()) {
                 count[id] = 1;
+                cluster_size++;
             } else count[id]=0;
         } else {
             if (postnodes[i]->nchildren != 2) {
@@ -1347,18 +1350,19 @@ int Tree::num_prune_to_group(const set<string> &cluster_groups) const {
             }
             int c1 = count[postnodes[i]->children[0]->name];
             int c2 = count[postnodes[i]->children[1]->name];
-            if (c1 == set_size) {
-                assert(c2 == 0);
-                return num_prune;
-            }
-            if (c2 == set_size) {
-                assert(c1 == 0);
-                return num_prune;
-            }
-            if ((c1 > 0 && c2 == 0) ||
-                (c2 > 0 && c1 == 0))
+            if (c1 == c2) {
+                count[id] = c1;
+            } else if (c1 < 0) {
+                count[id] = c2;
+            } else if (c2 < 0) {
+                count[id] = c1;
+            } else {
+                count[id] = -1;
                 num_prune++;
-            count[postnodes[i]->name] = c1 + c2;
+                assert(num_prune <= cluster_size &&
+                       num_prune <= numleaf - cluster_size);
+            }
+
         }
     }
     return num_prune;
