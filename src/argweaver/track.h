@@ -34,6 +34,10 @@ public:
         return end - start;
     }
 
+    void write() const {
+        printf("%s:%i-%i\n", chrom.c_str(), start+1, end);
+    }
+
     string chrom;
     int start;
     int end;
