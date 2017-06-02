@@ -1295,6 +1295,7 @@ double Tree::cluster_test(const set<string> &cluster_groups,
     int count[nnodes];
     int total[nnodes];
     double maxstat=0.0;
+    *cluster_time = 0.0;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < nnodes; i++) {
         int id = postnodes[i]->name;
@@ -1337,7 +1338,7 @@ double Tree::cluster_test(const set<string> &cluster_groups,
             double currstat = altLog - nullLog;
             if (currstat > maxstat) {
                 maxstat = currstat;
-                cluster_time = postnodes[i]->age;
+                *cluster_time = postnodes[i]->age;
             }
         }
     }
