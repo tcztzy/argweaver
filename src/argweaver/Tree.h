@@ -318,7 +318,8 @@ public:
                              int ngroup);
     bool isGroup(set<string> group);
     int num_prune_to_group(const set<string> &cluster_groups) const;
-    double cluster_test(const set<string> &cluster_group) const;
+    double cluster_test(const set<string> &cluster_group,
+                        double *cluster_time) const;
     set<Node*> lca(set<Node*> derived);
     bool haveMig(int p[2], int t[2], const ArgModel *model);
 

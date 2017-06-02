@@ -260,9 +260,13 @@ public:
                     "leaf"));
         config.add(new ConfigParam<string>
                    ("", "--cluster-test", "<group_file>", &cluster_group_file,
-                    "Return minimum number of pruning operations required to "
+                    "Return maximum likelihood ratio statistic across all nodes "
+                    " relating to whether lineages in group_file are randomly"
+                    " disperesed between the children, as well as the time of the"
+                    " most significant node"));
+        /*                    "Return minimum number of pruning operations required to "
                     " reduce each local tree to the lineages named in <group_file>."
-                    " (Lower numbers indicate clustering)"));
+                    " (Lower numbers indicate clustering)"));*/
         config.add(new ConfigSwitch
                    ("-N", "--numsample", &numsample,
                     "number of MCMC samples covering each region"));
@@ -635,8 +639,9 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
             }
         }
         else if (statname[i] == "cluster_stat") {
-            //            line->stats[i] = tree->cluster_test(cluster_group);
-            line->stats[i] = (double)tree->num_prune_to_group(cluster_group);
+            line->stats[i] = tree->cluster_test(cluster_group, &line->stats[i+1]);
+            //            line->stats[i] = (double)tree->num_prune_to_group(cluster_group);
+            i++;
         }
         else {
             fprintf(stderr, "Error: unknown stat %s\n", statname[i].c_str());
@@ -1615,6 +1620,7 @@ int main(int argc, char *argv[]) {
         }
         fclose(infile);
         statname.push_back(string("cluster_stat"));
+        statname.push_back(string("cluster_time"));
     }
 
     if (!c.ind_dist.empty()) {
