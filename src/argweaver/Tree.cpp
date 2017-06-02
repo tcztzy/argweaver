@@ -1289,11 +1289,12 @@ int Tree::num_prune_to_group(const set<string> &cluster_groups) const {
 }
 
 
-double Tree::cluster_test(const set<string> &cluster_groups) const {
+double Tree::cluster_test(const set<string> &cluster_groups,
+                          double &cluster_time) const {
     ExtendArray<Node*> postnodes;
     int count[nnodes];
     int total[nnodes];
-    double stat=0.0;
+    double maxstat=0.0;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < nnodes; i++) {
         int id = postnodes[i]->name;
@@ -1333,10 +1334,14 @@ double Tree::cluster_test(const set<string> &cluster_groups) const {
                 altLog += x0*log(p0) + (n0-x0)*log(1.0-p0);
             if (x1 > 0 && x1 < n1)
                 altLog += x1*log(p1) + (n1-x1)*log(1.0-p1);
-            stat += altLog - nullLog;
+            double currstat = altLog - nullLog;
+            if (currstat > maxstat) {
+                maxstat = currstat;
+                cluster_time = postnodes[i]->age;
+            }
         }
     }
-    return stat;
+    return maxstat;
 }
 
 double Tree::popsize() {
