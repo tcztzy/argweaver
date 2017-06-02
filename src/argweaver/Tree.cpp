@@ -1290,7 +1290,7 @@ int Tree::num_prune_to_group(const set<string> &cluster_groups) const {
 
 
 double Tree::cluster_test(const set<string> &cluster_groups,
-                          double &cluster_time) const {
+                          double *cluster_time) const {
     ExtendArray<Node*> postnodes;
     int count[nnodes];
     int total[nnodes];
