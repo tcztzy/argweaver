@@ -354,6 +354,7 @@ void sample_invisible_recombinations(const ArgModel *model, LocalTrees *trees,
         end += it->blocklen;
         lineages.count(tree, model->pop_tree, false);
         double treelen = get_treelen(tree, model->times, model->ntimes, false);
+        if (treelen == 0.0) continue;
         double rho = model->get_local_rho(start, &idx);
         double d_term = (1.0 - exp(-rho * treelen)) / treelen;
         possible_recombs.clear();
