@@ -466,6 +466,8 @@ double likelihood_tree(const LocalTree *tree, const ArgModel *model,
     for (int i=start; i<end; i++) {
         double lk;
         bool invariant = is_invariant_site(seqs, nseqs, i, base_probs);
+        if (invariant && seqs[0][i] == 'N')
+            continue;
 
         if (invariant && invariant_lk > 0)
             // use precommuted invariant site likelihood
