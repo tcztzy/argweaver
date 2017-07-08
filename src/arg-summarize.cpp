@@ -23,6 +23,7 @@
 #include "argweaver/compress.h"
 #include "argweaver/IntervalIterator.h"
 #include "argweaver/model.h"
+#include "argweaver/seq.h"
 //#include "allele_age.h"
 
 
@@ -800,6 +801,8 @@ public:
     int readNext() {
         int tmpStart;
         char a;
+	vector<set<string> > allele_inds;
+	int count[4]={0,0,0,0};
         if (done) return 1;
         if (isBed) {
             if (EOF==fscanf(snp_in->stream, "%s %i %i", chr, &tmpStart, &coord)) {
@@ -813,52 +816,38 @@ public:
                 return 1;
             }
         }
+        assert(tmpStart==coord-1);
+	for (int i=0; i < 4; i++)
+	    allele_inds.push_back(set<string>());
         assert('\t' == fgetc(snp_in->stream));
-        allele1=allele2='N';
-        allele1_inds.clear();
-        allele2_inds.clear();
+	allele1=allele2='N';
         for (unsigned int i=0; i < inds.size(); i++) {
             a=fgetc(snp_in->stream);
             if (a=='N') continue;
             a = toupper(a);
             assert(a=='A' || a=='C' || a=='G' || a=='T');
-            if (allele1=='N') {
-                allele1=a;
-            }
-            if (a==allele1) {
-                allele1_inds.insert(inds[i]);
-            } else {
-                if (allele2=='N')
-                    allele2=a;
-                else {
-                    if (a != allele2) {
-                        char c;
-                        if (!quiet)
-                            fprintf(stderr,
-                                    "Skipping tri-allelic snp at position %i\n",
-                                    coord);
-                        while ('\n'!=(c=fgetc(snp_in->stream)) && c != EOF);
-                        if (c==EOF) {
-                            done = 1;
-                            return 1;
-                        }
-                        return readNext();
-                    }
-                }
-                allele2_inds.insert(inds[i]);
-            }
+	    int aval = dna2int[(int)a];
+	    allele_inds[aval].insert(inds[i]);
+	    count[aval]++;
         }
         //make sure that allele1 is always minor allele
-        if (allele1_inds.size() > allele2_inds.size()) {
-            set<string> tmp;
-            char tmpch;
-            tmp = allele1_inds;
-            allele1_inds = allele2_inds;
-            allele2_inds = tmp;
-            tmpch=allele1;
-            allele1=allele2;
-            allele2=tmpch;
-        }
+	// if there are more than 2 alleles, then allele2 is
+	// most common and allele1 is second-most-common.
+	// Others are treated as Ns
+	int allele2_val = 0;
+	for (int i=1; i < 4; i++)
+	    if (count[i] > count[allele2_val])
+		allele2_val = i;
+	int allele1_val = (allele2_val == 0 ? 1 : 0);
+	for (int i=1; i < 4; i++) {
+	    if (i == allele2_val) continue;
+	    if (count[i] > count[allele1_val])
+		allele1_val = i;
+	}
+	allele1 = int2dna[allele1_val];
+	allele2 = int2dna[allele2_val];
+	allele1_inds = allele_inds[allele1_val];
+	allele2_inds = allele_inds[allele2_val];
         return 0;
     }
 
