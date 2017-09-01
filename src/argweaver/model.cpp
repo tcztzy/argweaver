@@ -25,14 +25,14 @@ double get_delta(const double *times, int ntimes, double maxtime) {
     double min_diff, max_diff, mid_diff;
     min_diff = get_delta_diff(min_log_delta, times, ntimes, maxtime);
     max_diff = get_delta_diff(max_log_delta, times, ntimes, maxtime);
-    assert(min_diff * max_diff < 0.0);
+    if (min_diff * max_diff >= 0) return -1.0;
     while (max_log_delta - min_log_delta > tol) {
 	mid_diff = get_delta_diff(mid_log_delta, times, ntimes, maxtime);
 	if (min_diff * mid_diff > 0) {
 	    min_diff = mid_diff;
 	    min_log_delta = mid_log_delta;
 	} else {
-	    assert(max_diff * mid_diff > 0);
+            if (max_diff * mid_diff > 0) return -1.0;
 	    max_diff = mid_diff;
 	    max_log_delta = mid_log_delta;
 	}
@@ -604,8 +604,9 @@ ArgModel::ArgModel(const char *logfilename) {
                 for (int i=0; i < ntimes; i++)
                     times[i] = atof(splitStr[i].c_str());
                 double delta = get_delta(times, ntimes, times[ntimes-1]);
+                // if delta < 0 then using linear steps
                 coal_time_steps = new double[2*ntimes];
-                get_coal_time_steps(times, ntimes, coal_time_steps, false, delta);
+                get_coal_time_steps(times, ntimes, coal_time_steps, delta < 0, delta);
             }
             if (str_starts_with(line, "  npop = ")) {
                 if (pop_file != NULL) {
