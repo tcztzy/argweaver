@@ -20,6 +20,8 @@ double get_delta_diff(double log_delta, const double *times, int ntimes, double 
     return get_time_point(i, ntimes-1, maxtime, delta) - times[i];
 }
 
+// estimate delta from time vector
+// if delta cannot be found, return -1 (likely implies linear times)
 double get_delta(const double *times, int ntimes, double maxtime) {
     double min_log_delta=-10, max_log_delta=10.0, tol=1e-10, mid_log_delta=0;
     double min_diff, max_diff, mid_diff;
@@ -32,7 +34,7 @@ double get_delta(const double *times, int ntimes, double maxtime) {
 	    min_diff = mid_diff;
 	    min_log_delta = mid_log_delta;
 	} else {
-            if (max_diff * mid_diff > 0) return -1.0;
+            if (max_diff * mid_fdiff > 0) return -1.0;
 	    max_diff = mid_diff;
 	    max_log_delta = mid_log_delta;
 	}
