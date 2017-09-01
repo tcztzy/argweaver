@@ -152,8 +152,13 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
                        LineageCounts &lineages)
 {
     lineages.count(tree);
-    int nleaves = tree->get_num_leaves();
     double lnl = 0.0;
+    int leaf_age_count[model->ntimes];
+
+    for (int i=0; i < tree->nnodes/2; i++) {
+        assert(tree->nodes[i].child[0] == -1);
+        leaf_age_count[tree->nodes[i].age]++;
+    }
 
     // get effective population sizes
     // uses harmonic mean to combine time steps
@@ -173,8 +178,19 @@ double calc_tree_prior(const ArgModel *model, const LocalTree *tree,
     }
 
     for (int i=0; i<model->ntimes-1; i++) {
-        int a = (i == 0 ? nleaves : lineages.nbranches[i-1]);
-        int b = lineages.nbranches[i];
+        int a, b;
+        if (i == 0) {
+            a = (lineages.ncoals[0] +
+                 lineages.nbranches[0])/2;
+            b = lineages.nbranches[0];
+        } else {
+            a = lineages.nbranches[i-1];
+            // don't count ancient branches that start at this time
+            b = lineages.nbranches[i] - leaf_age_count[i];
+        }
+        assert(b <= a);
+        assert(a >= 0);
+        assert(b >= 0);
         lnl += log(prob_coal_counts(a, b, times[i], 2.0*popsizes[i]));
     }
 
