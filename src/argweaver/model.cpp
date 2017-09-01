@@ -34,7 +34,7 @@ double get_delta(const double *times, int ntimes, double maxtime) {
 	    min_diff = mid_diff;
 	    min_log_delta = mid_log_delta;
 	} else {
-            if (max_diff * mid_fdiff > 0) return -1.0;
+            if (max_diff * mid_diff > 0) return -1.0;
 	    max_diff = mid_diff;
 	    max_log_delta = mid_log_delta;
 	}
