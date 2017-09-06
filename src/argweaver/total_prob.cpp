@@ -237,34 +237,22 @@ double calc_log_tree_prior(const ArgModel *model, const LocalTree *tree,
     lineages.count(tree, model->pop_tree);
     double lnl = 0.0;
     int npop = model->num_pops();
-    int leaf_age_count[npop][model->ntimes];
-    int max_leaf_age = 0;
-    for (int p=0; p<npop; p++)
-        for (int i=0; i < model->ntimes; i++)
-            leaf_age_count[p][i]=0;
-    for (int i=0; i <= tree->nnodes/2; i++) {
-        assert(tree->nodes[i].child[0] == -1);
-        int pop = model->get_pop(tree->nodes[i].pop_path, tree->nodes[i].age);
-        leaf_age_count[pop][tree->nodes[i].age]++;
-        if (tree->nodes[i].age > max_leaf_age)
-            max_leaf_age = tree->nodes[i].age;
-    }
-
     for (int pop=0; pop < npop; pop++) {
         for (int i=0; i<model->ntimes-1; i++) {
             int a, b;
-            if (i == 0) {
-                a = (lineages.ncoals_pop[pop][0] +
-                     lineages.nbranches_pop[pop][0])/2;
-                b = lineages.nbranches_pop[pop][2*i];
-            } else {
-                a = lineages.nbranches_pop[pop][2*i-1];
-                b = lineages.nbranches_pop[pop][2*i] - leaf_age_count[pop][i];
-            }
-            assert(b > 0);
-            assert(a > 0);
+            // this way of calculating number of lineages avoids problems
+            // with ancient samples that may appear at a particular time
+            // though the calculation is a bit approximate- ideally would
+            // consider that ancient samples appearing at time i cannot
+            // coalesce in 2*i-1 half time interval (because do not yet exist)
+            // but can coalesce in 2*i
+            a = (lineages.ncoals_pop[pop][i] +
+                 lineages.nbranches_pop[pop][2*i])/2;
+            b = lineages.nbranches_pop[pop][2*i];
+            // note: a or b can be zero if all lineages are in other pop
+            assert(b >= 0);
+            assert(a >= 0);
             assert(b <= a);
-            if (b ==  1 && i > max_leaf_age) break;
             double t = model->coal_time_steps[2*i];
             if (i > 0) t += model->coal_time_steps[2*i-1];
             lnl += log_prob_coal_counts(a, b, t, 2.0 * model->popsizes[pop][2*i]);
