@@ -1105,8 +1105,9 @@ void Sequences::set_pairs(const ArgModel *mod) {
   else {
      pairs = vector<int>(names.size());
      for (unsigned int i=0; i < names.size(); i++) {
-        if (i%2==0) pairs[i] = i+1;
-        else pairs[i] = i-1;
+         if (i%2==0) {
+             if (i+1 < names.size()) pairs[i] = i+1;
+         } else pairs[i] = i-1;
      }
   }
 }
