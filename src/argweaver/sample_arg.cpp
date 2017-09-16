@@ -192,26 +192,26 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
         // subtree pruning.
         int time_interval = -1;
         int hap=-1;
-        if (model->pop_tree != NULL && !no_resample_mig) {
+        if (model->pop_tree != NULL && !no_resample_mig && frand() < 0.5) {
             vector<int> mig_times;
-            for (int i=0; i < model->ntimes-1; i++)
-                if (model->pop_tree->has_migration(i))
-                    mig_times.push_back(i);
-            int val = irand(mig_times.size()+1);
-            if (val < (int)mig_times.size()) {
-                time_interval = mig_times[val];
-                // identify lineages that can migrate between
-                // time_interval and time_interval+1 and pick one
-                // at random (uniformly)
-                vector<int> possible_haps;
-                for (int i=0; i < trees->get_num_leaves(); i++) {
-                    int start_pop = sequences->get_pop(i);
-                    if (model->pop_tree->num_sub_path[0][time_interval][start_pop]
-                        < model->pop_tree->num_sub_path[0][time_interval+1][start_pop])
-                        possible_haps.push_back(i);
+            vector<int> possible_haps;
+            for (int i=0; i < model->ntimes-1; i++) {
+                if (model->pop_tree->has_migration(i)) {
+                    for (int hap=0; hap < trees->get_num_leaves(); hap++) {
+                        int start_pop = sequences->get_pop(hap);
+                        if (model->pop_tree->num_sub_path[0][i][start_pop] <
+                            model->pop_tree->num_sub_path[0][i+1][start_pop] &&
+                            trees->front().tree->nodes[hap].age <= i) {
+                            mig_times.push_back(i);
+                            possible_haps.push_back(hap);
+                        }
+                    }
                 }
-                assert(possible_haps.size() > 0);
-                hap = possible_haps[irand(possible_haps.size())];
+            }
+            if (mig_times.size() > 0) {
+                int val = irand(mig_times.size());
+                time_interval = mig_times[val];
+                hap = possible_haps[val];
             }
         }
         if (time_interval >= 0) {
