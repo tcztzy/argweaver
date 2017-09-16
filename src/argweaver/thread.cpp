@@ -1556,8 +1556,7 @@ void add_arg_thread_path(LocalTrees *trees, const StatesModel &states_model,
             // this should only be true if we are re-threading an ancient lineage;
             // there will be a mismatch between the subtree age (which will be zero)
             // and the minage; need to make sure the paths are consistent
-            if (pop_tree != NULL && states_model.minage != nodes[subtree_root].age) {
-                assert(states_model.minage > nodes[subtree_root].age);
+            if (pop_tree != NULL && states_model.minage > nodes[subtree_root].age) {
                 state.pop_path = pop_tree->consistent_path(nodes[subtree_root].pop_path,
                                                            state.pop_path,
                                                            nodes[subtree_root].age,
