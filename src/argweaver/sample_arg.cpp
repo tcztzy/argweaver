@@ -119,12 +119,22 @@ void resample_arg_leaf(const ArgModel *model, Sequences *sequences,
     sample_arg_removal_leaf_path(trees, node, removal_path);
 
     remove_arg_thread_path(trees, removal_path, maxtime, model->pop_tree);
+
+    int mintime = sequences->ages[trees->seqids[node]];
+    if (mintime > 0) {
+        for (LocalTrees::iterator it=trees->begin(); it != trees->end(); ++it) {
+            LocalTree *tree = it->tree;
+            tree->nodes[node].age = mintime;
+            assert(it->spr.recomb_node != node);
+            assert(it->spr.coal_node != node);
+        }
+    }
+
     PhaseProbs *phase_pr = NULL;
     if (model->unphased)
         phase_pr = new PhaseProbs(trees->seqids[node], node,
                                   sequences, trees, model);
-    sample_arg_thread_internal(model, sequences, trees,
-			       sequences->ages[trees->seqids[node]], phase_pr);
+    sample_arg_thread_internal(model, sequences, trees, mintime, phase_pr);
     if (model->unphased)
         delete phase_pr;
 

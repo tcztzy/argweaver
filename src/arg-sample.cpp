@@ -1113,26 +1113,7 @@ void sample_arg(ArgModel *model, Sequences *sequences, LocalTrees *trees,
 			printLog(LOG_LOW, "Re-threading ancient sample %s to set sample age %i (%.1f)\n",
 				 sequences->names[i].c_str(), mintime,
 				 model->times[mintime]);
-			resample_arg_leaf(model, sequences, trees, j);
-			assert(trees->seqids[j] == i);  //not sure this is true after re-threading
-
-			for (LocalTrees::iterator it=trees->begin();
-			     it != trees->end(); ++it) {
-
-			    if (it->spr.recomb_node == j && it->spr.recomb_time < mintime) {
-				assert(it->spr.coal_time >= mintime);
-				it->spr.recomb_time = mintime;
-			    }
-			    if (it->spr.coal_node == j && it->spr.coal_time < mintime)
-				it->spr.coal_time = mintime;
-
-			    LocalTree *tree = it->tree;
-			    if (tree->nodes[tree->nodes[j].parent].age < mintime) {
-				assert(0);
-			    }
-			    tree->nodes[j].age = mintime;
-			}
-
+                        resample_arg_leaf(model, sequences, trees, j);
 			break;
 		    }
 		}
