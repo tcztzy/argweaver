@@ -207,7 +207,11 @@ vector<int> inline SampleWithoutReplacement(int m, int n) {
     int max = n;
     for (int i=0; i < m; i++) {
         int val = frand()*max;
-        assert(val >= 0 && val < max);
+        if (val < 0 || val >= max) {
+            fprintf(stderr, "SampleWithoutReplacement: m=%i, n=%i, got val=%i\n",
+                    m, n, val);
+            assert(0);
+        }
         for (int j=0; j < i; j++) {
             if (val >= rv[j]) val++;
         }
