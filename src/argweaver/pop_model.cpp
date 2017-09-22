@@ -91,7 +91,7 @@ PopulationTree::PopulationTree(const PopulationTree &other) {
     min_matching_path_arr = NULL;
     if (npop > 0) set_up_population_paths();
     update_population_probs();
-    max_migrations = -1;
+    max_migrations = other.max_migrations;
 }
 
 
