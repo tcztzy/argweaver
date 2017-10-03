@@ -794,9 +794,9 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
                        const char *const *names, const double *times);
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
-                       const Sequences &seqs, const double *times);
+                       const vector<string> &seqnames, const double *times);
 bool write_local_trees(const char *filename, const LocalTrees *trees,
-                       const Sequences &seqs, const double *times);
+                       const vector<string> &seqnames, const double *times);
 
 bool parse_local_tree(const char* newick, LocalTree *tree,
                       const double *times, int ntimes);

@@ -1409,7 +1409,7 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
 
 
 void write_local_trees(FILE *out, const LocalTrees *trees,
-                       const Sequences &seqs,
+                       const vector<string> &seqnames,
                        const double *times)
 {
     // setup names
@@ -1418,9 +1418,9 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
     names = new char* [nleaves];
 
     for (unsigned int i=0; i<nleaves; i++) {
-        if (i < seqs.names.size()) {
-            names[i] = new char [seqs.names[i].size()+1];
-            strncpy(names[i], seqs.names[i].c_str(), seqs.names[i].size()+1);
+        if (i < seqnames.size()) {
+            names[i] = new char [seqnames[i].size()+1];
+            strncpy(names[i], seqnames[i].c_str(), seqnames[i].size()+1);
         } else {
             // use ids
             names[i] = new char [11];
@@ -1438,7 +1438,7 @@ void write_local_trees(FILE *out, const LocalTrees *trees,
 
 
 bool write_local_trees(const char *filename, const LocalTrees *trees,
-                       const Sequences &seqs, const double *times)
+                       const vector<string> &seqnames, const double *times)
 {
     FILE *out = NULL;
 
@@ -1447,7 +1447,7 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
         return false;
     }
 
-    write_local_trees(out, trees, seqs, times);
+    write_local_trees(out, trees, seqnames, times);
     fclose(out);
     return true;
 }

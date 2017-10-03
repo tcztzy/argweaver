@@ -627,7 +627,7 @@ bool log_local_trees(
     }
 
 
-    write_local_trees(stream.stream, trees, sequences, model->times);
+    write_local_trees(stream.stream, trees, sequences->names, model->times);
 
     if (sites_mapping)
         compress_local_trees(trees, sites_mapping);
