@@ -39,8 +39,10 @@ void calc_arghmm_matrices_internal(
         sub_base_probs.clear();
         if (seqs->base_probs.size() > 0) {
             for (int i=0; i < nleaves; i++) {
-                vector<BaseProbs>::const_iterator first = seqs->base_probs[i].begin() + start;
-                vector<BaseProbs>::const_iterator last = seqs->base_probs[i].begin() + end;
+                vector<BaseProbs>::const_iterator first =
+                    seqs->base_probs[trees->seqids[i]].begin() + start;
+                vector<BaseProbs>::const_iterator last =
+                    seqs->base_probs[trees->seqids[i]].begin() + end;
                 sub_base_probs.push_back(vector<BaseProbs>(first,last));
             }
         }
