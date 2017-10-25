@@ -1082,12 +1082,14 @@ void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
                                           int time_interval,
                                           int hap,
                                           int *path,
-                                          vector<int> &break_coords) {
+                                          vector<int> &break_coords,
+                                          bool do_first) {
     int i=0;
     int coord = trees->start_coord;
     LocalTree *last_tree = NULL;
     int next_nodes[2];
     //    int prev_pop_path;
+
     for (LocalTrees::const_iterator it=trees->begin();
          it != trees->end(); ++it) {
         LocalTree *tree = it->tree;
@@ -1126,8 +1128,10 @@ void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
             }
         }
         coord += it->blocklen;
-        path[i++] = node;
-        last_tree = tree;
+        path[i] = node;
+        if (do_first || i > 0)
+            last_tree = tree;
+        i++;
     }
 }
 

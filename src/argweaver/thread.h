@@ -141,7 +141,8 @@ double count_total_arg_removal_paths(const RemovalPaths &removal_paths);
                                            int time_interval,
                                            int hap,
                                            int *path,
-                                           vector<int> &break_coords);
+                                           vector<int> &break_coords,
+                                           bool do_first=true);
 
  // count total number of removal paths
 double count_total_arg_removal_paths(const LocalTrees *trees);
