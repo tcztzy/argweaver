@@ -48,10 +48,10 @@ from argweaver.smc import smc2sprs
 from argweaver.smc import read_arg
 from argweaver.smc import write_smc
 
-from argweaverc import calc_joint_prob
+#from argweaverc import calc_joint_prob
 
 # suppress unused pyflakes warning
-calc_joint_prob
+#calc_joint_prob
 make_alignment
 make_sites
 sample_arg_dsmc
