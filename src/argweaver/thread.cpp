@@ -1074,7 +1074,6 @@ double count_total_arg_removal_paths(const RemovalPaths &removal_paths)
 }
 
 
-
 //sets path to the series of nodes that relate to hap's ancestry
 // at time between time_interval and time_interval+1.
 // returns integer vector of coordinates where this path is broken
@@ -1083,12 +1082,12 @@ void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
                                           int time_interval,
                                           int hap,
                                           int *path,
-                                          vector<int> &break_idx,
                                           vector<int> &break_coords) {
     int i=0;
     int coord = trees->start_coord;
     LocalTree *last_tree = NULL;
     int next_nodes[2];
+    //    int prev_pop_path;
     for (LocalTrees::const_iterator it=trees->begin();
          it != trees->end(); ++it) {
         LocalTree *tree = it->tree;
@@ -1101,22 +1100,37 @@ void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
                 break;
             node = parent;
         }
+
         if (last_tree) {
             get_next_removal_nodes(last_tree, tree, it->spr, it->mapping,
                                    path[i-1], next_nodes);
-            if (next_nodes[0] != node && next_nodes[1] != node) {
-                break_idx.push_back(i);
+            int possible[2] = {-1,-1};
+            for (int j=0; j < 2; j++) {
+                if (next_nodes[j] == -1) continue;
+                if (tree->nodes[next_nodes[j]].age <= time_interval &&
+                    (next_nodes[j] == tree->root ||
+                     tree->nodes[tree->nodes[next_nodes[j]].parent].age > time_interval))
+                    possible[j] = next_nodes[j];
+            }
+            if (possible[0] == -1 && possible[1] == -1) {
                 break_coords.push_back(coord);
+            } else if (possible[0] >= 0 && possible[1] == -1) {
+                node = possible[0];
+            } else if (possible[1] >= 0 && possible[0] == -1) {
+                node = possible[1];
+            } else {
+                // Need to decide what to do in this situation
+                // want to follow the same pop_path but may need additional criteria
+                //look at some examples
+                assert(0);
             }
         }
         coord += it->blocklen;
-        assert(tree->nodes[node].age <= time_interval &&
-               (node == tree->root ||
-                tree->nodes[tree->nodes[node].parent].age > time_interval));
         path[i++] = node;
         last_tree = tree;
     }
 }
+
 
 // sample a removal path uniformly from all paths and return total path count
 double sample_arg_removal_path_uniform(const LocalTrees *trees, int *path)

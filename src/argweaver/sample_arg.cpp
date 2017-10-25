@@ -231,7 +231,7 @@ void resample_arg_mcmc_all(const ArgModel *model, Sequences *sequences,
                      time_interval, sequences->names[hap].c_str(), num_break);
         } else {
             double accept_rate = resample_arg_regions(
-              model, sequences, trees, window, niters, heat, time_interval, hap);
+              model, sequences, trees, window, niters, heat);
             printLog(LOG_LOW, "resample_arg_regions: accept=%f\n", accept_rate);
         }
     }
@@ -464,6 +464,8 @@ State find_state_sub_tree_internal(const ArgModel *model,
     return State(ptr, coal_time, pop_path);
 }
 
+
+
 int resample_arg_by_time_and_hap(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int time_interval, int hap)
@@ -478,13 +480,13 @@ int resample_arg_by_time_and_hap(
     int orig_numtree = trees->get_num_trees();
     int *removal_path = new int[orig_numtree];
     vector<int> break_coords;
-    vector<int> break_idx;
     assert(time_interval >= 0 && time_interval < model->ntimes - 1);
     assert(hap >= 0 && hap < trees->get_num_leaves());
+
     get_arg_removal_path_by_ind_and_time(trees, time_interval, hap,
                                          removal_path,
-                                         break_idx, break_coords);
-    int num_break = (int)break_idx.size();
+                                         break_coords);
+    int num_break = (int)break_coords.size();
     for (int i=0; i <= num_break; i++) {
         count++;
         int region_start, region_end;
@@ -523,7 +525,7 @@ int resample_arg_by_time_and_hap(
         if (curr_numtree > 2) {
             int *curr_removal_path = new int[curr_numtree];
             get_arg_removal_path_by_ind_and_time(trees2, time_interval, hap,
-                                                    curr_removal_path, temp1, temp2);
+                                                    curr_removal_path, temp1);
 
             if (i != num_break) {
                 const LocalTrees::iterator it = orig_trees.get_block(region_end-1);
@@ -623,7 +625,7 @@ int resample_arg_by_time_and_hap(
 double resample_arg_region(
     const ArgModel *model, Sequences *sequences,
     LocalTrees *trees, int region_start, int region_end, int niters,
-    bool open_ended, double heat, int time_interval, int hap)
+    bool open_ended, double heat)
 {
     const int maxtime = model->get_removed_root_time();
     static int count=0;
@@ -696,20 +698,17 @@ double resample_arg_region(
         incLogLevel();
         assert_trees(trees2, model->pop_tree);
 
-        bool accept=true;
-        double npaths2=1.0;
-        double accept_prob=1.0;
-        if (time_interval < 0) {
-            npaths2 = count_total_arg_removal_paths(trees2);
+        int npaths2 = count_total_arg_removal_paths(trees2);
 
             // perform reject if needed
-            accept_prob = exp(heat*(npaths - npaths2));
-            accept = (frand() < accept_prob);
-        }
-        if (!accept)
+        double accept_prob = exp(heat*(npaths - npaths2));
+        bool accept = (frand() < accept_prob);
+
+        if (!accept) {
             trees2->copy(old_trees2);
-        else
+        } else {
             accepts++;
+        }
 
         // logging
         printLog(LOG_LOW, "accept_prob = exp(%lf - %lf) = %f, accept = %d\n",
@@ -741,8 +740,7 @@ double resample_arg_region(
 // resample an ARG a region at a time in a sliding window
 double resample_arg_regions(
     const ArgModel *model, Sequences *sequences,
-    LocalTrees *trees, int window, int niters, double heat,
-    int time_interval, int hap)
+    LocalTrees *trees, int window, int niters, double heat)
 {
     decLogLevel();
     double accept_rate = 0.0;
@@ -756,8 +754,7 @@ double resample_arg_regions(
         nwindows++;
         int end = min(start + currwindow, trees->end_coord);
         accept_rate += resample_arg_region(
-            model, sequences, trees, start, end, niters, true, heat,
-            time_interval, hap);
+             model, sequences, trees, start, end, niters, true, heat);
     }
     incLogLevel();
 

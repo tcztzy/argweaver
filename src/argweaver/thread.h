@@ -135,14 +135,12 @@ double count_total_arg_removal_paths(const RemovalPaths &removal_paths);
 
 // return the removal path relating to a particular haplotypes ancestry
 // during the time span between time_interval and time_interval+1
-// sets break_idx to index of local tree where path is broken and sampling
 // should be done independently.
 // break_coords is set to corresponding coordinates at the start of these breaks
  void get_arg_removal_path_by_ind_and_time(const LocalTrees *trees,
                                            int time_interval,
                                            int hap,
                                            int *path,
-                                           vector<int> &break_idx,
                                            vector<int> &break_coords);
 
  // count total number of removal paths
