@@ -526,7 +526,8 @@ int resample_arg_by_time_and_hap(
             int *curr_removal_path = new int[curr_numtree];
             get_arg_removal_path_by_ind_and_time(trees2, time_interval, hap,
                                                  curr_removal_path, temp1,
-                                                 i==0);
+       // do not use the first site to decide removal path; it may have changed from previous threading
+                                                 i==0 || trees2->front().blocklen > 1);
 
             if (i != num_break) {
                 const LocalTrees::iterator it = orig_trees.get_block(region_end-1);
