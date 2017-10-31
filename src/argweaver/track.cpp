@@ -43,6 +43,7 @@ bool read_track_line<NullValue>(const char *line, RegionNullValue &region)
     if (sscanf(line, "%1000s\t%d\t%d", chrom2, &region.start, &region.end) != 3)
         return false;
     region.chrom = string(chrom2);
+    region.value = '\0';
     return true;
 }
 

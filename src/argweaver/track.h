@@ -169,18 +169,19 @@ public:
         return true;
         }*/
 
-    // combines adjacent entries in sorted track
-    // loses "value" term; mainly intended for TrackNullValue
+    // combines adjacent entries in sorted track if they have the same value
     void merge() {
         Track<T> oldvec = *this;
         this->clear();
         for (unsigned int i=0; i < oldvec.size(); ) {
             unsigned int j=i+1;
             int currEnd = oldvec[i].end;
+            T currVal=oldvec[i].value;
             const string chrom = oldvec[i].chrom;
             while (j < oldvec.size()) {
                 if (oldvec[j].chrom == chrom &&
-                    oldvec[j].start <= currEnd) {
+                    oldvec[j].start <= currEnd &&
+                    oldvec[j].value == currVal) {
                     currEnd = max(oldvec[j].end, currEnd);
                     j++;
                 } else break;
@@ -394,7 +395,7 @@ bool read_track_filter(FILE *infile, Track<T> *track,
         printError("could not read track line %d", reader.line_number());
         return false;
     }
-
+    track->merge();
     return true;
 }
 
