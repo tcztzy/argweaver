@@ -700,7 +700,7 @@ double resample_arg_region(
         incLogLevel();
         assert_trees(trees2, model->pop_tree);
 
-        int npaths2 = count_total_arg_removal_paths(trees2);
+        double npaths2 = count_total_arg_removal_paths(trees2);
 
             // perform reject if needed
         double accept_prob = exp(heat*(npaths - npaths2));
