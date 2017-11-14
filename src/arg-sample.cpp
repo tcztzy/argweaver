@@ -1239,12 +1239,7 @@ int main(int argc, char **argv)
     // setup model parameters
     if (c.times_file != "") {
         // use time points from a file
-        vector<double> times;
-        if (!read_doubles(c.times_file.c_str(), times)) {
-            printError("cannot times file '%s'", c.times_file.c_str());
-            return EXIT_ERROR;
-        }
-        c.model.set_times(&times[0], times.size());
+        c.model.set_times_from_file(c.times_file);
     } else if (c.time_step) {
         // use linearly spaces time points
         c.model.set_linear_times(c.time_step, c.ntimes);
@@ -1270,7 +1265,7 @@ int main(int argc, char **argv)
         c.model.set_popsizes(&popsizes[0], popsizes.size());
     } else {
         // use single constant population size
-        c.model.set_popsizes(c.popsize, c.model.ntimes);
+        c.model.set_popsizes(c.popsize_str, c.model.ntimes);
     }
     const double infsites_penalty = 1e-100; // TODO: make configurable
     if (c.infsites)
@@ -1279,8 +1274,6 @@ int main(int argc, char **argv)
     if (c.age_file != "")
 	sequences.set_age(c.age_file, c.model.ntimes, c.model.times);
     else sequences.set_age();
-
-    c.model.set_popsizes(c.popsize_str, c.model.ntimes);
 
     // setup phasing options
     if (c.unphased_file != "")
