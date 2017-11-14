@@ -314,7 +314,6 @@ public:
     double mask_uncertain;
 
     // model parameters
-    double popsize;
     string popsize_str;
     double mu;
     double rho;
