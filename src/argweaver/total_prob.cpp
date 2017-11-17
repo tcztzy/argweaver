@@ -415,6 +415,7 @@ double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
 double calc_log_self_recomb_prob(const ArgModel *model, LocalTree *tree,
                                  LineageCounts &lineages, double treelen) {
     double lnprob=-INFINITY;
+    double coal_rates[2*model->ntimes];
     for (int i=0; i < tree->nnodes; i++) {
         if (i == tree->root) continue;
         int parent = tree->nodes[i].parent;
@@ -422,6 +423,9 @@ double calc_log_self_recomb_prob(const ArgModel *model, LocalTree *tree,
         int sib = ( tree->nodes[parent].child[0] == i ?
                     tree->nodes[parent].child[1] :
                     tree->nodes[parent].child[0] );
+        calc_coal_rates_spr(model, tree,
+                            Spr(i, tree->nodes[i].age, i, parent_age, tree->nodes[i].pop_path),
+                            lineages, coal_rates);
         if (model->smc_prime) {
             for (int j = tree->nodes[i].age; j <= parent_age; j++) {
                 for (int k=j; k <= parent_age; k++) {
@@ -429,7 +433,8 @@ double calc_log_self_recomb_prob(const ArgModel *model, LocalTree *tree,
                     lnprob = logadd(lnprob,
                                     calc_log_spr_prob(model, tree, spr,
                                                       lineages, treelen,
-                                                      NULL, NULL, 1.0, true));
+                                                      NULL, NULL, 1.0, true,
+                                                      coal_rates));
                 }
             }
         }
@@ -439,7 +444,8 @@ double calc_log_self_recomb_prob(const ArgModel *model, LocalTree *tree,
                 Spr spr(i,k,coal_nodes[l],parent_age, tree->nodes[i].pop_path);
                 lnprob = logadd(lnprob,
                                 calc_log_spr_prob(model, tree, spr, lineages,
-                                                  treelen, NULL, NULL, 1.0, true));
+                                                  treelen, NULL, NULL, 1.0, true,
+                                                  coal_rates));
             }
         }
     }
@@ -647,6 +653,12 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                                      tree->nodes[node].age,
                                                      real_spr->recomb_time,
                                                      real_spr->coal_time);
+            double coal_rates[2*model->ntimes];
+            calc_coal_rates_spr(model, tree,
+                                Spr(node, tree->nodes[node].age,
+                                    real_spr->coal_node, real_spr->coal_time,
+                                    target_path),
+                                lineages, coal_rates);
             int this_max_age = min(max_age,
                                    model->max_matching_path(tree->nodes[node].pop_path,
                                                             target_path, tree->nodes[node].age));
@@ -656,7 +668,7 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                 double val = exp(calc_log_spr_prob(model, tree, spr, lineages,
                                                    treelen, num_coal, num_nocoal,
                                                    age == real_spr->recomb_time
-                                                   ? 1.0 : 0.0, true));
+                                                   ? 1.0 : 0.0, true, coal_rates));
                 recomb_sum += val;
             }
             if (real_spr->coal_node == sib) {
@@ -669,7 +681,7 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                 tree->nodes[sib].pop_path);
                         recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
                                                             treelen, num_coal, num_nocoal,
-                                                            0, true));
+                                                            0, true, coal_rates));
                     }
                 }
             } else if (real_spr->coal_node == parent) {
@@ -690,7 +702,7 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                         Spr spr(sib, age, parent, real_spr->coal_time, path);
                         recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
                                                             treelen, num_coal, num_nocoal,
-                                                            0, true));
+                                                            0, true, coal_rates));
                     }
                 }
             }
