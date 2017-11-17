@@ -304,7 +304,8 @@ void calc_coal_rates_spr(const ArgModel *model, const LocalTree *tree,
 double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
                          const Spr &spr, LineageCounts &lineages,
                          double treelen, double **num_coal, double **num_nocoal,
-                         double coal_weight, int lineages_counted)
+                         double coal_weight, bool lineages_counted,
+                         double *coal_rates0)
 {
     if (spr.recomb_node == tree->root) {
         assert(spr.coal_node == tree->root);
@@ -356,8 +357,13 @@ double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
     }
 
     // probability of re-coalescence
-    double coal_rates[2*model->ntimes];
-    calc_coal_rates_spr(model, tree, spr, lineages, coal_rates);
+    double *coal_rates;
+    if (coal_rates0 != NULL) {
+        coal_rates = coal_rates0;
+    } else {
+        coal_rates = new double[2*model->ntimes];
+        calc_coal_rates_spr(model, tree, spr, lineages, coal_rates);
+    }
     int j = spr.coal_time;
     int broken_age = nodes[nodes[spr.recomb_node].parent].age;
 
@@ -399,6 +405,7 @@ double calc_log_spr_prob(const ArgModel *model, const LocalTree *tree,
             }
 	}
     }
+    if (coal_rates0 == NULL) delete [] coal_rates;
     return lnl;
 }
 
