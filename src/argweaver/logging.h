@@ -252,6 +252,8 @@ void printTimerLog(const Timer &timer, int level, const char *fmt, ...);
 
 void printError(const char *fmt, va_list ap);
 void printError(const char *fmt, ...);
+void printWarning(const char *fmt, va_list ap);
+void printWarning(const char *fmt, ...);
 
 void exitError(const char *fmt, va_list ap);
 void exitError(const char *fmt, ...);

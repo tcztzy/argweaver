@@ -108,12 +108,35 @@ void printError(const char *fmt, va_list ap)
     g_logger.printLog(LOG_HIGH, fmt, ap);
 }
 
+void printWarning(const char *fmt, va_list ap)
+{
+    fprintf(stderr, "warning: ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+
+    g_logger.printLog(LOG_HIGH, fmt, ap);
+}
+
 
 void printError(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
     fprintf(stderr, "error: ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
+
+    va_start(ap, fmt);
+    g_logger.printLog(LOG_HIGH, fmt, ap);
+    va_end(ap);
+}
+
+void printWarning(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "warning: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     va_end(ap);
