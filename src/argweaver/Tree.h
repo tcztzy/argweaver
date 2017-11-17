@@ -290,6 +290,7 @@ public:
     double rth();
     double popsize();
     vector<double> coalCounts(const double *times, int ntimes);
+    vector<int> coalCountsCluster(const double *times, int ntimes);
     double num_zero_branches();
     double branch_len(string n) {
 	return nodes[nodename_map.find(n)->second]->dist;

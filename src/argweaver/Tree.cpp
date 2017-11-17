@@ -1469,6 +1469,37 @@ vector<double> Tree::coalCounts(const double *times, int ntimes) {
 }
 
 
+int getNumZeroBranches(Node *node)
+{
+    // recurse
+    for (int i=0; i<node->nchildren; i++)
+        if (node->age - node->children[i]->age < 1.0)
+            return 1 + getNumZeroBranches(node->children[i]);
+
+    return 0;
+}
+
+
+    //assume that times is sorted!
+vector<int> Tree::coalCountsCluster(const double *times, int ntimes) {
+    vector<int> counts(ntimes, 0.0);
+    for (int i=0; i < nnodes; i++) {
+        if (nodes[i]->nchildren == 0) continue;
+        int val = getNumZeroBranches(nodes[i]);
+        int age = -1;
+        for (int j=0; j < ntimes; j++)
+            if (fabs(nodes[i]->age - times[j]) < 1) {
+                age = j;
+                break;
+            }
+        assert(age >= 0);
+        if (counts[age] < val)
+            counts[age] = val;
+    }
+    return counts;
+}
+
+
 double Tree::num_zero_branches() {
     int count=0;
     for (int i=0; i < nnodes; i++) {
