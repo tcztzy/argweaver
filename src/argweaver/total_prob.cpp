@@ -416,37 +416,30 @@ double calc_log_self_recomb_prob(const ArgModel *model, LocalTree *tree,
                                  LineageCounts &lineages, double treelen) {
     double lnprob=-INFINITY;
     double coal_rates[2*model->ntimes];
+    assert(model->smc_prime);
     for (int i=0; i < tree->nnodes; i++) {
         if (i == tree->root) continue;
         int parent = tree->nodes[i].parent;
         int parent_age = tree->nodes[parent].age;
-        int sib = ( tree->nodes[parent].child[0] == i ?
-                    tree->nodes[parent].child[1] :
-                    tree->nodes[parent].child[0] );
         calc_coal_rates_spr(model, tree,
                             Spr(i, tree->nodes[i].age, i, parent_age, tree->nodes[i].pop_path),
                             lineages, coal_rates);
-        if (model->smc_prime) {
-            for (int j = tree->nodes[i].age; j <= parent_age; j++) {
-                for (int k=j; k <= parent_age; k++) {
-                    Spr spr(i,j,i,k,tree->nodes[i].pop_path);
-                    lnprob = logadd(lnprob,
-                                    calc_log_spr_prob(model, tree, spr,
-                                                      lineages, treelen,
-                                                      NULL, NULL, 1.0, true,
-                                                      coal_rates));
-                }
-            }
-        }
-        const int coal_nodes[2] = {sib, parent};
-        for (int k=tree->nodes[i].age; k <= parent_age; k++) {
-            for (int l=0; l < 2; l++) {
-                Spr spr(i,k,coal_nodes[l],parent_age, tree->nodes[i].pop_path);
+        for (int j = tree->nodes[i].age; j <= parent_age; j++) {
+            for (int k=j; k < parent_age; k++) {
+                Spr spr(i,j,i,k,tree->nodes[i].pop_path);
                 lnprob = logadd(lnprob,
-                                calc_log_spr_prob(model, tree, spr, lineages,
-                                                  treelen, NULL, NULL, 1.0, true,
+                                calc_log_spr_prob(model, tree, spr,
+                                                  lineages, treelen,
+                                                  NULL, NULL, 1.0, true,
                                                   coal_rates));
             }
+            Spr spr(i,j,i,parent_age, tree->nodes[i].pop_path);
+            // multiply prob by 3 because coal node could be self, parent, or sib
+            lnprob = logadd(lnprob,
+                            log(3.0) + calc_log_spr_prob(model,tree, spr,
+                                                         lineages, treelen,
+                                                         NULL, NULL, 1.0,
+                                                         true, coal_rates));
         }
     }
     return lnprob;
@@ -654,10 +647,33 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                                      real_spr->recomb_time,
                                                      real_spr->coal_time);
             double coal_rates[2*model->ntimes];
+            int minage = tree->nodes[node].age;
+            bool coalToSib = false;
+            bool coalToParent = false;
+            if (real_spr->coal_node == sib) {
+                if (model->paths_equal(real_spr->pop_path, tree->nodes[node].pop_path,
+                                       real_spr->recomb_time, real_spr->coal_time)) {
+                    coalToSib = true;
+                    if (tree->nodes[sib].age < minage)
+                        minage = tree->nodes[sib].age;
+                }
+            } else if (real_spr->coal_node == parent) {
+                int path = model->consistent_path(tree->nodes[node].pop_path,
+                                                  tree->nodes[parent].pop_path,
+                                                  tree->nodes[node].age,
+                                                  tree->nodes[parent].age,
+                                                  real_spr->coal_time);
+                if (model->paths_equal(path, real_spr->pop_path,
+                                       real_spr->recomb_time, real_spr->coal_time)) {
+                    coalToParent = true;
+                    if (tree->nodes[sib].age < minage)
+                        minage = tree->nodes[sib].age;
+                }
+            }
+
             calc_coal_rates_spr(model, tree,
-                                Spr(node, tree->nodes[node].age,
-                                    real_spr->coal_node, real_spr->coal_time,
-                                    target_path),
+                                Spr(node, minage, real_spr->coal_node,
+                                    real_spr->coal_time, target_path),
                                 lineages, coal_rates);
             int this_max_age = min(max_age,
                                    model->max_matching_path(tree->nodes[node].pop_path,
@@ -671,39 +687,26 @@ double calc_arg_prior_recomb_integrate(const ArgModel *model,
                                                    ? 1.0 : 0.0, true, coal_rates));
                 recomb_sum += val;
             }
-            if (real_spr->coal_node == sib) {
-                if (model->paths_equal(real_spr->pop_path,
-                                       tree->nodes[node].pop_path,
-                                       real_spr->recomb_time,
-                                       real_spr->coal_time)) {
-                    for (int age=tree->nodes[sib].age; age <= max_age; age++) {
-                        Spr spr(sib, age, node, real_spr->coal_time,
-                                tree->nodes[sib].pop_path);
-                        recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
-                                                            treelen, num_coal, num_nocoal,
-                                                            0, true, coal_rates));
-                    }
+            if (coalToSib) {
+                for (int age=tree->nodes[sib].age; age <= max_age; age++) {
+                    Spr spr(sib, age, node, real_spr->coal_time,
+                            tree->nodes[sib].pop_path);
+                    double val = exp(calc_log_spr_prob(model, tree, spr, lineages,
+                                                       treelen, num_coal, num_nocoal,
+                                                       0, true, coal_rates));
+                    recomb_sum += val;
                 }
-            } else if (real_spr->coal_node == parent) {
-                int path = model->consistent_path(tree->nodes[node].pop_path,
-                                                  tree->nodes[parent].pop_path,
-                                                  tree->nodes[node].age,
-                                                  tree->nodes[parent].age,
-                                                  real_spr->coal_time);
-                if (model->paths_equal(path, real_spr->pop_path,
-                                       real_spr->recomb_time,
-                                       real_spr->coal_time)) {
-                    path = model->consistent_path(tree->nodes[sib].pop_path,
+            } else if (coalToParent) {
+                int path = model->consistent_path(tree->nodes[sib].pop_path,
                                                   tree->nodes[parent].pop_path,
                                                   tree->nodes[sib].age,
                                                   tree->nodes[parent].age,
                                                   real_spr->coal_time);
-                    for (int age=tree->nodes[sib].age; age <= max_age; age++) {
-                        Spr spr(sib, age, parent, real_spr->coal_time, path);
-                        recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
-                                                            treelen, num_coal, num_nocoal,
-                                                            0, true, coal_rates));
-                    }
+                for (int age=tree->nodes[sib].age; age <= max_age; age++) {
+                    Spr spr(sib, age, parent, real_spr->coal_time, path);
+                    recomb_sum += exp(calc_log_spr_prob(model, tree, spr, lineages,
+                                                        treelen, num_coal, num_nocoal,
+                                                        0, true, coal_rates));
                 }
             }
             lnl += log(pr_recomb * recomb_sum);
