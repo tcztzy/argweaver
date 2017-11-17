@@ -15,15 +15,16 @@ namespace argweaver {
          va_list ap;
          va_start(ap, ndim);
          dimSize = new int[ndim];
-         multipliers = new int[ndim];
+         multipliers = new int[max(1, ndim-1)];
          matSize = 1;
          for (int i=0; i < ndim; i++) {
              dimSize[i] = va_arg(ap, int);
              matSize *= dimSize[i];
-             multipliers[i] = 1;
          }
          va_end(ap);
-         for (int i=ndim-2; i >= 0; i--)
+         if (ndim >= 2)
+             multipliers[ndim-2] = dimSize[ndim-1];
+         for (int i=ndim-3; i >= 0; i--)
              multipliers[i] = multipliers[i+1]*dimSize[i+1];
          mat = new double[matSize];
      }
@@ -57,83 +58,100 @@ namespace argweaver {
      }
 
      void set(double val, int pos0, int pos1) {
+#ifdef DEBUG
          assert(ndim == 2);
-         int idx = pos0 * multipliers[0] + pos1 * multipliers[1];
+#endif
+         int idx = pos0 * multipliers[0] + pos1;
+#ifdef DEBUG
          assert(idx >= 0 && idx < matSize);
+#endif
          mat[idx] = val;
      }
+
      void set(double val, int pos0, int pos1, int pos2) {
+#ifdef DEBUG
          assert(ndim == 3);
-         int idx = pos0 * multipliers[0] + pos1 * multipliers[1] +
-             pos2 * multipliers[2];
+#endif
+         int idx = pos0 * multipliers[0] + pos1 * multipliers[1] + pos2;
+#ifdef DEBUG
          assert(idx >= 0 && idx < matSize);
+#endif
          mat[idx] = val;
      }
 
-
-     /*     void addVal(double val, ...) {
-         int idx=0;
-         va_list ap;
-         va_start(ap, val);
-         for (int i=0; i <ndim; i++)
-             idx += va_arg(ap, int) * multipliers[i];
-         va_end(ap);
-         mat[idx] += val;
-         }*/
      void addVal(double val, int pos0, int pos1) {
          int idx=0;
+#ifdef DEBUG
          assert(ndim == 2);
-         idx = pos0 * multipliers[0] + pos1 * multipliers[1];
+#endif
+         idx = pos0 * multipliers[0] + pos1;
+#ifdef DEBUG
          assert(idx >= 0 && idx < matSize);
+#endif
          mat[idx] += val;
      }
      void addVal(double val, int pos0, int pos1, int pos2) {
          int idx=0;
+#ifdef DEBUG
          assert(ndim == 3);
-         idx = pos0 * multipliers[0] + pos1 * multipliers[1]
-             + pos2 * multipliers[2];
+#endif
+         idx = pos0 * multipliers[0] + pos1 * multipliers[1] + pos2;
+#ifdef DEBUG
          assert(idx >= 0 && idx < matSize);
+#endif
          mat[idx] += val;
      }
 
      void logAddVal(double lnVal, int pos0, int pos1) {
          int idx=0;
+#ifdef DEBUG
          assert(ndim == 2);
-         idx = pos0 * multipliers[0] + pos1 * multipliers[1];
+#endif
+         idx = pos0 * multipliers[0] + pos1;
+#ifdef DEBUG
          assert(idx >= 0 && idx < matSize);
+#endif
          mat[idx] = logadd(mat[idx], lnVal);
      }
      void logAddVal(double lnVal, int pos0, int pos1, int pos2) {
          int idx=0;
+#ifdef DEBUG
          assert(ndim == 3);
-         idx = pos0 * multipliers[0] + pos1 * multipliers[1]
-             + pos2 * multipliers[2];
+#endif
+         idx = pos0 * multipliers[0] + pos1 * multipliers[1] + pos2;
+#ifdef DEBUG
          assert(idx >= 0 && idx < matSize);
+#endif
          mat[idx] = logadd(mat[idx], lnVal);
      }
 
-
-     /*     double get(int *idxArr) const {
-         int idx=0;
-         for (int i=0; i < ndim; i++) {
-             if (idxArr[i] < 0) return 0.0;
-             idx += idxArr[i] * multipliers[i];
-         }
-         return mat[idx];
-         }*/
-
      double get(int pos0, int pos1) {
+#ifdef DEBUG
          assert(ndim ==2);
+#endif
          if (pos0 < 0 || pos1 < 0) return defaultVal;
-         int idx = pos0 * multipliers[0] + pos1 * multipliers[1];
+         int idx = pos0 * multipliers[0] + pos1;
          return mat[idx];
      }
 
      double get(int pos0, int pos1, int pos2) {
+#ifdef DEBUG
          assert(ndim == 3);
+#endif
          if (pos0 < 0 || pos1 < 0 || pos2 < 0) return defaultVal;
-         int idx = pos0*multipliers[0] + pos1 * multipliers[1] + pos2 * multipliers[2];
+         //         printf("get %i %i %i %i %i %i\n", pos0, pos1, pos2, multipliers[0], multipliers[1], multipliers[2]);
+         int idx = pos0*multipliers[0] + pos1 * multipliers[1] + pos2;
          return mat[idx];
+     }
+
+     double *getRow(int pos0) {
+         assert(ndim == 2);
+         return &mat[pos0*multipliers[0]];
+     }
+
+     double *getRow(int pos0, int pos1) {
+         assert(ndim == 3);
+         return &mat[pos0*multipliers[0] + pos1*multipliers[1]];
      }
 
 
