@@ -230,6 +230,10 @@ public:
                    ("-C", "--coalcounts", &coalcounts,
                     "number of coal events at each discretized time point"
                     " (requires --timefile)"));
+        config.add(new ConfigSwitch
+                   ("", "--coalcounts-cluster", &coalcounts_cluster,
+                    "maximum number of coalescences clustered together at each time point"
+                    " (requires --timefile)"));
         config.add(new ConfigParam<string>
                    ("-G", "--group", "<group_file1,groupfile2,...>", &groupfile,
                     "Output boolean indicating whether individuals in each group"
@@ -353,6 +357,7 @@ public:
     string ind_dist;
     bool zero;
     bool coalcounts;
+    bool coalcounts_cluster;
     bool numsample;
 
     bool mean;
@@ -584,6 +589,14 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                 assert(i+j < statname.size() &&
                        statname[i+j].substr(0,10)=="coalcount.");
                 line->stats[i+j] = coal_counts[j];
+            }
+            i += coal_counts.size() - 1;
+        } else if (statname[i].substr(0, 17)=="coalcountCluster.") {
+            vector<int>coal_counts = tree->coalCountsCluster(model->times, model->ntimes);
+            for (unsigned int j=0; j < coal_counts.size(); j++) {
+                assert(i+j < statname.size() &&
+                       statname[i+j].substr(0,17)=="coalcountCluster.");
+                line->stats[i+j] = (double)coal_counts[j];
             }
             i += coal_counts.size() - 1;
         }
@@ -1518,6 +1531,17 @@ int main(int argc, char *argv[]) {
         for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
             sprintf(tmp, "coalcount.%i", i);
+            statname.push_back(string(tmp));
+        }
+    }
+    if (c.coalcounts_cluster) {
+        if (c.logfile.empty()) {
+            fprintf(stderr, "Error: --log-file required with --coalcounts-cluster\n");
+            return 1;
+        }
+        for (int i=0; i < data.model->ntimes; i++) {
+            char tmp[1000];
+            sprintf(tmp, "coalcountCluster.%i", i);
             statname.push_back(string(tmp));
         }
     }
