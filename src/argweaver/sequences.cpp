@@ -396,17 +396,20 @@ public:
 };
 
 
-bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
-              bool parse_genotype_pl, double min_base_prob) {
+bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
+              const char *genotype_filter, bool parse_genotype_probs,
+              double min_base_prob, bool add_ref) {
     const char *delim = "\t";
-    char *line;
+    char *line=NULL;
     int nseqs = 0, nsample=0;
     bool error = false;
-    int numskip=0;
     const char *headerStart = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
     string chrname = "";
     vector<GenoFilter> gf;
     int num_masked=0, total=0;
+    int numIndel=0;
+    static bool warnRefLen=false;
+    static bool warnProbs=false;
 
     if (genotype_filter != NULL && strlen(genotype_filter) > 0) {
         vector<string> tmp;
@@ -416,14 +419,18 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
         }
     }
 
+    // note that this does not affect chrom, start_coord, end_coord
     sites->clear();
 
     int lineno = 0;
-    while (!error && (line = fgetline(infile))) {
+    int next_position = sites->start_coord;
+    while (!error) {
+        if (line != NULL) delete [] line;
+        line = fgetline(infile);
+        if (line == NULL) break;
         chomp(line);
         lineno++;
         if (strncmp(line, "##", 2) == 0) {
-            delete [] line;
             continue;
         }
         if (strncmp(line, headerStart, strlen(headerStart)) == 0) {
@@ -438,12 +445,11 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
                     sites->names.push_back(string(tmp));
                 }
             }
-            printf("nseqs = %i\n", nseqs);
-            if (nseqs < 2) {
-                printError("Need at least 2 sequences in VCF file\n");
-                return false;
+            if (add_ref) {
+                sites->names.push_back("REF");
+                nseqs++;
             }
-            delete [] line;
+            printf("nseqs = %i\n", nseqs);
             continue;
         }
         // otherwise this line contains a variant
@@ -469,12 +475,23 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
             return false;
         }
         position--;  //convert to 0-index
+        if (!variant_only) {
+            while (next_position < position) {
+                sites->append_masked(next_position++, parse_genotype_probs);
+            }
+        }
+        next_position = position+1;
+        double qual = atof(fields[5].c_str());
         char alleles[5];  // alleles can only be A,C,G,T,N
         int num_alleles=1;
         if (fields[3].length() != 1) {
-            printError("Reference allele is not length one on line %i of VCF",
-                       lineno);
-            return false;
+            if (!warnRefLen) {
+                printWarning("Reference allele is not length one on line %i of VCF... skipping this and future similar lines",
+                             lineno);
+                warnRefLen=true;
+            }
+            numIndel++;
+            continue;
         }
         alleles[0] = fields[3].c_str()[0];
         vector<string> alt;
@@ -485,33 +502,41 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
             return false;
         }
         static bool badAlleleWarn=false;
+        bool badAllele=false;
         for (int i=0; i < (int)alt.size(); i++) {
             if (alt[i].length() != 1) {
                 if (!badAlleleWarn) {
-                    printError("ReadVCF can only handle alleles A,C,G,T,N currently;"
-                               " got allele %s on line %i; skipping this variant and"
-                               " other similar ones",
-                               alt[i].c_str());
+                    printWarning("ReadVCF can only handle alleles A,C,G,T,N currently;"
+                                 " got allele %s on line %i; skipping this line and"
+                                 " other similar ones",
+                               alt[i].c_str(), lineno);
                     badAlleleWarn=true;
                 }
-                numskip++;
-                delete [] line;
-                continue;
+                badAllele=true;
+                numIndel++;
+                break;
             }
             alleles[num_alleles++] = alt[i].c_str()[0];
         }
+        if (badAllele) continue;
         // next: parse FORMAT in fields[8] and figure out where to find
         // GT
         vector<string> format;
         split(fields[8].c_str(), ":", format);
         int gt_idx=-1;
         int pl_idx=-1;
+        int pp_idx=-1;
         for (int i=0; i < (int)format.size(); i++) {
             if (strcmp(format[i].c_str(), "GT")==0) {
                 gt_idx=i;
             }
-            if (strcmp(format[i].c_str(), "PL")==0) {
-                pl_idx = i;
+            if (parse_genotype_probs) {
+                if (strcmp(format[i].c_str(), "PL")==0) {
+                    pl_idx = i;
+                }
+                if (strcmp(format[i].c_str(), "PP")==0) {
+                    pp_idx = i;
+                }
             }
         }
         if (gt_idx == -1) {
@@ -519,11 +544,7 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
                        lineno);
             return false;
         }
-        if (parse_genotype_pl && pl_idx == -1) {
-            printError("Did not find PL in format field in VCF file line %i",
-                       lineno);
-            return false;
-        }
+
         vector<BaseProbs> base_probs;
         // get positions for genotype filter(s)
         for (int i=0; i < (int)gf.size(); i++) {
@@ -542,7 +563,7 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
         col[nseqs] = '\0';
         int idx=0;
         for (int i=0; i < nsample; i++) {
-            bool masked = ( num_alleles > 2 );
+            bool masked = ( num_alleles > 2 || qual < min_qual );
             split(fields[9+i].c_str(), ":", seqfields);
             if (seqfields.size() != format.size()) {
                 if (gt_idx < (int)seqfields.size() && seqfields[gt_idx] == "./.")
@@ -564,32 +585,29 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
                     }
                 }
             }
-            if (parse_genotype_pl) {
-                for (int j=0; j < 2; j++) {
-                    BaseProbs bp = ( masked ?
-                        BaseProbs('N') :
-                        BaseProbs(alleles[0], alleles[1], seqfields[pl_idx], j) );
-                    base_probs.push_back(bp);
-                    if (bp.maxProb() < min_base_prob)
-                        masked=true;
-                }
+
+            if (parse_genotype_probs) {
+                BaseProbs bp = BaseProbs('N');
+                base_probs.push_back(bp);
+                base_probs.push_back(bp);
             }
             total++;
             if (masked) {
-                col[idx] = 'N';
-                col[idx+1] = 'N';
-                if (parse_genotype_pl) {
-                    base_probs[idx].set_mask();
-                    base_probs[idx+1].set_mask();
-                }
-                idx += 2;
-                num_masked++;
+                col[idx] = col[idx+1] = 'N';
+                idx +=2;
+                num_masked+=2;
                 continue;
             }
-
+            if (parse_genotype_probs && pl_idx == -1 && pp_idx == -1) {
+                if (!warnProbs) {
+                    printWarning("Did not find PL in format field in VCF file line %i",
+                                 lineno);
+                    warnProbs=true;
+                }
+            }
             gtstr = seqfields[gt_idx];
             if (gtstr.length() != 3) {
-                printError("genotype not lenghth three on line %i of VCF",
+                printError("genotype not length three on line %i of VCF",
                            lineno);
                 return false;
             }
@@ -599,11 +617,12 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
                            lineno);
                 return false;
             }
-            for (int j=0; j <=2; j+=2) {
-                char allele = gtstr.c_str()[j];
+            for (int j=0; j < 2; j++) {
+                char allele = gtstr.c_str()[j*2];
                 if (allele == '.') {
                     col[idx] = 'N';
-                    base_probs[idx].set_mask();
+                    if (parse_genotype_probs)
+                        base_probs[idx].set_mask();
                 } else {
                     int ia = allele - '0';
                     if (ia < 0 || ia >= num_alleles) {
@@ -612,25 +631,50 @@ bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
                         return false;
                     }
                     col[idx] = alleles[ia];
+                    if (parse_genotype_probs) {
+                        if (pp_idx >= 0)
+                            base_probs[idx].set_by_pp(seqfields[pp_idx], j);
+                        else if (pl_idx >= 0)
+                            base_probs[idx].set_by_pl(alleles[0], alleles[1],
+                                                      seqfields[pl_idx], j);
+                        else base_probs[idx].set_certain(alleles[ia]);
+                        if (base_probs[idx].maxProb() < min_base_prob) {
+                            col[idx] = 'N';
+                            base_probs[idx].set_mask();
+                            num_masked++;
+                        }
+                    }
                 }
                 idx++;
             }
         }
+        if (add_ref) {
+            assert(idx == nseqs-1);
+            col[idx] = alleles[0];
+            if (parse_genotype_probs)
+                base_probs.push_back(BaseProbs(alleles[0]));
+        }
         sites->append(position, col, true);
-        if (parse_genotype_pl)
+        if (parse_genotype_probs)
             sites->base_probs.push_back(base_probs);
     }
-    printLog(LOG_LOW, "Read %i sites from %i lines of VCF file (numskip=%i)\n",
-             sites->get_num_sites(), lineno, numskip);
-    if (gf.size() > 0) printLog(LOG_LOW, "Masked %i out of %i genotypes\n",
-                                num_masked, total);
+    if (!variant_only) {
+        while (next_position < sites->end_coord)
+            sites->append_masked(next_position++, parse_genotype_probs);
+    }
+
+    printLog(LOG_LOW, "Read %i sites from %i lines of VCF file (num skipped indels=%i)\n",
+             sites->get_num_sites(), lineno, numIndel);
+    if (gf.size() > 0) printLog(LOG_LOW, "Masked %.1f out of %i genotypes\n",
+                                (double)num_masked/2, total);
     return true;
 }
 
 
 bool read_vcf(const char *filename, Sites *sites, const char *region,
-              const char *genotype_filter, bool parse_genotype_pl,
-              double min_base_prob, const char *tabixdir) {
+              bool variant_only, double min_qual, const char *genotype_filter,
+              bool parse_genotype_probs, double min_base_prob, bool add_ref,
+              const char *tabixdir) {
     TabixStream ts(filename, region, tabixdir);
     char chr[10000];
     int start_coord, end_coord;
@@ -649,23 +693,69 @@ bool read_vcf(const char *filename, Sites *sites, const char *region,
         printError("Error parsing region string %s. Must be in format chr:start-end\n", tmp[1].c_str());
         return false;
     }
+    printf("here ts.stream=NULL=%i\n", ts.stream==NULL);
     if (ts.stream == NULL) {
         return false;
     }
-    if ( ! read_vcf(ts.stream, sites, genotype_filter,
-                    parse_genotype_pl, min_base_prob)) return false;
+    printLog(LOG_LOW, "Reading %s %s\n", filename, region);
     sites->start_coord = start_coord - 1;
     sites->end_coord = end_coord;
     sites->chrom = string(chr);
+    if ( ! read_vcf(ts.stream, sites, variant_only, min_qual, genotype_filter,
+                    parse_genotype_probs, min_base_prob, add_ref))
+        return false;
     return true;
 }
 
 bool read_vcf(const string filename, Sites *sites, const string region,
-              const string genotype_filter, bool parse_genotype_pl,
-              double min_base_prob, const string tabixdir) {
-    return read_vcf(filename.c_str(), sites, region.c_str(),
-                    genotype_filter.c_str(), parse_genotype_pl,
-                    min_base_prob, tabixdir.c_str());
+              bool variant_only, double min_qual, const string genotype_filter,
+              bool parse_genotype_probs, double min_base_prob, bool add_ref,
+              const string tabixdir) {
+    return read_vcf(filename.c_str(), sites, region.c_str(), variant_only,
+                    min_qual, genotype_filter.c_str(), parse_genotype_probs,
+                    min_base_prob, add_ref, tabixdir.c_str());
+}
+
+bool read_vcfs(const vector<string> filenames, Sites* sites, const string region,
+               bool variant_only, double min_qual, const string genotype_filter,
+               bool parse_genotype_probs, double min_base_prob,
+               const string tabixdir) {
+    if (filenames.size() == 0) {
+        fprintf(stderr, "Read_vcfs expects at least one filename\n");
+        return false;
+    }
+    if (!read_vcf(filenames[0], sites, region, variant_only, min_qual,
+                  genotype_filter, parse_genotype_probs, min_base_prob,
+                  true, tabixdir))
+        return false;
+    for (int i=1; i < (int)filenames.size(); i++) {
+        Sites s;
+        if (!read_vcf(filenames[i], &s, region, variant_only, min_qual,
+                      genotype_filter, parse_genotype_probs, min_base_prob,
+                      true, tabixdir))
+            return false;
+        if (!sites->merge(s)) return false;
+    }
+    FILE *outfile = fopen("tmp.sites", "w");
+    write_sites(outfile, sites);
+    fclose(outfile);
+    // need to remove REF
+    vector<int> keep;
+    for (int i=0; i < sites->get_num_seqs(); i++) {
+        if (sites->names[i] == "REF") continue;
+        bool duplicated=false;
+        for (int j=0; j < i; j++)
+            if (sites->names[j] == sites->names[i]) {
+                fprintf(stderr, "read_vcfs: found multiple sequences named %s; removing one\n",
+                        sites->names[j].c_str());
+                duplicated=true;
+                break;
+            }
+        if (!duplicated)
+            keep.push_back(i);
+    }
+    sites->subset(keep);
+    return true;
 }
 
 
@@ -710,17 +800,49 @@ void make_sequences_from_sites(const Sites *sites, Sequences *sequences,
     sequences->set_length(seqlen);
 }
 
-int Sites::subset(set<string> names_to_keep) {
-    vector<int> keep;
+
+int Sites::remove_invariant() {
+    int nsite=0;
+    int orig_nsite = (int)positions.size();
+    int nseq = get_num_seqs();
     bool have_base_probs = ( base_probs.size() > 0 );
-    for (unsigned int i=0; i < names.size(); i++) {
-        if (names_to_keep.find(names[i]) != names_to_keep.end())
-            keep.push_back(i);
+    for (int i=0; i < orig_nsite; i++) {
+        bool variant=false;
+        char allele1='N';
+        for (int j=0; j < nseq; j++) {
+            if (cols[i][j] == 'N') {
+                variant=true;
+            } else if (have_base_probs && !base_probs[i][j].is_certain()) {
+                variant=true;
+            } else if (allele1=='N') {
+                allele1 = cols[i][j];
+            } else if (allele1 != cols[i][j]) {
+                variant=true;
+            }
+            if (variant) break;
+        }
+        if (variant) {
+            if (i != nsite) {
+                positions[nsite] = positions[i];
+                strncpy(cols[nsite], cols[i], nseq);
+                if (have_base_probs)
+                    base_probs[nsite] = base_probs[i];
+            }
+            nsite++;
+        }
     }
-    if (keep.size() != names_to_keep.size()) {
-        fprintf(stderr, "Error in subset: not all names found in sites\n");
-        return 1;
+    if (nsite < orig_nsite) {
+        positions.resize(nsite);
+        cols.resize(nsite);
+        if (have_base_probs)
+            base_probs.resize(nsite);
     }
+    return orig_nsite - nsite;
+}
+
+
+int Sites::subset(vector<int> keep) {
+    bool have_base_probs = ( base_probs.size() > 0 );
     std::sort(keep.begin(), keep.end());
     vector<string> new_names;
     for (unsigned int i=0; i < keep.size(); i++)
@@ -762,6 +884,19 @@ int Sites::subset(set<string> names_to_keep) {
     printLog(LOG_LOW, "subset sites (nseqs=%i, nsites=%i)\n",
              names.size(), positions.size());
     return 0;
+}
+
+int Sites::subset(set<string> names_to_keep) {
+    vector<int> keep;
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (names_to_keep.find(names[i]) != names_to_keep.end())
+            keep.push_back(i);
+    }
+    if (keep.size() != names_to_keep.size()) {
+        fprintf(stderr, "Error in subset: not all names found in sites\n");
+        return 1;
+    }
+    return subset(keep);
 }
 
 template<>
@@ -837,6 +972,148 @@ TrackNullValue Sequences::get_masked_regions(string chrom,
     }
     masked_regions.merge();
     return masked_regions;
+}
+
+
+bool Sites::merge(const Sites &other) {
+    if (chrom != other.chrom) {
+        fprintf(stderr, "Error: Cannot merge sites from different chromosomes\n");
+        return false;
+    }
+    if (start_coord != other.start_coord ||
+        end_coord != other.end_coord) {
+        fprintf(stderr, "Error: regions do not match in sites.merge()\n");
+        return false;
+    }
+    int old_nseq =  get_num_seqs();
+    int other_nseq = other.get_num_seqs();
+    int old_ref = -1;
+    int other_ref = -1;
+    for (int i=0; i < old_nseq; i++)
+        if (names[i] == "REF") {
+            old_ref = i;
+            break;
+        }
+    for (int i=0; i < other_nseq; i++)
+        if (other.names[i] == "REF") {
+            other_ref = i;
+            break;
+        }
+    if (old_ref == -1 || other_ref == -1) {
+        fprintf(stderr, "Sites.merge() requires both sites to have an sequence named REF");
+        return false;
+    }
+    if (pops.size() != 0 || other.pops.size() != 0) {
+        if ((int)pops.size() != old_nseq || (int)other.pops.size() != other_nseq) {
+            fprintf(stderr, "Warning in sites.merge(): both sites do not "
+                    "have population information; dropping");
+            pops.clear();
+        }
+    }
+
+    int old_num_sites = get_num_sites();
+    int other_num_sites = other.get_num_sites();
+    for (int i=0; i < other_nseq; i++) {
+        if (i != other_ref) {
+            names.push_back(other.names[i]);
+            if (pops.size() != 0)
+                pops.push_back(other.pops[i]);
+        }
+    }
+
+    vector<int> old_positions = positions;
+    vector<char*> old_cols = cols;
+    vector<vector<BaseProbs> > old_base_probs = base_probs;
+    bool have_base_probs=false;
+    if (old_base_probs.size() > 0 || other.base_probs.size() > 0)  {
+        if ((int)old_base_probs.size() != old_num_sites ||
+            (int)other.base_probs.size() != other_num_sites) {
+            fprintf(stderr, "Error in Sites.merge(); both sites should have"
+                    " base probabilities, or neither");
+            return false;
+        }
+        have_base_probs=true;
+    }
+    positions.clear();
+    cols.clear();
+    base_probs.clear();
+    int i1=0, i2=0;
+    int num_seq = names.size();
+    char col[num_seq + 1];
+    col[num_seq] = '\0';
+    vector<BaseProbs>bp;
+    while (i1 < old_num_sites || i2 < other_num_sites) {
+        int pos=-1;
+        bp.clear();
+        if (i1 == old_num_sites ||
+            (i2 < other_num_sites && other.positions[i2] < old_positions[i1])) {
+            // next site is from "other"
+            int i=0;
+            char ref = other.cols[i2][other_ref];
+            char fixedAllele = ref;
+            if (fixedAllele == 'N') fixedAllele='A';
+            for (; i < old_nseq; i++) {
+                col[i] = ( i == old_ref ? ref : fixedAllele );
+                if (have_base_probs)
+                    bp.push_back(BaseProbs(col[i]));
+            }
+            for (int j=0; j < other_nseq; j++) {
+                if (j != other_ref) {
+                    col[i++] = other.cols[i2][j];
+                    if (have_base_probs)
+                        bp.push_back(other.base_probs[i2][j]);
+                }
+            }
+            assert(i == num_seq);
+            pos = other.positions[i2];
+            i2++;
+        } else if (i2 == other_num_sites || old_positions[i1] < other.positions[i2]) {
+            // next site is from orig object
+            int i=0;
+            char fixedAllele = old_cols[i1][old_ref];
+            if (fixedAllele == 'N') fixedAllele = 'A';
+            for ( ; i < old_nseq; i++) {
+                col[i] = old_cols[i1][i];
+                if (have_base_probs)
+                    bp.push_back(old_base_probs[i1][i]);
+            }
+            while (i < num_seq) {
+                col[i++] = fixedAllele;
+                if (have_base_probs)
+                    bp.push_back(BaseProbs(fixedAllele));
+            }
+            pos = old_positions[i1];
+            i1++;
+        } else {
+            // both objects have this site; merge
+            assert(old_positions[i1] == other.positions[i2]);
+            int i=0;
+            for (; i < old_nseq; i++) {
+                col[i] = old_cols[i1][i];
+                if (have_base_probs)
+                    bp.push_back(old_base_probs[i1][i]);
+            }
+            for (int j=0; j < other_nseq; j++) {
+                if (j != other_ref) {
+                    col[i++] = other.cols[i2][j];
+                    if (have_base_probs)
+                        bp.push_back(other.base_probs[i2][j]);
+                }
+            }
+            assert(i == num_seq);
+            pos = old_positions[i1];
+            i1++;
+            i2++;
+        }
+        append(pos, col, true);
+        if (have_base_probs) {
+            assert((int)bp.size() == num_seq);
+            base_probs.push_back(bp);
+        }
+    }
+    for (int i=0; i < (int)old_cols.size(); i++)
+        delete [] old_cols[i];
+    return true;
 }
 
 

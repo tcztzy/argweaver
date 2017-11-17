@@ -77,14 +77,45 @@ public:
         config.add(new ConfigParam<string>
                    ("", "--vcf", "<.vcf.gz file>", &vcf_file,
                     "sequence alignment in gzipped vcf format. Must also supply"
-                    "--region in format chr:start-end, and tabix index file (.vcf.gz.tbi)"
-                    "must also be present. Assumes samples are diploid."));
+                    " --region in format chr:start-end, and tabix index file (.vcf.gz.tbi)"
+                    " must also be present. Path to tabix should be provided with"
+                    " --tabix-dir argument. Assumes samples are diploid and unphased;"
+                    " each individual will have _1 and _2 appended to its name for its"
+                    " two haploid lineages. Indel-type variants are skipped."
+                    " The vcf is assumed to contain all positions with information;"
+                    " all other positions in the region will be masked, unless"
+                    " --vcf-variant-only flag is given"));
+        config.add(new ConfigParam<string>
+                   ("", "--vcf-files", "<vcf_file_list.txt>", &vcf_list_file,
+                    "Same as --vcf but loads all individuals from multiple .vcf.gz files."
+                    " The argument should be a file containing list of files to read"
+                    " (one per line)."));
+        config.add(new ConfigSwitch
+                   ("", "--vcf-variant-only", &vcf_variant_only,
+                    "Indicates that any position not represented in the VCF file"
+                    " is treated as an invariant site. Without this flag,"
+                    " such regions are masked as missing data"));
         config.add(new ConfigParam<string>
                    ("", "--vcf-genotype-filter", "<filter string>", &vcf_filter,
                     "String describing filtering for individual genotypes in VCF file."
                     " For example: \"GQ<5;DP<4;DP>30\" will mask genotypes with"
                     " GQ < 5 or DP < 4 or DP > 30. Currently the comparison operator"
-                    " can only be < or >."));
+                    " can only be < or >. All filtered genotypes will be masked."));
+        config.add(new ConfigParam<double>
+                   ("", "--vcf-min-qual", "<minQualScore>", &vcf_min_qual, 0.0,
+                    "Minimum QUAL score for variants read from VCF. Others will be"
+                    " masked. Default=0"));
+        config.add(new ConfigSwitch
+                   ("", "--use-genotype-probs", &use_genotype_probs,
+                    "(for VCF input) Use genotype probabilities given by the"
+                    " PL or PP scores in the VCF file. Default: ignore these scores and"
+                    " treat assigned genotypes (after any filters) as"
+                    " certain."));
+        config.add(new ConfigParam<double>
+                   ("", "--mask-uncertain", "<cutoff>", &mask_uncertain, 0.0,
+                    "(for use --use-genotype-probs)"
+                    " Mask any genotype if probability of most likely call < cutoff"
+                    " according to PL score in VCF file"));
         config.add(new ConfigParam<string>
                    ("", "--pop-file", "<population assignmet file>", &pop_file,
                     "file assigning each haplotype to a population index"));
@@ -128,11 +159,8 @@ public:
                     " must be observed at each site to count as a variant;"
                     " windows are determined after applying --subsites but"
                     " before any masking or compression is performed)"));
-        config.add(new ConfigParam<double>
-                   ("", "--mask-uncertain", "<cutoff>", &mask_uncertain, 0.9,
-                    "(for use with VCF files with PL fields in each genotype)."
-                    " Mask any genotype if probability of most likely call < cutoff"
-                    " according to PL score in VCF file"));
+
+
         config.add(new ConfigParam<string>
                    ("", "--subsites", "<subsites file>", &subsites_file,
                     "file listing NAMES from sites file (or sequences from"
@@ -425,7 +453,10 @@ public:
     string fasta_file;
     string sites_file;
     string vcf_file;
+    string vcf_list_file;
+    bool vcf_variant_only;
     string vcf_filter;
+    double vcf_min_qual;
     string subsites_file;
     string out_prefix;
     string arg_file;
@@ -438,6 +469,7 @@ public:
     string mask_cluster;
     string tabix_dir;
     double mask_uncertain;
+    bool use_genotype_probs;
 
     // model parameters
     string popsize_str;
@@ -1440,8 +1472,13 @@ int main(int argc, char **argv)
         }
         seq_region.set(sites.chrom, sites.start_coord, sites.end_coord);
     } else if (c.vcf_file != "") {
-        if (!read_vcf(c.vcf_file, &sites, c.subregion_str, c.vcf_filter,
-                      true, c.mask_uncertain, c.tabix_dir)) {
+        if (c.vcf_list_file != "") {
+            printLog(LOG_LOW, "Cannot use both --vcf-file and --vcf-list-file. Terminating\n");
+            return EXIT_ERROR;
+        }
+        if (!read_vcf(c.vcf_file, &sites, c.subregion_str, c.vcf_variant_only,
+                      c.vcf_min_qual, c.vcf_filter, c.use_genotype_probs,
+                      c.mask_uncertain, false, c.tabix_dir)) {
             printError("Could not read VCF file");
             return EXIT_ERROR;
         }
@@ -1454,6 +1491,28 @@ int main(int argc, char **argv)
             return EXIT_ERROR;
         }
         seq_region.set(sites.chrom, sites.start_coord, sites.end_coord);
+    } else if (c.vcf_list_file != "") {
+        vector<string> vcf_files;
+        FILE *infile;
+        if (!(infile= fopen(c.vcf_list_file.c_str(), "r"))) {
+            printError("Could not open vcf_list_file %s\n", c.vcf_list_file.c_str());
+            return false;
+        }
+        char *tmpstr;
+        while (NULL != (tmpstr = fgetline(infile))) {
+            tmpstr = trim(tmpstr);
+            if (strlen(tmpstr) > 0)
+                vcf_files.push_back(string(tmpstr));
+            delete [] tmpstr;
+
+        }
+        if (!read_vcfs(vcf_files, &sites, c.subregion_str, c.vcf_variant_only,
+                       c.vcf_min_qual, c.vcf_filter, c.use_genotype_probs,
+                       c.mask_uncertain, c.tabix_dir)) {
+            printError("Error reading VCF files\n");
+            return EXIT_ERROR;
+        }
+
     } else {
         // no input sequence specified
         printError("must specify sequences (use --fasta or --sites)");
@@ -1630,7 +1689,7 @@ int main(int argc, char **argv)
     if (c.randomize_phase > 0.0) {
         sequences.randomize_phase(c.randomize_phase);
     }
-    if (c.unphased)
+    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
         c.model.unphased = true;
     c.model.sample_phase = c.sample_phase;
     if (c.sample_popsize_num > 0) {

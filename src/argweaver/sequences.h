@@ -50,12 +50,27 @@ class BaseProbs
 
     // pl is normalized phred-like score for genotypes REF/REF,
     // REF/ALT, ALT/ALT. hap_id is 0 or 1
-    BaseProbs(const char refAllele, const char altAllele, const string &pl,
-              const int hap_id) {
-        if (pl == ".") {
+    BaseProbs(const char refAllele, const char altAllele,
+              const string &pl, const string &pp, const int hap_id) {
+        if (pl != "" && pl != ".") {
+
+        } else if (pp != "" && pp != ".") {
+
+        } else if (pl == "." || pp == ".") {
             for (int i=0; i < 4; i++) prob[i]=1;
             return;
         }
+        // if pl and pp are not specified do nothing; probs should
+
+    }
+    BaseProbs(const BaseProbs &other) {
+        for (int i=0; i < 4; i++) prob[i] = other.prob[i];
+    }
+
+    void set_by_pl(const char refAllele, const char altAllele,
+                   const string &pl, int hap_id) {
+        assert(hap_id == 0 || hap_id == 1);
+        for (int i=0; i < 4; i++) prob[i]=0.0;
         vector<string> pl_score_strings;
         double pl_scores[3];
         split(pl.c_str(), ",", pl_score_strings);
@@ -69,17 +84,51 @@ class BaseProbs
             pl_scores[i] = pow(10, -pl_scores[i]/10.0);
             sum += pl_scores[i];
         }
-        for (int i=0; i < 4; i++) prob[i]=0.0;
         int refNum = dna2int[(int)refAllele];
-        int altNum = dna2int[(int)altAllele];
-        assert(refNum >= 0 && altNum >= 0);
+        assert(refNum >= 0);
         prob[refNum] += pl_scores[0] / sum;
-        prob[altNum] += pl_scores[2] / sum;
-        prob[hap_id == 0 ? refNum : altNum] += pl_scores[1] / sum;
+        if (hap_id == 0)
+            prob[refNum] += pl_scores[1] / sum;
+
+        int altNum = dna2int[(int)altAllele];
+        if (altNum >= 0) {
+            prob[altNum] += pl_scores[2] / sum;
+            if (hap_id == 1)
+                prob[altNum] += pl_scores[1] / sum;
+        } else {
+            for (int i=0; i < 4; i++)
+                prob[i] += pl_scores[2] / sum / 4.0;
+            if (hap_id == 1) {
+                for (int i=0; i < 4; i++)
+                    prob[i] += pl_scores[1] / sum / 4.0;
+            }
+        }
     }
-    BaseProbs(const BaseProbs &other) {
-        for (int i=0; i < 4; i++) prob[i] = other.prob[i];
+
+    void set_by_pp(const string &pp, int hap_id) {
+        assert(hap_id == 0 || hap_id == 1);
+        for (int i=0; i < 4; i++) prob[i]=0.0;
+        vector<string> pp_score_strings;
+        double pp_scores[10];
+        split(pp.c_str(), ",", pp_score_strings);
+        if (pp_score_strings.size() != 10) {
+            printError("Error parsing PP string %s\n", pp.c_str());
+            assert(0);
+        }
+        double sum=0.0;
+        for (int i=0; i < 10; i++) {
+            pp_scores[i] = atof(pp_score_strings[i].c_str());
+            pp_scores[i] = pow(10, -pp_scores[i]/10.0);
+            sum += pp_scores[i];
+        }
+        // pp_score is given for genotypes:
+        // AA, CC, GG, TT, AC, AG, AT, CG, CT, GT, in this order
+        // so take the first allele if hap_id = 0, or else the second
+        const char *alleles = ( hap_id == 0 ? "ACGTAAACCG" : "ACGTCGTGTT" );
+        for (int i=0; i < 10; i++)
+            prob[dna2int[(int)alleles[i]]] += pp_scores[i] / sum;
     }
+
     double maxProb() {
         double rv = prob[0];
         for (int i=1; i < 4; i++)
@@ -89,6 +138,14 @@ class BaseProbs
     void set_mask() {
         for (int i=0; i < 4; i++)
             prob[i] = 1.0;
+    }
+    void set_certain(char c) {
+        if (c=='N') {
+            set_mask();
+            return;
+        }
+        for (int i=0; i < 4; i++) prob[i] = 0.0;
+        prob[dna2int[(int)c]] = 1.0;
     }
     bool is_masked() {
         for (int i=0; i < 4; i++)
@@ -411,6 +468,21 @@ public:
         }
     }
 
+    void append_masked(int position, bool have_base_probs) {
+        positions.push_back(position);
+        int n = get_num_seqs();
+        char *col = new char[n+1];
+        col[n] = '\0';
+        for (int i=0; i < n; i++) col[i] = 'N';
+        cols.push_back(col);
+        if (have_base_probs) {
+            vector<BaseProbs> bp;
+            for (int i=0; i < n; i++)
+                bp.push_back(BaseProbs('N'));
+            base_probs.push_back(bp);
+        }
+    }
+
     void clear()
     {
         for (unsigned int i=0; i<cols.size(); i++)
@@ -451,12 +523,22 @@ public:
         return false;
     }
 
+    int remove_invariant();
+    int subset(vector<int> keep);
     int subset(set<string> names_to_keep);
 
     template<class T>
     int remove_overlapping(const Track<T> &track);
     TrackNullValue get_masked_regions() const;
     TrackNullValue remove_masked();
+
+    // merge sites in other into this object.
+    // Assumes that both original objects contain all positions where there
+    // is a deviation from reference (including a non-reference allele that is
+    // fixed in sample). Both sites must also have some chrom, start_coord, and
+    // end_coord. Is appropriate to use to combine sites read from different
+    // VCF files.
+    bool merge(const Sites &other);
 
     string chrom;
     int start_coord;
@@ -591,16 +673,24 @@ bool read_sites(FILE *infile, Sites *sites,
                  int subregion_start=-1, int subregion_end=-1);
 bool read_sites(const char *filename, Sites *sites,
                  int subregion_start=-1, int subregion_end=-1);
-bool read_vcf(FILE *infile, Sites *sites, const char *genotype_filter,
-              bool parse_genotype_pl, double min_base_prob);
-bool read_vcf(const char *filename, Sites *sites, const char *region,
+
+// if variant_only is TRUE, then any sites absent from VCF file are invariant.
+// otherwise they are masked.
+bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
               const char *genotype_filter,
-              bool parse_genotype_pl, double min_base_prob,
+              bool parse_genotype_probs, double min_base_prob, bool add_ref=false);
+bool read_vcf(const char *filename, Sites *sites, const char *region,
+              bool variant_only, double min_qual, const char *genotype_filter,
+              bool parse_genotype_probs, double min_base_prob, bool add_ref=false,
               const char *tabix_dir=NULL);
 bool read_vcf(const string filename, Sites *sites, const string region,
-              const string genotype_filter,
-              bool parse_genotype_pl, double min_base_prob,
+              bool variant_only, double min_qual, const string genotype_filter,
+              bool parse_genotype_probs, double min_base_prob, bool add_ref=false,
               const string tabix_dir="");
+bool read_vcfs(const vector<string> filenames, Sites* sites, const string region,
+               bool variant_only, double min_qual, const string genotype_filter,
+               bool parse_genotype_probs, double min_base_prob,
+               const string tabixdir);
 void make_sequences_from_sites(const Sites *sites, Sequences *sequencess,
                                char default_char='A');
 void make_sites_from_sequences(const Sequences *sequences, Sites *sites);
