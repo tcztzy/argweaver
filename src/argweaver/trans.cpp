@@ -476,9 +476,15 @@ void TransMatrix::calc_self_recomb_probs_smcPrime(const LocalTree *tree,
             int age = tree->nodes[node].age;
             int parent_age = tree->nodes[tree->nodes[node].parent].age;
             int path_d = tree->nodes[node].pop_path;
-            prob += (self_recomb_prob(a, path_a, age, a, path_d)
-                     +self_recomb_prob(a, path_a, a, parent_age, path_d)
-                     -self_recomb_prob(a, path_a, age, parent_age, path_d));
+            if (a == age) {
+                prob += self_recomb_prob(a, path_a, age, a, path_d);
+            } else if (a == parent_age) {
+                prob += self_recomb_prob(a, path_a, a, parent_age, path_d);
+            } else {
+                prob += (self_recomb_prob(a, path_a, age, a, path_d)
+                         +self_recomb_prob(a, path_a, a, parent_age, path_d)
+                         -self_recomb_prob(a, path_a, age, parent_age, path_d));
+            }
         }
         self_recomb[s] = prob;
         //        assert(self_recomb[s] + norecombs[a] <= 1.0);
