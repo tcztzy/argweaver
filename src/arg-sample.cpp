@@ -1581,6 +1581,16 @@ int main(int argc, char **argv)
                  old_num_sites - new_num_sites, old_num_sites, new_num_sites);
     }
 
+    // before compression unmask everything; do not want masked sites to
+    // prevent compression- reapply masks after compression
+    vector<TrackNullValue> ind_maskmap;
+    if (sites.get_num_sites() > 0) {
+        unmask_inds(&sites, &ind_maskmap);
+        int nremove = sites.remove_invariant();
+        printLog(LOG_LOW, "%i sites are partially masked but otherwise invariant\n",
+                 nremove);
+    }
+
     // compress sequences
     // first remove any sites that fall under mask
 
@@ -1600,24 +1610,16 @@ int main(int argc, char **argv)
     maskmap_orig = maskmap;
     if (maskmap.size() > 0) {
         // apply mask
-        // TODO: when mask is compressed, only allow it to apply to
-        // whole compressed regions
         if (sites_mapping)
             compress_mask(maskmap, sites_mapping);
         apply_mask_sequences(&sequences, maskmap);
-
-        // report number of masked sites
-        bool *masked = new bool [sequences.length()];
-        find_masked_sites(sequences.get_seqs(), sequences.get_num_seqs(),
-                          sequences.length(), masked);
-        int nmasked = 0;
-        for (int i=0; i<sequences.length(); i++)
-            nmasked += int(masked[i]);
-        delete [] masked;
-        printLog(LOG_LOW, "masked %d (%.1f%%) positions\n", nmasked,
-                 100.0 * nmasked / double(sequences.length()));
-        if (nmasked == (int)sequences.length())
-            c.all_masked=true;
+        if (ind_maskmap.size() > 0) {
+            for (int i=0; i < (int)ind_maskmap.size(); i++) {
+                compress_mask(ind_maskmap[i], sites_mapping);
+                apply_mask_sequences(&sequences, ind_maskmap[i],
+                                     sites.names[i].c_str());
+            }
+        }
     }
     if (c.ind_maskmap != "") {
         FILE *infile = fopen(c.ind_maskmap.c_str(), "r");
@@ -1640,6 +1642,19 @@ int main(int argc, char **argv)
         }
         fclose(infile);
     }
+
+    // report number of masked sites
+    bool *masked = new bool [sequences.length()];
+    find_masked_sites(sequences.get_seqs(), sequences.get_num_seqs(),
+                      sequences.length(), masked);
+    int nmasked = 0;
+    for (int i=0; i<sequences.length(); i++)
+        nmasked += int(masked[i]);
+    delete [] masked;
+    printLog(LOG_LOW, "masked %d (%.1f%%) positions\n", nmasked,
+             100.0 * nmasked / double(sequences.length()));
+    if (nmasked == (int)sequences.length())
+        c.all_masked=true;
 
     print_masked_regions(sequences, sites_mapping, sites.chrom,
                          c.out_prefix + c.mcmcmc_prefix + ".masked_regions.bed");
