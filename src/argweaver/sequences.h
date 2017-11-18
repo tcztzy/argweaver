@@ -714,6 +714,8 @@ void uncompress_sites(Sites *sites, const SitesMapping *sites_mapping);
 TrackNullValue get_n_regions(const Sites &sites, int numN);
 TrackNullValue get_snp_clusters(const Sites &sites, int numsnp, int window);
 
+ void unmask_inds(Sites *sites, vector<TrackNullValue> *masked_regions);
+
 
  template<class T>
 void compress_track(Track<T> &track, const SitesMapping *sites_mapping,

@@ -1209,7 +1209,6 @@ void apply_mask_sequences(Sequences *sequences,
 }
 
 
-
 // Converts a Sequences alignment to a Sites alignment
 void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
 {
@@ -1659,6 +1658,41 @@ TrackNullValue get_snp_clusters(const Sites &sites, int numsnp, int window) {
     }
     track.merge();
     return track;
+}
+
+
+// This is used to help with compression. We do not want sites without any
+// known variants to inhibit ability to compress. So first use this function
+// to remove N's from individuals but create a map of which regions were
+// Ns in each. Then after compression can reapply this mask to each
+// individual. The alleles should be changed to the allele of some other
+// non-N individual at the same site so that the site is only variant
+// if there is an actual known variant.
+TrackNullValue unmask_ind(Sites *sites, int ind) {
+    TrackNullValue masked;
+    int numind = sites->get_num_seqs();
+    for (int i=0; i < sites->get_num_sites(); i++) {
+        if (sites->cols[i][ind] == 'N') {
+            char c='N';
+            for (int j=0; j < numind; j++)
+                if (sites->cols[i][j] != 'N') {
+                    c = sites->cols[i][j];
+                    break;
+                }
+            sites->cols[i][ind] = c;
+            masked.push_back(RegionNullValue(sites->chrom,
+                                             sites->positions[i],
+                                             sites->positions[i]+1, ' '));
+        }
+    }
+    masked.merge();
+    return masked;
+}
+
+void unmask_inds(Sites *sites, vector<TrackNullValue> *masked_regions) {
+    masked_regions->clear();
+    for (int i=0; i < sites->get_num_seqs(); i++)
+        masked_regions->push_back(unmask_ind(sites, i));
 }
 
 
