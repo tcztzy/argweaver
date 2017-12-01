@@ -383,9 +383,11 @@ public:
                     "Use non-prime SMC model consistent with original ARGweaver"
                     " release (otherwise use SMC')", DEBUG_OPT, true));
         config.add(new ConfigSwitch
-                   ("", "--no-invisible-recombs", &invisible_recombs,
-                    "Only output recombinations which alter the tree topology"
-                    " (will make output file smaller)", DEBUG_OPT, true));
+                   ("", "--invisible-recombs", &invisible_recombs,
+                    "Output invisible recombinations which do not affect tree"
+                    " topology (this will provide more accurate count of"
+                    " recombination events, but may increase the runtime",
+                    DEBUG_OPT, false));
 
         // help information
         config.add(new ConfigParamComment("Information"));
