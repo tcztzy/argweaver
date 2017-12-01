@@ -1356,7 +1356,19 @@ void Sequences::set_pops_from_file(string fn) {
             }
         }
         if (i == names.size()) {
-            printError("set_pops_from_file: do not see sequence %s\n", seqname);
+            int found=0;
+            for (int hap=1; hap <=2; hap++) {
+                char tmpname[1003];
+                sprintf(tmpname, "%s_%i", seqname, hap);
+                for (int i=0; i < (int)names.size(); i++)
+                    if (names[i] ==tmpname) {
+                        pops[i] = pop;
+                        found++;
+                    }
+            }
+            if (found != 2) {
+                printError("set_pops_from_file: do not see sequence %s\n", seqname);
+            }
         }
     }
     for (unsigned int i=0; i < names.size(); i++) {
@@ -1441,6 +1453,24 @@ void Sequences::set_age() {
     real_ages.resize(nseqs, 0);
 }
 
+
+void Sequences::set_age(int sample, double time, int ntimes, const double *times) {
+    real_ages[sample] = time;
+    double mindif = fabs(times[0] - time);
+    int whichmin = 0;
+    for (int j=1; j < ntimes - 1; j++) {
+        double tempdif = fabs(times[j] - time);
+        if (tempdif < mindif) {
+            whichmin = j;
+            mindif = tempdif;
+        }
+        if (times[j] > time) break;
+    }
+    ages[sample] = whichmin;
+    printLog(LOG_LOW, "rounded age for sample %s to %f\n",
+             names[sample].c_str(), times[whichmin]);
+}
+
 void Sequences::set_age(string agefile, int ntimes, const double *times) {
     char currseq[1000];
     FILE *infile = fopen(agefile.c_str(), "r");
@@ -1453,33 +1483,34 @@ void Sequences::set_age(string agefile, int ntimes, const double *times) {
     ages.resize(nseqs, 0);
     real_ages.resize(nseqs, 0);
     while (EOF != fscanf(infile, "%s %lf", currseq, &time)) {
-	bool found=false;
+        int found = 0;
 	for (int i=0; i < nseqs; i++) {
 	    if (strcmp(names[i].c_str(), currseq)==0) {
-		real_ages[i] = time;
-
-		// choose the discrete time interval closest to the real time
-		double mindif = fabs(times[0] - time);
-		int whichmin=0;
-		for (int j=1; j < ntimes-1; j++) {
-		    double tempdif = fabs(times[j]-time);
-		    if (tempdif < mindif) {
-			whichmin=j;
-			mindif = tempdif;
-		    }
-		    if (times[j] > time) break;
-		}
-		ages[i] = whichmin;
-                printLog(LOG_LOW, "rounded age for sample %s to %f\n",
-                         currseq, times[whichmin]);
-		found=true;
-		break;
-	    }
+                set_age(i, time, ntimes, times);
+                found++;
+            }
 	}
-	if (!found) {
-	    fprintf(stderr,
-		    "WARNING: could not find sequence %s (from %s) in sequences\n",
+        if (found > 1) {
+            fprintf(stderr, "Found too many matches for %s from agefile\n", currseq);
+            exit(0);
+        }
+	if (found==0) {
+            char tmpstr[strlen(currseq)+3];
+            for (int hap=1; hap <= 2; hap++) {
+                found=0;
+                sprintf(tmpstr, "%s_%i", currseq, hap);
+                for (int i=0; i < nseqs; i++) {
+                    if (strcmp(names[i].c_str(), tmpstr) == 0) {
+                        set_age(i, time, ntimes, times);
+                        found++;
+                    }
+                }
+                if (found != 1) {
+                    fprintf(stderr, "WARNING: could not find sequence %s (from %s) in sequences\n",
 		    currseq, agefile.c_str());
+                    exit(0);
+                }
+            }
 	}
     }
     fclose(infile);

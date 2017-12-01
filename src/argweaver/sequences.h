@@ -359,6 +359,7 @@ public:
     }
 
 
+    void set_age(int sample, double time, int ntimes, const double *times);
     void set_age(string agefile, int ntimes, const double *times);
     void set_age();
 
