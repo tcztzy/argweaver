@@ -648,7 +648,8 @@ ArgModel::ArgModel(const char *logfilename) {
                     tmpstr = trim(tmpstr);
                     split(tmpstr, ',', splitStr);
                     for (int i=0; i < (int)splitStr.size(); i++) {
-                        vals.push_back(atof(splitStr[i].c_str()));
+                        if (splitStr[i].size() > 0)
+                            vals.push_back(atof(splitStr[i].c_str()));
                     }
                     if (done) break;
                     assert(NULL != (line=fgetline(logfile)));
