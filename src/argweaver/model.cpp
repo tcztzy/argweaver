@@ -559,7 +559,7 @@ ArgModel::ArgModel(const char *logfilename) {
     FILE *logfile = fopen(logfilename, "r");
     char *line = NULL;
     bool found_model = false;
-    int npop;
+    int npop=1;
     int numpath;
     char *pop_file=NULL;
     bool read_pop_file = false;
@@ -633,36 +633,47 @@ ArgModel::ArgModel(const char *logfilename) {
                     assert(1 == sscanf(line, "  npop = %i", &npop));
                     assert(npop >= 1);
                     if (npop > 1) pop_tree = new PopulationTree(npop, this);
-                    alloc_popsizes();
                 }
-                alloc_popsizes();
             }
             if (str_starts_with(line, "  popsizes = [")) {
-                char *tmpstr;
-                int pop = 0;
-                int t = 0;
-                while (pop < npop && t < 2 * ntimes-1) {
-                    if (pop > 0 || t > 0) {
-                        assert(NULL != (line=fgetline(logfile)));
-                        chomp(line);
-                    }
-                    vector<string>splitStr;
+                alloc_popsizes();
+                char *tmpstr = &line[14];
+                vector<double> vals;
+                bool done=false;
+                while (true) {
                     assert(line[strlen(line)-1] == ',' ||
                            line[strlen(line)-1] == ']');
-                    line[strlen(line)-1] = '\0';
-                    if (pop==0 && t==0) tmpstr = &line[14];
-                    else tmpstr = line;
+                    if (line[strlen(line)-1] == ']') done=true;
+                    vector<string> splitStr;
                     tmpstr = trim(tmpstr);
                     split(tmpstr, ',', splitStr);
                     for (int i=0; i < (int)splitStr.size(); i++) {
-                        assert(pop < npop && t < 2*ntimes-1);
-                        popsizes[pop][t] = atof(splitStr[i].c_str());
-                        pop++;
-                        if (pop == npop) {
-                            pop = 0;
-                            t++;
+                        vals.push_back(atof(splitStr[i].c_str()));
+                    }
+                    if (done) break;
+                    assert(NULL != (line=fgetline(logfile)));
+                    chomp(line);
+                }
+                assert((int)vals.size() == npop * ntimes ||
+                       (int)vals.size() == npop * (2*ntimes - 1));
+                if ((int)vals.size() == npop * ntimes) {
+                    int idx=0;
+                    for (int t=0; t < ntimes; t++) {
+                        for (int pop=0; pop < npop; pop++) {
+                            popsizes[pop][2*t] = vals[idx];
+                            if (t != 0)
+                                popsizes[pop][2*t-1] = vals[idx];
+                            idx++;
                         }
                     }
+                } else if ((int)vals.size() == npop * (2*ntimes - 1)) {
+                    int idx=0;
+                    for (int t=0; t < 2*ntimes - 1; t++)
+                        for (int pop=0; pop < npop; pop++)
+                            popsizes[pop][t] = vals[idx++];
+                } else {
+                    fprintf(stderr, "Error reading model from log file; wrong length of popsize vector");
+                    assert(0);
                 }
             }
             if (str_starts_with(line, "    numpath = ") && !read_pop_file) {
