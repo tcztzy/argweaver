@@ -735,9 +735,6 @@ bool read_vcfs(const vector<string> filenames, Sites* sites, const string region
             return false;
         if (!sites->merge(s)) return false;
     }
-    FILE *outfile = fopen("tmp.sites", "w");
-    write_sites(outfile, sites);
-    fclose(outfile);
     // need to remove REF
     vector<int> keep;
     for (int i=0; i < sites->get_num_seqs(); i++) {
