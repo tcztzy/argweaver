@@ -103,7 +103,10 @@ class MigMatrix {
             std::copy(other.mat, other.mat + npop*npop, mat);
     }
     ~MigMatrix() {
-        if (npop > 0) delete [] mat;
+        if (npop > 0) {
+            delete [] mat;
+            delete [] estimate;
+        }
     }
     /*    void copy(MigMatrix &other) {
         std::copy(other.mat, other.mat + pop*pop, mat);
