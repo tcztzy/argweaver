@@ -1514,7 +1514,7 @@ int main(int argc, char **argv)
             printError("Error reading VCF files\n");
             return EXIT_ERROR;
         }
-
+        seq_region.set(sites.chrom, sites.start_coord, sites.end_coord);
     } else {
         // no input sequence specified
         printError("must specify sequences (use --fasta or --sites)");
