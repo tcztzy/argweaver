@@ -693,7 +693,6 @@ bool read_vcf(const char *filename, Sites *sites, const char *region,
         printError("Error parsing region string %s. Must be in format chr:start-end\n", tmp[1].c_str());
         return false;
     }
-    printf("here ts.stream=NULL=%i\n", ts.stream==NULL);
     if (ts.stream == NULL) {
         return false;
     }
