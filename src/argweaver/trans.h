@@ -149,6 +149,8 @@ public:
                                          lnB[path_b][path_b][b-1]) : 0.0)
                             + G2[path_b][b] - minage_term);
         }
+        if (isinf(E[path_b][b]))
+            prob=0;
         if (isnan(prob)) {
             assert(false);
         }
