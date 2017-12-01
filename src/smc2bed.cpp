@@ -33,7 +33,7 @@ void print_usage() {
            " --log-file <file.log>\n"
            "   Log file from arg-sample run; this is used as input to read model"
            "   parameters. If not provided, smc2bed will look for log file"
-           "   in directory with smc file.");
+           "   in directory with smc file.\n");
 }
 
 
