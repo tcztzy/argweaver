@@ -117,7 +117,7 @@ public:
                     " Mask any genotype if probability of most likely call < cutoff"
                     " according to PL score in VCF file"));
         config.add(new ConfigParam<string>
-                   ("", "--pop-file", "<population assignmet file>", &pop_file,
+                   ("", "--pop-file", "<population assigment file>", &pop_file,
                     "file assigning each haplotype to a population index"));
 	config.add(new ConfigParam<string>
 		   ("-o", "--output", "<output prefix>", &out_prefix,
