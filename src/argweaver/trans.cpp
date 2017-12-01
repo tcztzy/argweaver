@@ -1504,8 +1504,9 @@ double calc_recoal(
     if (!model->smc_prime) {
         nbranches_j -= int(j < recomb_parent_age && recomb_parent_pop == coal_pop);
         nbranches_j += int(j < a && a_pop == coal_pop && j >= minage);
+    } else {
+        nbranches_j += int(j <= a && a_pop == coal_pop && j >= minage);
     }
-    nbranches_j += int(j <= a && a_pop == coal_pop && j >= minage);
     int ncoals_j = ncoals[j]
         - int((!model->smc_prime) &&
               j <= recomb_parent_age && recomb_parent_pop == coal_pop)
