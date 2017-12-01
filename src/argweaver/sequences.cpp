@@ -1168,7 +1168,7 @@ void apply_mask_sequences(Sequences *sequences,
             if (strcmp(sequences->names[i].c_str(), ind)==0) {
                 num_mask = 1;
                 maskind[0] = i;
-                printLog(LOG_LOW, "Applying individual mask to %s\n", ind);
+                printLog(LOG_HIGH, "Applying individual mask to %s\n", ind);
                 break;
             }
         }
