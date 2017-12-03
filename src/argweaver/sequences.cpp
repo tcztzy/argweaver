@@ -60,7 +60,7 @@ bool read_fasta(FILE *infile, Sequences *seqs)
             }
 
             // new key found
-            key = string(&line[1]);
+            key = string(trim(&line[1]));
             delete [] line;
         } else {
             // parse sequence line
