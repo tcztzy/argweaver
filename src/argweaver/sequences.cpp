@@ -1272,34 +1272,34 @@ bool Sequences::get_non_singleton_snp(vector<bool> &nonsing) {
     return true;
 }
 
-void Sequences::set_pairs_by_name() {
-  pairs.resize(names.size());
-  for (unsigned int i=0; i < names.size(); i++) pairs[i] = -1;
-  for (unsigned int i=0; i < names.size(); i++) {
-    if (pairs[i] != -1) continue;
-    int len = names[i].length();
-    string basename = names[i].substr(0, len-2);
-    string ext = names[i].substr(len-2, 2);
-    string target_ext;
-    if (ext == "_1") {
-      target_ext = "_2";
-    } else if (ext == "_2") {
-      target_ext = "_1";
-    } else {
-      fprintf(stderr, "Error in set_pairs_by_name: names are not named with XXX_1/XXX_2 convention\n");
-      exit(-1);
+bool Sequences::set_pairs_by_name() {
+    int numfound=0;
+    pairs.resize(names.size());
+    for (unsigned int i=0; i < names.size(); i++) pairs[i] = -1;
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (pairs[i] != -1) continue;
+        int len = names[i].length();
+        string basename = names[i].substr(0, len-2);
+        string ext = names[i].substr(len-2, 2);
+        string target_ext;
+        if (ext == "_1") {
+            target_ext = "_2";
+        } else if (ext == "_2") {
+            target_ext = "_1";
+        } else {
+            return false;
+        }
+        for (unsigned int j=i+1; j < names.size(); j++) {
+            if (names[i].substr(0, len-2) == basename &&
+                names[j].substr(len-2, 2) == target_ext) {
+                pairs[i] = j;
+                pairs[j] = i;
+                numfound += 2;
+                break;
+            }
+        }
     }
-    for (unsigned int j=i+1; j < names.size(); j++) {
-      if (names[i].substr(0, len-2) == basename &&
-	  names[j].substr(len-2, 2) == target_ext) {
-	pairs[i] = j;
-	pairs[j] = i;
-	break;
-      }
-    }
-    //	if (pairs[i] == -1); // do nothing, maybe this is ok sometimes
-    // (ie, if we haven't added all sequences yet)
-  }
+    return (numfound > 0);
 }
 
 void Sequences::set_pairs_from_file(string fn) {
@@ -1383,17 +1383,18 @@ void Sequences::set_pops_from_file(string fn) {
 
 
 void Sequences::set_pairs(const ArgModel *mod) {
-  if (mod->unphased_file != "")
-    set_pairs_from_file(mod->unphased_file);
- // else set_pairs_by_name();
-  else {
-     pairs = vector<int>(names.size());
-     for (unsigned int i=0; i < names.size(); i++) {
-         if (i%2==0) {
-             if (i+1 < names.size()) pairs[i] = i+1;
-         } else pairs[i] = i-1;
-     }
-  }
+    if (mod->unphased_file != "") {
+        set_pairs_from_file(mod->unphased_file);
+        return;
+    }
+    if (set_pairs_by_name()) return;
+
+    pairs = vector<int>(names.size());
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (i%2==0) {
+            if (i+1 < names.size()) pairs[i] = i+1;
+        } else pairs[i] = i-1;
+    }
 }
 
 void PhaseProbs::sample_phase(int *thread_path) {

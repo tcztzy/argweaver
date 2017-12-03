@@ -316,7 +316,7 @@ public:
 
 
     //set pairs vector assuming that diploids are named XXXX_1 and XXXX_2
-    void set_pairs_by_name();
+    bool set_pairs_by_name();
     void set_pairs_from_file(string fn);
     void set_pairs(const ArgModel *mod);
     void set_pops(vector<char*> seqname, vector<int> pop) {
