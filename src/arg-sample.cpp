@@ -1434,10 +1434,7 @@ int main(int argc, char **argv)
         printLog(LOG_LOW, "read input sequences (nseqs=%d, length=%d)\n",
                  sequences.get_num_seqs(), sequences.length());
 
-        // if compress or subset requested, make sites object
-        if (c.compress_seq > 1 || c.subsites_file != "")
-            make_sites_from_sequences(&sequences, &sites);
-
+        make_sites_from_sequences(&sequences, &sites);
     } else if (c.sites_file != "") {
         // read sites file
 
