@@ -58,11 +58,7 @@ int time_index(double t, const double *times, int ntimes,
     PopTime(int pop, int time) : pop(pop), time(time){}
 
     // need comparison operator for use with set<PopTime>
-    bool operator <( const PopTime &other ) const
-    {
-        if (pop != other.pop) return pop - other.pop;
-        return time - other.time;
-    }
+    bool operator <( const PopTime &other ) const;
 
     int pop;
     int time;

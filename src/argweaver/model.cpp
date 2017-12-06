@@ -138,6 +138,12 @@ bool complete_map(Track<T> &track, string chrom, int start, int end, const T &de
     return true;
 }
 
+
+bool PopTime::operator< ( const PopTime &other ) const {
+    if (pop != other.pop) return ( pop < other.pop );
+    return ( time < other.time );
+}
+
 int ArgModel::get_pop(int path, int time) const {
     if (pop_tree == NULL) return 0;
     if (time >= ntimes)
