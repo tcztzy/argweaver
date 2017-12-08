@@ -164,7 +164,9 @@ public:
         config.add(new ConfigParam<string>
                    ("", "--subsites", "<subsites file>", &subsites_file,
                     "file listing NAMES from sites file (or sequences from"
-                    " fasta) to keep; others will not be used"));
+                    " fasta) to keep; others will not be used. May be diploid"
+                    " or haploid names (i.e., ind will have same effect as"
+                    " ind_1 and ind_2)"));
 #ifdef ARGWEAVER_MPI
         config.add(new ConfigSwitch
                    ("", "--mpi", &mpi, "this is an mpi run, add <rank>.sites"
@@ -1421,6 +1423,20 @@ int main(int argc, char **argv)
     Region seq_region;
     Region seq_region_compress;
 
+    set<string> keep_inds;
+
+    if (c.subsites_file != "") {
+        FILE *infile;
+        if (!(infile = fopen(c.subsites_file.c_str(), "r"))) {
+            printError("Could not open subsites file %s",
+                       c.subsites_file.c_str());
+            return false;
+        }
+        char name[10000];
+        while (EOF != fscanf(infile, "%s", name))
+            keep_inds.insert(string(name));
+        fclose(infile);
+    }
 
     if (c.fasta_file != "") {
         // read FASTA file
@@ -1518,19 +1534,8 @@ int main(int argc, char **argv)
         return EXIT_ERROR;
     }
 
-    if (c.subsites_file != "") {
-        set<string> keep;
-        FILE *infile;
-        if (!(infile = fopen(c.subsites_file.c_str(), "r"))) {
-            printError("Could not open subsites file %s",
-                       c.subsites_file.c_str());
-            return false;
-        }
-        char name[10000];
-        while (EOF != fscanf(infile, "%s", name))
-            keep.insert(string(name));
-        fclose(infile);
-        if (sites.subset(keep)) {
+    if (keep_inds.size() > 0) {
+        if (sites.subset(keep_inds)) {
             printError("Error subsetting sites\n");
             return false;
         }
