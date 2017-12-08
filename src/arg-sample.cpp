@@ -1491,9 +1491,9 @@ int main(int argc, char **argv)
             printLog(LOG_LOW, "Cannot use both --vcf-file and --vcf-list-file. Terminating\n");
             return EXIT_ERROR;
         }
-        if (!read_vcf(c.vcf_file, &sites, c.subregion_str, c.vcf_variant_only,
+        if (!read_vcf(c.vcf_file, &sites, c.subregion_str,
                       c.vcf_min_qual, c.vcf_filter, c.use_genotype_probs,
-                      c.mask_uncertain, false, c.tabix_dir)) {
+                      c.mask_uncertain, false, c.tabix_dir, keep_inds)) {
             printError("Could not read VCF file");
             return EXIT_ERROR;
         }
@@ -1521,9 +1521,9 @@ int main(int argc, char **argv)
             delete [] tmpstr;
 
         }
-        if (!read_vcfs(vcf_files, &sites, c.subregion_str, c.vcf_variant_only,
+        if (!read_vcfs(vcf_files, &sites, c.subregion_str,
                        c.vcf_min_qual, c.vcf_filter, c.use_genotype_probs,
-                       c.mask_uncertain, c.tabix_dir)) {
+                       c.mask_uncertain, c.tabix_dir, keep_inds)) {
             printError("Error reading VCF files\n");
             return EXIT_ERROR;
         }

@@ -675,23 +675,22 @@ bool read_sites(FILE *infile, Sites *sites,
 bool read_sites(const char *filename, Sites *sites,
                  int subregion_start=-1, int subregion_end=-1);
 
-// if variant_only is TRUE, then any sites absent from VCF file are invariant.
-// otherwise they are masked.
-bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
+bool read_vcf(FILE *infile, Sites *sites, double min_qual,
               const char *genotype_filter,
-              bool parse_genotype_probs, double min_base_prob, bool add_ref=false);
+              bool parse_genotype_probs, double min_base_prob,
+              bool add_ref=false, const set<string> keep_inds=set<string>());
 bool read_vcf(const char *filename, Sites *sites, const char *region,
-              bool variant_only, double min_qual, const char *genotype_filter,
+              double min_qual, const char *genotype_filter,
               bool parse_genotype_probs, double min_base_prob, bool add_ref=false,
-              const char *tabix_dir=NULL);
+              const char *tabix_dir=NULL, const set<string> keep_inds=set<string>());
 bool read_vcf(const string filename, Sites *sites, const string region,
-              bool variant_only, double min_qual, const string genotype_filter,
+              double min_qual, const string genotype_filter,
               bool parse_genotype_probs, double min_base_prob, bool add_ref=false,
-              const string tabix_dir="");
+              const string tabix_dir="", set<string> keep_inds=set<string>());
 bool read_vcfs(const vector<string> filenames, Sites* sites, const string region,
-               bool variant_only, double min_qual, const string genotype_filter,
+               double min_qual, const string genotype_filter,
                bool parse_genotype_probs, double min_base_prob,
-               const string tabixdir);
+               const string tabixdir, set<string> keep_inds=set<string>());
 void make_sequences_from_sites(const Sites *sites, Sequences *sequencess,
                                char default_char='A');
 void make_sites_from_sequences(const Sequences *sequences, Sites *sites);

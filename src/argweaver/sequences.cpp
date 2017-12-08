@@ -396,9 +396,9 @@ public:
 };
 
 
-bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
+bool read_vcf(FILE *infile, Sites *sites, double min_qual,
               const char *genotype_filter, bool parse_genotype_probs,
-              double min_base_prob, bool add_ref) {
+              double min_base_prob, bool add_ref, const set<string> keep_inds) {
     const char *delim = "\t";
     char *line=NULL;
     int nseqs = 0, nsample=0;
@@ -410,6 +410,7 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
     int numIndel=0;
     static bool warnRefLen=false;
     static bool warnProbs=false;
+    vector<bool> keep_ind;
 
     if (genotype_filter != NULL && strlen(genotype_filter) > 0) {
         vector<string> tmp;
@@ -422,8 +423,7 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
     // note that this does not affect chrom, start_coord, end_coord
     sites->clear();
 
-    int lineno = 0;
-    int next_position = sites->start_coord;
+    int lineno = 1;
     while (!error) {
         if (line != NULL) delete [] line;
         line = fgetline(infile);
@@ -437,8 +437,14 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
             vector<string> diploid_names;
             split(&line[strlen(headerStart)], delim, diploid_names);
             nsample = (int)diploid_names.size();
-            nseqs = nsample * 2;
+            nseqs = 0;
             for (int i=0; i < (int)diploid_names.size(); i++) {
+                if (keep_inds.size() > 0 && keep_inds.find(diploid_names[i]) == keep_inds.end()) {
+                    keep_ind.push_back(false);
+                    continue;
+                }
+                nseqs += 2;
+                keep_ind.push_back(true);
                 for (int j=0; j < 2; j++) {
                     char tmp[diploid_names[i].length()+3];
                     sprintf(tmp, "%s_%i", diploid_names[i].c_str(), j+1);
@@ -475,12 +481,6 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
             return false;
         }
         position--;  //convert to 0-index
-        if (!variant_only) {
-            while (next_position < position) {
-                sites->append_masked(next_position++, parse_genotype_probs);
-            }
-        }
-        next_position = position+1;
         double qual = atof(fields[5].c_str());
         char alleles[5];  // alleles can only be A,C,G,T,N
         int num_alleles=1;
@@ -496,12 +496,15 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
         alleles[0] = fields[3].c_str()[0];
         vector<string> alt;
         split(fields[4].c_str(), ",", alt);
-        if (alt.size() > 4) {
-            printError("length of ALT allele should not be more than 4 on line %i of VCF\n",
-                       lineno);
-            return false;
-        }
         static bool badAlleleWarn=false;
+        if (alt.size() > 4) {
+            if (!badAlleleWarn) {
+                printError("length of ALT allele should not be more than 4 on line %i of VCF\n",
+                           lineno);
+                badAlleleWarn=true;
+            }
+            continue;
+        }
         bool badAllele=false;
         for (int i=0; i < (int)alt.size(); i++) {
             if (alt[i].length() != 1) {
@@ -563,6 +566,7 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
         col[nseqs] = '\0';
         int idx=0;
         for (int i=0; i < nsample; i++) {
+            if (!keep_ind[i]) continue;
             bool masked = ( num_alleles > 2 || qual < min_qual );
             split(fields[9+i].c_str(), ":", seqfields);
             if (seqfields.size() != format.size()) {
@@ -658,10 +662,6 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
         if (parse_genotype_probs)
             sites->base_probs.push_back(base_probs);
     }
-    if (!variant_only) {
-        while (next_position < sites->end_coord)
-            sites->append_masked(next_position++, parse_genotype_probs);
-    }
 
     printLog(LOG_LOW, "Read %i sites from %i lines of VCF file (num skipped indels=%i)\n",
              sites->get_num_sites(), lineno, numIndel);
@@ -672,9 +672,9 @@ bool read_vcf(FILE *infile, Sites *sites, bool variant_only, double min_qual,
 
 
 bool read_vcf(const char *filename, Sites *sites, const char *region,
-              bool variant_only, double min_qual, const char *genotype_filter,
+              double min_qual, const char *genotype_filter,
               bool parse_genotype_probs, double min_base_prob, bool add_ref,
-              const char *tabixdir) {
+              const char *tabixdir, const set<string> keep_inds) {
     TabixStream ts(filename, region, tabixdir);
     char chr[10000];
     int start_coord, end_coord;
@@ -700,38 +700,38 @@ bool read_vcf(const char *filename, Sites *sites, const char *region,
     sites->start_coord = start_coord - 1;
     sites->end_coord = end_coord;
     sites->chrom = string(chr);
-    if ( ! read_vcf(ts.stream, sites, variant_only, min_qual, genotype_filter,
-                    parse_genotype_probs, min_base_prob, add_ref))
+    if ( ! read_vcf(ts.stream, sites, min_qual, genotype_filter,
+                    parse_genotype_probs, min_base_prob, add_ref, keep_inds))
         return false;
     return true;
 }
 
 bool read_vcf(const string filename, Sites *sites, const string region,
-              bool variant_only, double min_qual, const string genotype_filter,
+              double min_qual, const string genotype_filter,
               bool parse_genotype_probs, double min_base_prob, bool add_ref,
-              const string tabixdir) {
-    return read_vcf(filename.c_str(), sites, region.c_str(), variant_only,
+              const string tabixdir, const set<string> keep_inds) {
+    return read_vcf(filename.c_str(), sites, region.c_str(),
                     min_qual, genotype_filter.c_str(), parse_genotype_probs,
-                    min_base_prob, add_ref, tabixdir.c_str());
+                    min_base_prob, add_ref, tabixdir.c_str(), keep_inds);
 }
 
 bool read_vcfs(const vector<string> filenames, Sites* sites, const string region,
-               bool variant_only, double min_qual, const string genotype_filter,
+               double min_qual, const string genotype_filter,
                bool parse_genotype_probs, double min_base_prob,
-               const string tabixdir) {
+               const string tabixdir, const set<string> keep_inds) {
     if (filenames.size() == 0) {
         fprintf(stderr, "Read_vcfs expects at least one filename\n");
         return false;
     }
-    if (!read_vcf(filenames[0], sites, region, variant_only, min_qual,
+    if (!read_vcf(filenames[0], sites, region, min_qual,
                   genotype_filter, parse_genotype_probs, min_base_prob,
-                  true, tabixdir))
+                  true, tabixdir, keep_inds))
         return false;
     for (int i=1; i < (int)filenames.size(); i++) {
         Sites s;
-        if (!read_vcf(filenames[i], &s, region, variant_only, min_qual,
+        if (!read_vcf(filenames[i], &s, region, min_qual,
                       genotype_filter, parse_genotype_probs, min_base_prob,
-                      true, tabixdir))
+                      true, tabixdir, keep_inds))
             return false;
         if (!sites->merge(s)) return false;
     }
@@ -888,7 +888,27 @@ int Sites::subset(set<string> names_to_keep) {
         if (names_to_keep.find(names[i]) != names_to_keep.end())
             keep.push_back(i);
     }
-    if (keep.size() != names_to_keep.size()) {
+    if (keep.size() > 0) {
+        if (keep.size() != names_to_keep.size()) {
+            fprintf(stderr, "Error in subset: not all names found in sites\n");
+            return 1;
+        }
+        return subset(keep);
+    }
+
+    // if nothing found, these may be individual names rather than haploid
+    // names
+    set<string> hapkeep;
+    for (set<string>::iterator it=names_to_keep.begin();
+         it != names_to_keep.end(); it++) {
+        hapkeep.insert((*it) + string("_1"));
+        hapkeep.insert((*it) + string("_2"));
+    }
+    for (unsigned int i=0; i < names.size(); i++) {
+        if (hapkeep.find(names[i]) != hapkeep.end())
+            keep.push_back(i);
+    }
+    if (keep.size() != hapkeep.size()) {
         fprintf(stderr, "Error in subset: not all names found in sites\n");
         return 1;
     }
