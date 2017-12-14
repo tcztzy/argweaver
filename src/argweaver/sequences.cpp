@@ -455,7 +455,7 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
                 sites->names.push_back("REF");
                 nseqs++;
             }
-            printf("nseqs = %i\n", nseqs);
+            printf("nseqs = %i\n", nseqs - add_ref);
             continue;
         }
         // otherwise this line contains a variant
