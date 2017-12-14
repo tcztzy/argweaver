@@ -104,7 +104,9 @@ public:
         for (unsigned int i=0; i < Track<T>::size()-1; i++) {
             const RegionValue<T> &region1 = Track<T>::at(i);
             const RegionValue<T> &region2 = Track<T>::at(i+1);
-            if (region1.end > region2.start) return false;
+            if (region1.end > region2.start) {
+                return false;
+            }
         }
         return true;
     }
@@ -199,6 +201,8 @@ public:
     // also: requires that all tracks come from a single chromosome
     void merge_tracks(const Track<T> t) {
         Track<T> oldvec = *this;
+        assert(this->is_sorted());
+        assert(t.is_sorted());
         this->clear();
         unsigned int idx0=0, idx1=0;
         if (t.size() == 0 && oldvec.size() == 0) return;
@@ -216,12 +220,29 @@ public:
                 this->push_back(region1);
                 idx1++;
             } else {
-                this->push_back(RegionValue<T>(region0.chrom,
-                                               min(region0.start, region1.start),
-                                               max(region0.end, region1.end),
-                                               region0.value));
+                int startCoord = min(region0.start, region1.start);
+                int endCoord = max(region0.end, region1.end);
                 idx0++;
                 idx1++;
+                while (1) {
+                    bool bothOutside=true;
+                    if (idx0 < oldvec.size() && oldvec[idx0].start <= endCoord) {
+                        bothOutside=false;
+                        if (oldvec[idx0].end > endCoord)
+                            endCoord = oldvec[idx0].end;
+                        idx0++;
+                    }
+                    if (idx1 < t.size() && t[idx1].start <= endCoord) {
+                        bothOutside=false;
+                        if (t[idx1].end > endCoord)
+                            endCoord = t[idx1].end;
+                        idx1++;
+                    }
+                    if (bothOutside) break;
+                }
+                this->push_back(RegionValue<T>(region0.chrom,
+                                               startCoord, endCoord,
+                                               region0.value));
             }
         }
         if (idx1 < t.size()) {
@@ -239,6 +260,7 @@ public:
             }
         }
         this->merge();
+        assert(this->is_sorted());
     }
 
     void write_track_regions(FILE *outfile) {
