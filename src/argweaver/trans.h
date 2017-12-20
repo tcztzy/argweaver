@@ -155,6 +155,15 @@ public:
             assert(false);
         }
         if (! same_node) return prob;
+        if (npaths > 1 && path_c < 0) return prob;
+        if (npaths > 1 && a < b &&
+            !(pop_tree->paths_equal(path_b, path_c, a, b) &&
+              pop_tree->paths_equal(path_a, path_b, minage, a)))
+            return prob;
+        if (npaths > 1 && b < a &&
+            !(pop_tree->paths_equal(path_a, path_c, b, a) &&
+              pop_tree->paths_equal(path_b, path_a, minage, b)))
+            return prob;
 
         // now add same_node term
         // norecomb case
