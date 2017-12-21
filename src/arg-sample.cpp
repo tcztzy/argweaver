@@ -351,12 +351,15 @@ public:
                     DEBUG_OPT));
         config.add(new ConfigSwitch
                    ("", "--unphased", &unphased,
-                    "data is unphased (will integrate over phasings). "
-                    "Note: Experimental!", DEBUG_OPT));
+                    "data is unphased (will integrate over phasings)."));
         config.add(new ConfigParam<string>
                    ("", "--unphased-file", "<filename>", &unphased_file, "",
                     "use this file to identify haplotype pairs (file should"
-                    " have two sequence names per line)", DEBUG_OPT));
+                    " have two sequence names per line). By default, will"
+                    " first check for the naming convention <ind>_1 <ind>_2 to"
+                    " determine pairs. If the convention is not used, will assume"
+                    " haplotype pairs are adjacent to each other in sequence"
+                    " file. This option should not be used with VCF files."));
         config.add(new ConfigParam<double>
                    ("", "--randomize-phase", "<frac_random>", &randomize_phase,
                     0.0, "randomize phasings at start", DEBUG_OPT));
@@ -1696,8 +1699,11 @@ int main(int argc, char **argv)
     else sequences.set_age();
 
     // setup phasing options
-    if (c.unphased_file != "")
+    if (c.unphased_file != "") {
+        if (c.vcf_file != "" || c.vcf_list_file != "")
+            printError("Cannot use --unphased-file with VCF input");
         c.model.unphased_file = c.unphased_file;
+    }
     sequences.set_pairs(&c.model);
     if (c.randomize_phase > 0.0) {
         sequences.randomize_phase(c.randomize_phase);
