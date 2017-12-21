@@ -90,11 +90,6 @@ public:
                     "Same as --vcf but loads all individuals from multiple .vcf.gz files."
                     " The argument should be a file containing list of files to read"
                     " (one per line)."));
-        config.add(new ConfigSwitch
-                   ("", "--vcf-variant-only", &vcf_variant_only,
-                    "Indicates that any position not represented in the VCF file"
-                    " is treated as an invariant site. Without this flag,"
-                    " such regions are masked as missing data"));
         config.add(new ConfigParam<string>
                    ("", "--vcf-genotype-filter", "<filter string>", &vcf_filter,
                     "String describing filtering for individual genotypes in VCF file."
@@ -458,7 +453,6 @@ public:
     string sites_file;
     string vcf_file;
     string vcf_list_file;
-    bool vcf_variant_only;
     string vcf_filter;
     double vcf_min_qual;
     string subsites_file;
