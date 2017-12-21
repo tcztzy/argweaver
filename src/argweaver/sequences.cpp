@@ -1409,6 +1409,10 @@ void Sequences::set_pairs(const ArgModel *mod) {
     }
     if (set_pairs_by_name()) return;
 
+    printWarning("set_pairs: --unphased-file not given and haploid names do not"
+                 " appear to follow convention <ind>_1, <ind>_2. Assuming that"
+                 " the two sequences for each individual are adjacent in the"
+                 " sequence file");
     pairs = vector<int>(names.size());
     for (unsigned int i=0; i < names.size(); i++) {
         if (i%2==0) {
