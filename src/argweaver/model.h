@@ -157,7 +157,6 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0),
     unphased_file(""),
     pop_tree(NULL),
     smc_prime(true) {}
@@ -175,7 +174,6 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0),
     pop_tree(NULL),
     smc_prime(true)
         {
@@ -198,7 +196,6 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0),
     pop_tree(NULL),
     smc_prime(true)
         {
@@ -221,7 +218,6 @@ class ArgModel
     mu(mu),
     infsites_penalty(1.0),
     unphased(0),
-    sample_phase(0),
     pop_tree(NULL),
     smc_prime(true)
         {
@@ -243,7 +239,6 @@ class ArgModel
     mu(mu),
     infsites_penalty(other.infsites_penalty),
     unphased(other.unphased),
-    sample_phase(other.sample_phase),
     unphased_file(other.unphased_file),
     popsize_config(other.popsize_config),
     mc3(other.mc3),
@@ -261,7 +256,6 @@ class ArgModel
         mu(other.mu),
         infsites_penalty(other.infsites_penalty),
         unphased(other.unphased),
-        sample_phase(other.sample_phase),
         unphased_file(other.unphased_file),
         popsize_config(other.popsize_config),
         mc3(other.mc3),
@@ -493,7 +487,6 @@ class ArgModel
         }
         model.infsites_penalty = infsites_penalty;
         model.unphased = unphased;
-        model.sample_phase = sample_phase;
         model.unphased_file = unphased_file;
         model.popsize_config = popsize_config;
         model.owned = false;
@@ -572,7 +565,6 @@ protected:
     double mu;               // mutation rate (mutations/generation/site)
     double infsites_penalty; // penalty for violating infinite sites
     bool unphased;
-    int sample_phase;
     string unphased_file;
     PopsizeConfig popsize_config;
     Mc3Config mc3;

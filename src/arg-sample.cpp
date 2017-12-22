@@ -364,9 +364,16 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--randomize-phase", "<frac_random>", &randomize_phase,
                     0.0, "randomize phasings at start", DEBUG_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--no-sample-phase", &no_sample_phase,
+                    "Do not sample phase. Otherwise, if data is unphased, phase"
+                    " will be sampled at same frequency as ARGs"));
         config.add(new ConfigParam<int>
-                   ("", "--sample-phase", "<niters>", &sample_phase, 0,
-                    "output phasings every <niters> samples", DEBUG_OPT));
+                   ("", "--sample-phase", "<niters>", &sample_phase_step, 0,
+                    "output phasings every <niters> samples. The default"
+                    " is to sample at same frequency as ARGs (see --sample-step),"
+                    " unless --no-sample-phase is given",
+                    DEBUG_OPT));
         config.add(new ConfigParam<int>
                    ("", "--resample-window", "<window size>",
                     &resample_window, 100000,
@@ -535,7 +542,8 @@ public:
     bool unphased;
     string unphased_file;
     double randomize_phase;
-    int sample_phase;
+    bool no_sample_phase;
+    int sample_phase_step;
     bool all_masked;
     bool write_sites;
     bool write_sites_only;
@@ -1043,7 +1051,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
                     sites_mapping, config, maskmap_orig);
         log_local_trees(model, sequences, trees, sites_mapping, config, 0,
                         invisible_recomb_pos, invisible_recombs);
-        if (config->sample_phase > 0)
+        if (config->sample_phase_step > 0)
             log_sequences(trees->chrom, sequences, config, sites_mapping, 0);
     }
 
@@ -1117,7 +1125,7 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
             log_local_trees(model, sequences, trees, sites_mapping, config, i,
                             invisible_recomb_pos, invisible_recombs);
 
-        if (config->sample_phase > 0 && i%config->sample_phase == 0)
+        if (config->sample_phase_step > 0 && i%config->sample_phase_step == 0)
             log_sequences(trees->chrom, sequences, config, sites_mapping, i);
     }
     printLog(LOG_LOW, "\n");
@@ -1711,7 +1719,11 @@ int main(int argc, char **argv)
     }
     if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
         c.model.unphased = true;
-    c.model.sample_phase = c.sample_phase;
+    if (c.no_sample_phase)
+        c.sample_phase_step=0;
+    else if (c.sample_phase_step == 0)
+        c.sample_phase_step = c.sample_step;
+
     if (c.sample_popsize_num > 0) {
 	if (c.popsize_em) {
 	    printError("Error: cannot use --popsize-em with --sample-popsize\n");

@@ -176,7 +176,6 @@ void ArgModel::copy(const ArgModel &other) {
     mu = other.mu;
     infsites_penalty = other.infsites_penalty;
     unphased = other.unphased;
-    sample_phase = other.sample_phase;
     unphased_file = other.unphased_file;
     popsize_config = other.popsize_config;
     mc3 = other.mc3;
