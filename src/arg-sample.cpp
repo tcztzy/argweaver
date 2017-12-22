@@ -105,15 +105,16 @@ public:
                     "(for VCF input) Use genotype probabilities given by the"
                     " PL or PP scores in the VCF file. Default: ignore these scores and"
                     " treat assigned genotypes (after any filters) as"
-                    " certain."));
+                    " certain.", DEBUG_OPT));
         config.add(new ConfigParam<double>
                    ("", "--mask-uncertain", "<cutoff>", &mask_uncertain, 0.0,
                     "(for use --use-genotype-probs)"
                     " Mask any genotype if probability of most likely call < cutoff"
-                    " according to PL score in VCF file"));
+                    " according to PL score in VCF file", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--pop-file", "<population assigment file>", &pop_file,
-                    "file assigning each haplotype to a population index"));
+                    "file assigning each haplotype to a population index",
+                    DEBUG_OPT));
 	config.add(new ConfigParam<string>
 		   ("-o", "--output", "<output prefix>", &out_prefix,
                     "arg-sample",
