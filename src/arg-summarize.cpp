@@ -124,8 +124,14 @@ public:
                     "regions to retrieve statistics from (alternative to "
                     "region)"));
         config.add(new ConfigParam<string>
-                   ("-s", "--subset", "<hap_list.txt>", &indfile,
+                   ("-s", "--subset", "<hap_list.txt>", &hapfile,
                     "file with list of leafs to keep (rest will be pruned)"));
+        config.add(new ConfigParam<string>
+                   ("", "--subset-inds", "<ind_list.txt>", &indfile,
+                    "(Alternative to --subset) Subset ARG to only contain"
+                    " individuals listed in file."
+                    " Assume each individual is diploid with haploid names"
+                    " ind_1 and ind_2"));
         config.add(new ConfigParam<string>
                    ("-f", "--snp-file", "<snp_file.bed>", &snpfile,
                     "Compute statistics for specific SNPs. Each output row will"
@@ -164,7 +170,8 @@ public:
                     " with this)"));
         config.add(new ConfigSwitch
                    ("", "--html", &html,
-                    "output HTML instead of plain text (useful with --tree; makes link to GIF image)"));
+                    "output HTML instead of plain text (useful with --tree;"
+                    " makes link to GIF image)"));
         config.add(new ConfigSwitch
                    ("-T", "--tmrca", &tmrca,
                     "time to the most recent common ancestor"));
@@ -180,15 +187,15 @@ public:
         config.add(new ConfigSwitch
                    ("", "--recombs-per-time", &recombs_per_time,
                     "number of recombinations for each time interval"
-                    " (requires --time-file)"));
+                    " (requires --log-file)"));
         config.add(new ConfigSwitch
                    ("", "--invis-recombs-per-time", &invis_recombs_per_time,
                     "number of invisiblel recombinations for each time interval"
-                    " (requires --time-file)"));
+                    " (requires --log-file)"));
         config.add(new ConfigSwitch
                    ("", "--branchlen-per-time", &branchlen_per_time,
                    "total branchlen existing at each time interval"
-                    " (does not count root branch; requires --time-file)"));
+                    " (does not count root branch; requires --log-file)"));
         config.add(new ConfigSwitch
                    ("-K", "--breaks", &breaks,
                     "recombinations per bp (not normalized by tree size"));
@@ -201,21 +208,23 @@ public:
         config.add(new ConfigSwitch
                    ("-P", "--popsize", &popsize,
                     "popsize estimated by coal rates in local tree"
-                    " (tends to be very noisy)"));
+                    " (not recommended for estimating population sizes)"));
         config.add(new ConfigSwitch
                    ("-A", "--allele-age", &allele_age,
                     "(requires --snp). Compute allele age for SNPs"));
         config.add(new ConfigParam<string>
                    ("-D", "--node-dist", "<leaf0;leaf1,leaf2;...>",
                     &node_dist,
-                    "leaf branch length *or* distance between pairs of"
-		    " leafs. In this example return length of leaf leaf0,"
-		    " then distance between leaf1 and leaf2"));
+                    "leaf branch length (for single leaf) OR distance between"
+                    " pairs of leafs. Multiple statistics can be requested by"
+                    " separating arguments with semi-colon. In this example"
+                    " return length of leaf leaf0, then distance between leaf1 and leaf2"));
         config.add(new ConfigSwitch
                    ("", "--node-dist-all", &node_dist_all,
                     "return distance between all pairs of leaf nodes."
-                    "Requires --subset option (which may specify a file with all leaves)"));
-	config.add(new ConfigParam<string>
+                    "Requires --subset option (though this may specify a file"
+                    " with all leaves)"));
+        /*	config.add(new ConfigParam<string>
 		   ("-I", "--ind-dist", "<ind1_hap1,ind1_hap2;ind2_hap1,ind2_hap2,...>",
 		    &ind_dist,
 		    "return three statistics for each individual (identified"
@@ -327,6 +336,7 @@ public:
     string argfile;
     string region;
     string bedfile;
+    string hapfile;
     string indfile;
     string snpfile;
     string logfile;
@@ -1405,13 +1415,29 @@ int main(int argc, char *argv[]) {
             printf("<frameset cols=\"66%%,*\">\n");
         }
     }
-    set <string>inds;
+    set<string> haps;
+    if (!c.hapfile.empty()) {
+        ifstream in(c.hapfile.c_str());
+        string line;
+        if (in.is_open()) {
+            while ( getline(in, line) ) {
+                haps.insert(line);
+            }
+            in.close();
+        } else {
+            fprintf(stderr, "Error opening %s.\n", c.hapfile.c_str());
+            return 1;
+        }
+    }
+    set<string> inds;
     if (!c.indfile.empty()) {
         ifstream in(c.indfile.c_str());
         string line;
         if (in.is_open()) {
             while ( getline(in, line) ) {
                 inds.insert(line);
+                haps.insert(line + string("_1"));
+                haps.insert(line + string("_2"));
             }
             in.close();
         } else {
@@ -1558,7 +1584,7 @@ int main(int argc, char *argv[]) {
     }
     if (c.recombs_per_time) {
         if (c.logfile.empty()) {
-            fprintf(stderr, "Error: --time-file required with --invis-recombs-per-time\n");
+            fprintf(stderr, "Error: --log-file required with --invis-recombs-per-time\n");
             return 1;
         }
         for (int i=0; i < data.model->ntimes; i++) {
@@ -1601,12 +1627,13 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.node_dist_all) {
-        if (inds.size() == 0) {
-            fprintf(stderr, "Must use --subset argument with --node-dist-all\n");
+        if (haps.size() == 0) {
+            fprintf(stderr, "Must use --subset or --subset-inds argument with"
+                    " --node-dist-all\n");
             return 1;
         }
-        for (set<string>::iterator it=inds.begin(); it != inds.end(); it++) {
-            for (set<string>::iterator it2 = it; it2 != inds.end(); it2++) {
+        for (set<string>::iterator it=haps.begin(); it != haps.end(); it++) {
+            for (set<string>::iterator it2 = it; it2 != haps.end(); it2++) {
                 if (it != it2) {
                     statname.push_back(string("node_dist-") + *it + string(",") + *it2);
                     node_dist_leaf1.push_back(*it);
@@ -1842,7 +1869,7 @@ int main(int argc, char *argv[]) {
 
     if (c.bedfile.empty()) {
         summarizeRegion(&c, c.region.empty() ? NULL : c.region.c_str(),
-                        inds, statname, data);
+                        haps, statname, data);
     } else {
         CompressStream bedstream(c.bedfile.c_str());
         char *line;
@@ -1864,7 +1891,7 @@ int main(int argc, char *argv[]) {
             int start = atoi(token[1].c_str());
             int end = atoi(token[2].c_str());
             sprintf(regionStr, "%s:%i-%i", token[0].c_str(), start+1, end);
-            summarizeRegion(&c, regionStr, inds, statname, data);
+            summarizeRegion(&c, regionStr, haps, statname, data);
             delete [] regionStr;
         }
         bedstream.close();
