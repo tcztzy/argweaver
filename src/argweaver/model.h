@@ -398,6 +398,19 @@ class ArgModel
         if (tokens.size() == 1) {
             for (int i=0; i < npop; i++)
                 fill(popsizes[i], popsizes[i] + 2*ntimes-1, atof(tokens[0].c_str()));
+        } else if ((int)tokens.size() == ntimes || (int)tokens.size() == ntimes-1) {
+            popsizes[0][0] = atof(tokens[0].c_str());
+            for (int i=1; i < (int)tokens.size(); i++) {
+                popsizes[0][2*i] = atof(tokens[i].c_str());
+                popsizes[0][2*i-1] = popsizes[0][2*i];
+            }
+            if ((int)tokens.size() == ntimes-1) {
+                popsizes[0][2*(ntimes-1)] = popsizes[0][2*ntimes-3] = popsizes[0][2*ntimes-4];  //final popsize does not matter
+            }
+            for (int i=0; i < 2*ntimes - 1; i++)
+                for (int pop=1; pop < npop; pop++)
+                    popsizes[pop][i] = popsizes[0][i];
+
         } else {
             if ((int)tokens.size() != 2*ntimes-1) {
                 printError("Number of popsizes (%i) does not match ntimes"
