@@ -471,7 +471,7 @@ void ArgModel::read_population_sizes(string popsize_file) {
             continue;
         }
         vector<string> splitStr;
-        split(line, '\t', splitStr);
+        split(line, "\t ", splitStr);
         int pop=-1;
         double curr_time=-1, curr_size=-1;
         if (num_pops() == 1 && splitStr.size() == 2) {
