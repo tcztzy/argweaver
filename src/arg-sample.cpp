@@ -272,7 +272,14 @@ public:
                     " dense time points at leaves", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
-                    "file containing population sizes for each time span (optional)"));
+                    "Tab-delimited file with columns pop, time, popsize."
+                    " The first column is the population number (starting from zero)"
+                    " and can be omitted if using the default single-population model."
+                    " The time indicates the maximum time (in generations) that"
+                    " a population has the given diploid size."
+                    " The rows should be sorted in order of increasing time, and"
+                    " the final row for each population should have a time >= the"
+                    " maximum time in the model (see --maxtime)."));
         config.add(new ConfigParam<string>
                    ("", "--times-file", "<times filename>", &times_file, "",
                     "file containing time points (optional)"));
