@@ -514,20 +514,6 @@ int PopulationTree::path_to_root(const spidir::Node *node, double time) const {
     return path;
 }
 
-// not implemented efficiently, as only called a few times
-int get_closest_half_time(double tgen, const double *time_steps, int ntime) {
-    int closest=1;
-    double dist = fabs(tgen - time_steps[closest]);
-    for (int i=3; i < ntime; i+=2) {
-        double tempdist = fabs(tgen - time_steps[i]);
-        if (tempdist < dist) {
-            dist = tempdist;
-            closest = i;
-        }
-    }
-    return closest;
-}
-
 
 int PopulationTree::num_paths(int pop1, int t1, int t2) {
     if (t2 < 0) t2 = model->ntimes-1;

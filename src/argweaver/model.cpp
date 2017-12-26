@@ -443,6 +443,34 @@ void ArgModel::set_popsize_config_by_pop_tree() {
     printf("Done set_popsize_config_by_pop_tree numParam = %i\n", nextpop);
 }
 
+int get_closest_half_time(double tgen, const double *time_steps, int ntime) {
+    int closest=1;
+    double dist = fabs(tgen - time_steps[closest]);
+    for (int i=3; i < ntime; i+=2) {
+        double tempdist = fabs(tgen - time_steps[i]);
+        if (tempdist < dist) {
+            dist = tempdist;
+            closest = i;
+        }
+    }
+    return closest;
+}
+
+
+int get_closest_times2(double tgen, const double *time_steps, int ntime) {
+    int closest=0;
+    double dist = fabs(tgen - time_steps[closest]);
+    for (int i=1; i < ntime; i++) {
+        double tempdist = fabs(tgen - time_steps[i]);
+        if (tempdist < dist) {
+            dist = tempdist;
+            closest = i;
+        }
+    }
+    return closest;
+}
+
+
 // file should have format;
 // pop time0 popsize0
 // pop time1 popsize1
@@ -459,10 +487,10 @@ void ArgModel::read_population_sizes(string popsize_file) {
     if (infile == NULL)
         exitError("error opening popsize file %s\n", popsize_file.c_str());
     int pop_idx[num_pops()];
-    double next_time[num_pops()];
+    double last_time[num_pops()];
     for (int i=0; i < num_pops(); i++) {
         pop_idx[i]=0;
-        next_time[i] = 0.0;
+        last_time[i] = -1;
     }
     while (NULL != (line = fgetline(infile))) {
         chomp(line);
@@ -474,27 +502,40 @@ void ArgModel::read_population_sizes(string popsize_file) {
         split(line, "\t ", splitStr);
         int pop=-1;
         double curr_time=-1, curr_size=-1;
-        if (num_pops() == 1 && splitStr.size() == 2) {
+        if (splitStr.size() == 2) {
+            if (num_pops() != 1)
+                exitError("popsize file needs three columns if using multiple population model (time, popsize, pop)");
             pop = 0;
             curr_time = atof(splitStr[0].c_str());
             curr_size = atof(splitStr[1].c_str());
         } else if (splitStr.size() == 3) {
-            pop = atoi(splitStr[0].c_str());
+            pop = atoi(splitStr[2].c_str());
             if (pop < 0 || pop >= num_pops())
                 exitError("Error parsing population in popsize file\n");
-            curr_time = atof(splitStr[1].c_str());
-            curr_size = atof(splitStr[2].c_str());
-        } else exitError("Error reading popsize file; format should be pop, time, size");
-        if (curr_time < next_time[pop])
-            exitError("Error reading popsize file; times should be increasing");
-        assert(curr_size > 0);
-        assert(pop >= 0 && pop < num_pops());
-        assert(pop_idx[pop] < 2*ntimes - 2);
-        while (curr_time > next_time[pop]) {
-            popsizes[pop][pop_idx[pop]] = curr_size;
-            next_time[pop] += coal_time_steps[pop_idx[pop]++];
-            if (pop_idx[pop] >= 2*ntimes - 1) break;
+            curr_time = atof(splitStr[0].c_str());
+            curr_size = atof(splitStr[1].c_str());
+        } else {
+            if (num_pops() == 1)
+                exitError("Error reading popsize file; format should be time, size");
+            else exitError("Error reading popsize file; format should be time, size, pop");
         }
+        if (curr_time < 0)
+            exitError("Times in popsize file should be >=0");
+        if (curr_size <= 0)
+            exitError("Population sizes should be > 0");
+        if (last_time[pop] < 0 && curr_time != 0)
+            exitError("First time in popsize file should be zero");
+        else if (last_time[pop] > curr_time)
+            exitError("Times in popsize file should be increasing");
+        last_time[pop] = curr_time;
+        pop_idx[pop] = get_closest_times2(curr_time, coal_time_steps, 2*ntimes - 1);
+        if (fabs(coal_time_steps[pop_idx[pop]] - curr_time) > 2)
+            fprintf(stderr, "Rounding time %.1f in %s to %f\n", curr_time,
+                    popsize_file.c_str(), coal_time_steps[pop_idx[pop]]);
+        for (int i=pop_idx[pop]; i < 2*ntimes - 1; i++)
+            popsizes[pop][i] = curr_size;
+
+
         delete [] line;
     }
     fclose(infile);
