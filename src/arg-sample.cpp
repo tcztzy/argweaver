@@ -272,7 +272,7 @@ public:
                     " dense time points at leaves", DEBUG_OPT));
         config.add(new ConfigParam<string>
                    ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
-                    "Tab-delimited file with columns pop, time, popsize."
+                    "Two or three column file with columns pop, time, popsize."
                     " The first column is the population number (starting from zero)"
                     " and can be omitted if using the default single-population model."
                     " The time indicates the maximum time (in generations) that"
