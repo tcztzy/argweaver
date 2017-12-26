@@ -1,3 +1,4 @@
+
 #ifdef ARGWEAVER_MPI
 #include "mpi.h"
 #include "mcmcmc.h"
@@ -473,7 +474,7 @@ void ArgModel::read_population_sizes(string popsize_file) {
         split(line, '\t', splitStr);
         int pop=-1;
         double curr_time=-1, curr_size=-1;
-        if (num_pops() == 2 && splitStr.size() == 2) {
+        if (num_pops() == 1 && splitStr.size() == 2) {
             pop = 0;
             curr_time = atof(splitStr[0].c_str());
             curr_size = atof(splitStr[1].c_str());
