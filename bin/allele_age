@@ -187,7 +187,7 @@ done
 
 rm -f $tmpdir/tmp.sites.gz $tmpdir/tmp.bed.gz
 if [[ -n $hapArg1 ]]; then
-    rm -f $tmpdir/tmp.sites
+    rm -f $tmpdir/tmp.sites $tmpdir/tmp_haps.txt
 fi
 
 zcat $tmpdir/$startnum.allele_age.bed.gz | grep "^#" > $baseout.allele_age.bed
