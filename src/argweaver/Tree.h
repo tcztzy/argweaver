@@ -248,6 +248,15 @@ public:
         return nodes[name];
     }
 
+    Node *getNode(string name) {
+        map<string,int>::iterator it = nodename_map.find(name);
+        if (it == nodename_map.end()) {
+            fprintf(stderr, "Could not find node %s in tree\n", name.c_str());
+            exit(1);
+        }
+        return nodes[it->second];
+    }
+
     // Adds a node 'node' to the tree
     // This will also set the node's name id
     Node *addNode(Node *node)
@@ -311,6 +320,8 @@ public:
         return distBetweenLeaves(nodes[nodename_map.find(n1)->second],
                                  nodes[nodename_map.find(n2)->second]);
     }
+    double coalTime(Node *n1, Node *n2);
+    double minCoalBetweenInds(string ind1, string ind2);
     int getDescGroups(Node *parent, map<string,int> groups, int ngroup,
                       int currgroup=-1);
     void countDescGroups(Node *node, string hap, map<string,int> groups,

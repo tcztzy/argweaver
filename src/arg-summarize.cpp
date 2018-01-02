@@ -44,6 +44,8 @@ int getQuantiles=0;
 vector <double> quantiles;
 vector<string> node_dist_leaf1;
 vector<string> node_dist_leaf2;
+vector<string> min_coal_time_ind1;
+vector<string> min_coal_time_ind2;
 bool quiet;
 vector<string> ind_dist_leaf1;
 vector<string> ind_dist_leaf2;
@@ -163,6 +165,7 @@ public:
                    "of a lineage that is in pop1 at the time interval immediately"
                    "after time t and pop2 at the time interval before time t2"
                    "(indicating move from pop1 to pop2 looking backwards in time)"));
+
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
                    ("-E", "--tree", &rawtrees,
@@ -231,7 +234,20 @@ public:
 		    " by two haplotypes): the minimum coalescence time to rest of"
 		    " tree, the maximum coalescence time to rest of tree, and"
 		    " a 0/1 indicating whether the two lineages coalesce with each"
-		    " other before any other lineage"));
+		    " other before any other lineage")); */
+        config.add(new ConfigParam<string>
+                   ("", "--min-coal-time", "<ind1,ind2;...>",
+                    &min_coal_time,
+                    "return the most recent coalescence time between two"
+                    " diploid individuals, whose lineages are named ind1_1,"
+                    " ind1_2, ind2_1, ind2_2. May specify multiple pairs of"
+                    " individuals, will return the min coal time for each pair"));
+        config.add(new ConfigSwitch
+                   ("", "--min-coal-time-all", &min_coal_time_all,
+                    "Same as min-coal-time, but for all pairs of individuals."
+                    " Each individual must have two linages named with the "
+                    " convention ind_1, ind_2. Requires --subset-inds argument"
+                    " (though this may specify a file with all individuals"));
         config.add(new ConfigSwitch
                    ("-Z", "--zero-len", &zero,
                     "number of branches of length zero"));
@@ -243,15 +259,15 @@ public:
                    ("", "--coalcounts-cluster", &coalcounts_cluster,
                     "maximum number of coalescences clustered together at each time point"
                     " (requires --timefile)"));
-        config.add(new ConfigParam<string>
+        /*        config.add(new ConfigParam<string>
                    ("-G", "--group", "<group_file1,groupfile2,...>", &groupfile,
                     "Output boolean indicating whether individuals in each group"
-                    " file cluster together in the local tree."));
+                    " file cluster together in the local tree."));*/
         /*        config.add(new ConfigParam<string>
                    ("", "--group-no-root", "<group_noroot_file>",
                     &group_noroot_file,
                     "Like --group, but consider grouping in unrooted tree"));*/
-        config.add(new ConfigParam<string>
+        /*        config.add(new ConfigParam<string>
                    ("", "--coal-groups", "<coal_group_file>", &coalgroup_file,
                     "(For use with --coal-group-inds); Output boolean indicating"
                     " whether individuals in coal-group-inds coalesce with"
@@ -271,13 +287,13 @@ public:
                     &spr_leaf_names,
                     "For each leaf, indicate binary whether the SPR operation"
                     "at the end of segment affects the branch coming from that"
-                    "leaf"));
-        config.add(new ConfigParam<string>
+                    "leaf"));*/
+        /*        config.add(new ConfigParam<string>
                    ("", "--cluster-test", "<group_file>", &cluster_group_file,
                     "Return maximum likelihood ratio statistic across all nodes "
                     " relating to whether lineages in group_file are randomly"
                     " disperesed between the children, as well as the time of the"
-                    " most significant node"));
+                    " most significant node"));*/
         /*                    "Return minimum number of pruning operations required to "
                     " reduce each local tree to the lineages named in <group_file>."
                     " (Lower numbers indicate clustering)"));*/
@@ -363,6 +379,8 @@ public:
     bool allele_age;
     string node_dist;
     bool node_dist_all;
+    string min_coal_time;
+    bool min_coal_time_all;
     string cluster_group_file;
     string ind_dist;
     bool zero;
@@ -476,6 +494,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                    line->trees->orig_tree);
     double bl=-1.0;
     int node_dist_idx=0;
+    int min_coal_time_idx=0;
     const ArgModel *model = data.model;
     int ind_dist_idx=0;
     if (line->stats.size() == statname.size()) return;
@@ -529,6 +548,11 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
 					    node_dist_leaf2[node_dist_idx]);
 	    }
             node_dist_idx++;
+        }
+        else if (statname[i].substr(0,13)=="min_coal_time") {
+            line->stats[i] = tree->minCoalBetweenInds(min_coal_time_ind1[min_coal_time_idx],
+                                                      min_coal_time_ind2[min_coal_time_idx]);
+            min_coal_time_idx++;
         }
         else if (statname[i].substr(0, 8)=="recombs.") {
             const NodeSpr *nodespr = (line->trees->pruned_tree != NULL ?
@@ -593,19 +617,19 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
 	    i += 2;
 	    ind_dist_idx++;
 	}
-        else if (statname[i].substr(0, 10)=="coalcount.") {
+        else if (statname[i].substr(0, 11)=="coalcounts.") {
             vector<double>coal_counts = tree->coalCounts(model->times, model->ntimes);
             for (unsigned int j=0; j < coal_counts.size(); j++) {
                 assert(i+j < statname.size() &&
-                       statname[i+j].substr(0,10)=="coalcount.");
+                       statname[i+j].substr(0,11)=="coalcounts.");
                 line->stats[i+j] = coal_counts[j];
             }
             i += coal_counts.size() - 1;
-        } else if (statname[i].substr(0, 17)=="coalcountCluster.") {
+        } else if (statname[i].substr(0, 19)=="coalcounts-cluster.") {
             vector<int>coal_counts = tree->coalCountsCluster(model->times, model->ntimes);
             for (unsigned int j=0; j < coal_counts.size(); j++) {
                 assert(i+j < statname.size() &&
-                       statname[i+j].substr(0,17)=="coalcountCluster.");
+                       statname[i+j].substr(0,19)=="coalcounts-cluster.");
                 line->stats[i+j] = (double)coal_counts[j];
             }
             i += coal_counts.size() - 1;
@@ -1556,7 +1580,7 @@ int main(int argc, char *argv[]) {
         }
         for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
-            sprintf(tmp, "coalcount.%i", i);
+            sprintf(tmp, "coalcounts.%i", i);
             statname.push_back(string(tmp));
         }
     }
@@ -1567,7 +1591,7 @@ int main(int argc, char *argv[]) {
         }
         for (int i=0; i < data.model->ntimes; i++) {
             char tmp[1000];
-            sprintf(tmp, "coalcountCluster.%i", i);
+            sprintf(tmp, "coalcounts-cluster.%i", i);
             statname.push_back(string(tmp));
         }
     }
@@ -1638,6 +1662,36 @@ int main(int argc, char *argv[]) {
                     statname.push_back(string("node_dist-") + *it + string(",") + *it2);
                     node_dist_leaf1.push_back(*it);
                     node_dist_leaf2.push_back(*it2);
+                }
+            }
+        }
+    }
+    if (!c.min_coal_time.empty()) {
+        vector<string> tokens1, tokens2;
+        split(c.min_coal_time.c_str(), ';', tokens1);
+        for (unsigned int i=0; i < tokens1.size(); i++) {
+            split(tokens1[i].c_str(), ',', tokens2);
+            if (tokens2.size() != 2) {
+                fprintf(stderr, "--min-coal-time; bad argument\n");
+                return 1;
+            }
+            statname.push_back(string("min_coal_time-") + tokens1[i]);
+            min_coal_time_ind1.push_back(tokens2[0]);
+            min_coal_time_ind2.push_back(tokens2[1]);
+        }
+    }
+    if (c.min_coal_time_all) {
+        if (inds.size() == 0) {
+            fprintf(stderr, "Must use --subset-inds argument with"
+                    " --min-coal-time-all\n");
+            return 1;
+        }
+        for (set<string>::iterator it=inds.begin(); it != inds.end(); it++) {
+            for (set<string>::iterator it2=it; it2 != inds.end(); it2++) {
+                if (it != it2) {
+                    statname.push_back(string("min_coal_time-") + *it + string(",") + *it2);
+                    min_coal_time_ind1.push_back(*it);
+                    min_coal_time_ind2.push_back(*it2);
                 }
             }
         }

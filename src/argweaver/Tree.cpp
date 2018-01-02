@@ -1575,6 +1575,45 @@ double Tree::distBetweenLeaves(Node *n1, Node *n2) {
 }
 
 
+double Tree::coalTime(Node *n1, Node *n2) {
+    if (n1 == n2) return n1->age;
+    ExtendArray<Node*> postnodes;
+    getTreePostOrder(this, &postnodes);
+    vector<int> count(postnodes.size());
+    for (int i=0; i < postnodes.size(); i++) {
+        if (postnodes[i] == n1 || postnodes[i] == n2) {
+            count[postnodes[i]->name] = 1;
+        } else if (postnodes[i]->nchildren == 2) {
+            count[postnodes[i]->name] = count[postnodes[i]->children[0]->name] +
+                count[postnodes[i]->children[1]->name];
+            if (count[postnodes[i]->name] == 2)
+                return postnodes[i]->age;
+        }
+    }
+    fprintf(stderr, "Error in coalTime function\n");
+    exit(1);
+    return -1.0;
+}
+
+
+double Tree::minCoalBetweenInds(string ind1, string ind2) {
+    double minCoal = -1;
+    vector<string> haps;
+    haps.push_back(string("_1"));
+    haps.push_back(string("_2"));
+    for (unsigned int hap1=0; hap1 < haps.size(); hap1++) {
+        for (unsigned int hap2=0; hap2 < haps.size(); hap2++) {
+            double thisCoal =
+                coalTime(getNode(ind1 + haps[hap1]),
+                         getNode(ind2 + haps[hap2]));
+            if (minCoal < 0 || thisCoal < minCoal)
+                minCoal = thisCoal;
+        }
+    }
+    return minCoal;
+}
+
+
 //look at descendants of parent node and return group number if all have
 // same group, otherwise ngroup
 int Tree::getDescGroups(Node *parent, map<string,int> groups,
