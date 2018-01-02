@@ -35,7 +35,7 @@ sitesfile=""
 tmpdir=".tmp_allele_age"
 hapFile=""
 indFile=""
-while getopts "S:s:i:e:r:b:B:h" opt; do
+while getopts "S:s:i:e:r:b:B:t:h" opt; do
   case "$opt" in
   h)
     show_help
