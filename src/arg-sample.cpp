@@ -77,19 +77,20 @@ public:
         config.add(new ConfigParam<string>
                    ("", "--vcf", "<.vcf.gz file>", &vcf_file,
                     "sequence alignment in gzipped vcf format. Must also supply"
-                    " --region in format chr:start-end, and tabix index file (.vcf.gz.tbi)"
-                    " must also be present. Path to tabix should be provided with"
-                    " --tabix-dir argument. Assumes samples are diploid and unphased;"
+                    " --region in format chr:start-end, and tabix index file"
+                    " (.vcf.gz.tbi) must also be present. tabix program needs to"
+                    " be installed and in PATH or path must be provided with"
+                    " --tabix-dir. Assumes samples are diploid and unphased;"
                     " each individual will have _1 and _2 appended to its name for its"
                     " two haploid lineages. Indel-type variants are skipped."
-                    " The vcf is assumed to contain all positions with information;"
-                    " all other positions in the region will be masked, unless"
-                    " --vcf-variant-only flag is given"));
+                    " Any positions not specified in VCF are assumed to be"
+                    " invariant"));
         config.add(new ConfigParam<string>
                    ("", "--vcf-files", "<vcf_file_list.txt>", &vcf_list_file,
                     "Same as --vcf but loads all individuals from multiple .vcf.gz files."
                     " The argument should be a file containing list of files to read"
-                    " (one per line)."));
+                    " (one per line). All files should be aligned to same reference"
+                    " genome"));
         config.add(new ConfigParam<string>
                    ("", "--vcf-genotype-filter", "<filter string>", &vcf_filter,
                     "String describing filtering for individual genotypes in VCF file."
