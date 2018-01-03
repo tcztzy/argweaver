@@ -20,7 +20,7 @@ FILE *read_tabix(const char *filename, const char *region,
     }
 
     string cmd = "tabix -h " + quote_arg(filename) + " " +  region;
-    if (tabix_dir != NULL)
+    if (tabix_dir != NULL && strlen(tabix_dir) > 0)
         cmd = string(tabix_dir) + "/" + cmd;
     pipe = popen(cmd.c_str(), "r");
     if (pipe == NULL) {
