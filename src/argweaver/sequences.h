@@ -671,9 +671,9 @@ void resample_align(Sequences *aln, Sequences *aln2);
 // sites functions
 void write_sites(FILE *stream, Sites *sites, bool write_masked=false);
 bool read_sites(FILE *infile, Sites *sites,
-                 int subregion_start=-1, int subregion_end=-1);
+                int subregion_start=-1, int subregion_end=-1, bool quiet=false);
 bool read_sites(const char *filename, Sites *sites,
-                 int subregion_start=-1, int subregion_end=-1);
+                int subregion_start=-1, int subregion_end=-1, bool quiet=false);
 
 bool read_vcf(FILE *infile, Sites *sites, double min_qual,
               const char *genotype_filter,

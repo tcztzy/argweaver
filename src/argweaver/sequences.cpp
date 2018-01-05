@@ -177,7 +177,7 @@ bool validate_site_column(char *col, int nseqs)
 
 // Read a Sites stream
 bool read_sites(FILE *infile, Sites *sites,
-                int subregion_start, int subregion_end)
+                int subregion_start, int subregion_end, bool quiet)
 {
     const char *delim = "\t";
     char *line;
@@ -201,9 +201,10 @@ bool read_sites(FILE *infile, Sites *sites,
             // assert every name is non-zero in length
             for (int i=0; i<nseqs; i++) {
                 if (sites->names[i].length() == 0) {
-                    printError(
-                        "name for sequence %d is zero length (line %d)",
-                        i + 1, lineno);
+                    if (!quiet)
+                        printError(
+                           "name for sequence %d is zero length (line %d)",
+                           i + 1, lineno);
                     delete [] line;
                     return false;
                 }
@@ -215,7 +216,7 @@ bool read_sites(FILE *infile, Sites *sites,
             if (sscanf(line, "REGION\t%50s\t%d\t%d",
                        chrom,
                        &sites->start_coord, &sites->end_coord) != 3) {
-                printError("bad REGION format");
+                if (!quiet) printError("bad REGION format");
                 delete [] line;
                 return false;
             }
@@ -231,20 +232,22 @@ bool read_sites(FILE *infile, Sites *sites,
 
         } else if (strncmp(line, "RANGE\t", 6) == 0) {
             // parse RANGE line
-
-            printError("deprecated RANGE line detected (use REGION instead)");
+            if (!quiet)
+                printError("deprecated RANGE line detected (use REGION instead)");
             delete [] line;
             return false;
         } else if (strncmp(line, "POPS\t", 5) == 0) {
             if (nseqs == 0) {
-                printError("NAMES line should come before POP line");
+                if (!quiet)
+                    printError("NAMES line should come before POP line");
                 delete [] line;
                 return false;
             }
             vector<string> popstr;
             split(&line[5], delim, popstr);
             if ((int)popstr.size() != nseqs) {
-                printError("number of entries in POPS line should match entries in NAMES line");
+                if (!quiet)
+                    printError("number of entries in POPS line should match entries in NAMES line");
                 delete [] line;
                 return false;
             }
@@ -260,7 +263,8 @@ bool read_sites(FILE *infile, Sites *sites,
             // parse site
             int position;
             if (sscanf(fields[0].c_str(), "%d", &position) != 1) {
-                printError("first column is not an integer (line %d)", lineno);
+                if (!quiet)
+                    printError("first column is not an integer (line %d)", lineno);
                 delete [] line;
                 return false;
             }
@@ -277,16 +281,19 @@ bool read_sites(FILE *infile, Sites *sites,
             strcpy(col, fields[1].c_str());
             unsigned int len = strlen(col);
             if (len != (unsigned int) nseqs) {
-                printError(
-                    "the number bases given, %d, does not match the "
-                    "number of sequences %d (line %d)",
-                    len, nseqs, lineno);
+                if (!quiet)
+                    printError(
+                      "the number bases given, %d, does not match the "
+                      "number of sequences %d (line %d)",
+                      len, nseqs, lineno);
                 delete [] line;
                 return false;
             }
             if (!validate_site_column(col, nseqs)) {
-                printError("invalid sequence characters (line %d)", lineno);
-                printError("%s\n", line);
+                if (!quiet) {
+                    printError("invalid sequence characters (line %d)", lineno);
+                    printError("%s\n", line);
+                }
                 delete [] line;
                 return false;
             }
@@ -294,9 +301,11 @@ bool read_sites(FILE *infile, Sites *sites,
             // validate site locations are unique and sorted.
             int npos = sites->get_num_sites();
             if (npos > 0 && sites->positions[npos-1] >= position) {
-                printError("invalid site location %d >= %d (line %d)",
-                           sites->positions[npos-1], position, lineno);
-                printError("sites must be sorted and unique.");
+                if (!quiet) {
+                    printError("invalid site location %d >= %d (line %d)",
+                               sites->positions[npos-1], position, lineno);
+                    printError("sites must be sorted and unique.");
+                }
                 delete [] line;
                 return false;
             }
@@ -309,8 +318,10 @@ bool read_sites(FILE *infile, Sites *sites,
                 if (npos == 0) {
                     have_base_probs = false;
                 } else if (have_base_probs) {
-                    printError("Error parsing line %d of sites file\n",
-                               lineno);
+                    if (!quiet) {
+                        printError("Error parsing line %d of sites file\n",
+                                   lineno);
+                    }
                     delete [] line;
                     return false;
                 }
@@ -318,14 +329,18 @@ bool read_sites(FILE *infile, Sites *sites,
                 if (npos == 0) {
                     have_base_probs = true;
                 } else if (!have_base_probs) {
-                    printError("Error parsing line %d of sites file\n",
-                               lineno);
+                    if (!quiet) {
+                        printError("Error parsing line %d of sites file\n",
+                                   lineno);
+                    }
                     delete [] line;
                     return false;
                 }
                 if ((int)fields.size() != 4*nseqs + 2) {
-                    printError("Error parsing base probs on line %i of sites file\n",
-                               lineno);
+                    if (!quiet) {
+                        printError("Error parsing base probs on line %i of sites file\n",
+                                   lineno);
+                    }
                     delete [] line;
                     return false;
                 }
@@ -352,15 +367,16 @@ bool read_sites(FILE *infile, Sites *sites,
 
 // Read a Sites alignment file
 bool read_sites(const char *filename, Sites *sites,
-                int subregion_start, int subregion_end)
+                int subregion_start, int subregion_end, bool quiet)
 {
     FILE *infile;
     if ((infile = fopen(filename, "r")) == NULL) {
-        printError("cannot read file '%s'", filename);
+        if (!quiet)
+            printError("cannot read file '%s'", filename);
         return false;
     }
 
-    bool result = read_sites(infile, sites, subregion_start, subregion_end);
+    bool result = read_sites(infile, sites, subregion_start, subregion_end, quiet);
 
     fclose(infile);
 
