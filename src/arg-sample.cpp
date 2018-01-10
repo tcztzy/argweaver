@@ -104,7 +104,7 @@ public:
         config.add(new ConfigSwitch
                    ("", "--use-genotype-probs", &use_genotype_probs,
                     "(for VCF input) Use genotype probabilities given by the"
-                    " PL or PP scores in the VCF file. Default: ignore these scores and"
+                    " PL, GL, or PP scores in the VCF file. Default: ignore these scores and"
                     " treat assigned genotypes (after any filters) as"
                     " certain.", DEBUG_OPT));
         config.add(new ConfigParam<double>

@@ -544,6 +544,7 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
         split(fields[8].c_str(), ":", format);
         int gt_idx=-1;
         int pl_idx=-1;
+        int gl_idx=-1;
         int pp_idx=-1;
         for (int i=0; i < (int)format.size(); i++) {
             if (strcmp(format[i].c_str(), "GT")==0) {
@@ -552,6 +553,9 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
             if (parse_genotype_probs) {
                 if (strcmp(format[i].c_str(), "PL")==0) {
                     pl_idx = i;
+                }
+                if (strcmp(format[i].c_str(), "GL")==0) {
+                    gl_idx = i;
                 }
                 if (strcmp(format[i].c_str(), "PP")==0) {
                     pp_idx = i;
@@ -618,9 +622,10 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
                 num_masked+=2;
                 continue;
             }
-            if (parse_genotype_probs && pl_idx == -1 && pp_idx == -1) {
+            if (parse_genotype_probs && pl_idx == -1 &&
+                gl_idx == -1 && pp_idx == -1) {
                 if (!warnProbs) {
-                    printWarning("Did not find PL in format field in VCF file line %i",
+                    printWarning("Did not find PL, GL, or PP in format field in VCF file line %i",
                                  lineno);
                     warnProbs=true;
                 }
@@ -652,11 +657,14 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
                     }
                     col[idx] = alleles[ia];
                     if (parse_genotype_probs) {
-                        if (pp_idx >= 0)
-                            base_probs[idx].set_by_pp(seqfields[pp_idx], j);
-                        else if (pl_idx >= 0)
+                        // PL and GL are the same except GL is float;
+                        // set_by_pl treats input as float anyway
+                        if (gl_idx >= 0) pl_idx = gl_idx;
+                        if (pl_idx >= 0)
                             base_probs[idx].set_by_pl(alleles[0], alleles[1],
                                                       seqfields[pl_idx], j);
+                        else if (pp_idx >= 0)
+                            base_probs[idx].set_by_pp(seqfields[pp_idx], j);
                         else base_probs[idx].set_certain(alleles[ia]);
                         if (base_probs[idx].maxProb() < min_base_prob) {
                             col[idx] = 'N';

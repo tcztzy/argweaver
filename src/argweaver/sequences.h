@@ -67,6 +67,8 @@ class BaseProbs
         for (int i=0; i < 4; i++) prob[i] = other.prob[i];
     }
 
+    // this works for PL or GL genotype probabilies; only difference
+    // in VCF 4.2 specification is that PL is integers
     void set_by_pl(const char refAllele, const char altAllele,
                    const string &pl, int hap_id) {
         assert(hap_id == 0 || hap_id == 1);
