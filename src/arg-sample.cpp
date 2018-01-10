@@ -570,7 +570,14 @@ public:
 
 bool parse_region(const char *region, int *start, int *end)
 {
-    return sscanf(region, "%d-%d", start, end) == 2;
+    int start_idx=0;
+    for (int i=0; i < (int)strlen(region); i++)
+        if (region[i]==':') {
+            start_idx = i+1;
+            break;
+        }
+
+    return sscanf(&region[start_idx], "%d-%d", start, end) == 2;
 }
 
 //=============================================================================
