@@ -174,24 +174,6 @@ double TransMatrix::get_b_term(int d, int path_d, int a, int path_a) const {
 
 
 
-double TransMatrix::get_b_term_old(int d, int path_d, int a, int path_a) const {
-    if (d < a) {
-        return B2_prime->get(path_d, path_a, d);
-    }
-    double val = logadd(B2_prime->get(path_d, path_a, a-1),
-                        B1_prime->get(path_d, path_a, a));
-    if (d == a) return val;
-    double f = (C1_prime->get(path_d, path_a, 2*a-1)
-                - C0_prime->get(path_d, 2*a-1));
-    double b1 = B0_prime->get(path_d, d);
-    double b2 = B0_prime->get(path_d, a);
-    if (b1 == -INFINITY) {
-        assert(b2 == -INFINITY);
-        return val;
-    }
-    return logadd(val, f + logsub(b1, b2));
-}
-
 
 double TransMatrix::get_l_term(int d, int path_d, int a, int path_a) const {
     if (d < 0) return 0.0;
@@ -236,6 +218,7 @@ double TransMatrix::get_rk_term(int d, int path_d, int a, int path_a) const {
 double TransMatrix::selfRecombDiffTimeProb(int min_k, int max_k,
                                            int max_d, int path_d,
                                            int a, int path_a) const {
+    if (min_k > max_k) return -INFINITY;
     static int count=0;
     static int total_count=0;
     total_count++;
@@ -261,9 +244,30 @@ double TransMatrix::selfRecombDiffTimeProb(int min_k, int max_k,
 //    time
 // term2 represents the sum over recoals that do not happen in same
 //    time interval
-double TransMatrix::self_recomb_prob(int a, int path_a,
+inline double TransMatrix::self_recomb_prob(int a, int path_a,
                                      int min_d, int max_d,
                                      int path_d) const {
+    /* Except for the D[a] term, the exact value of a does not matter if it
+       is less than or greater than the range [min_d, max_d]. So store
+       these redundant cases together */
+    // dimensions are:
+    // branch_path
+    // branch_start
+    // branch_end
+    // state_path
+    // state_time- use state_time=0, state_path=0 for state_time < branch_start
+    //    use state_time : 1 = branch_start, 2=branch_start+1, ...,
+    //        1 + branch_end -branch_start = branch_end,
+    //        2 + branch_end - branch_start for > branch_end
+    static MultiArray branchProbs(5, npaths, ntimes, ntimes, npaths, ntimes);
+    if (path_a == -1 && path_d == -1)
+        branchProbs.set_all(-1.0);
+    int age_idx = ( a > max_d ? max_d - min_d + 2 :
+                    ( a < min_d ? 0 :
+                      a - min_d + 1 ));
+    double rv = branchProbs.get(path_d, min_d, max_d, path_a, age_idx);
+    if (rv >= 0) return rv * D[a];
+
     double term1 = get_l_term(max_d, path_d, a, path_a)
         - get_l_term(min_d - 1, path_d, a, path_a);
     double term2 = selfRecombDiffTimeProb(min_d, max_d-1,
@@ -272,7 +276,8 @@ double TransMatrix::self_recomb_prob(int a, int path_a,
         return self_recomb_prob_slow_sum(a, path_a,
                                          min_d, max_d, path_d);
     }
-    double rv = D[a] * (term1 + exp(term2));
+    rv = term1 + exp(term2);
+    branchProbs.set(rv, path_d, min_d, max_d, path_a, age_idx);
 
     if (0) {
         double slow_prob = self_recomb_prob_slow_sum(a, path_a,
@@ -282,8 +287,8 @@ double TransMatrix::self_recomb_prob(int a, int path_a,
                    rv, slow_prob, (rv - slow_prob)/slow_prob, a, min_d, max_d);
         }
     }
-    assert(rv >= -1.0e-5);
-    return rv;
+
+    return rv * D[a];
 }
 
 
@@ -432,6 +437,7 @@ void TransMatrix::calc_self_recomb_probs_smcPrime(const LocalTree *tree,
     const int maintree_root = internal  ? tree->nodes[tree->root].child[1] : -1;
     int root_age_index = internal ? tree->nodes[maintree_root].age : tree->nodes[tree->root].age;
 
+    self_recomb_prob(-1, -1, -1, -1, -1); //reset probs
     // now need to calculate self_recombs[node][time] for all nodes, times
     // not implemented efficiently yet
     for (unsigned int s=0; s < states.size(); s++) {
@@ -476,10 +482,8 @@ void TransMatrix::calc_self_recomb_probs_smcPrime(const LocalTree *tree,
             int age = tree->nodes[node].age;
             int parent_age = tree->nodes[tree->nodes[node].parent].age;
             int path_d = tree->nodes[node].pop_path;
-            if (a == age) {
-                prob += self_recomb_prob(a, path_a, age, a, path_d);
-            } else if (a == parent_age) {
-                prob += self_recomb_prob(a, path_a, a, parent_age, path_d);
+            if (a == age || a == parent_age) {
+                prob += self_recomb_prob(a, path_a, a, a, path_d);
             } else {
                 prob += (self_recomb_prob(a, path_a, age, a, path_d)
                          +self_recomb_prob(a, path_a, a, parent_age, path_d)

@@ -403,7 +403,6 @@ public:
     double get_l_term(int d, int path_d, int a, int path_a) const;
     double get_k_term(int d, int path_d, int a, int path_a) const;
     double get_b_term(int d, int path_d, int a, int path_a) const;
-    double get_b_term_old(int d, int path_d, int a, int path_a) const;
     double get_rk_term(int d, int path_d, int a, int path_a) const;
     double selfRecombDiffTimeProb(int min_k, int max_k, int max_d,
                                   int path_d, int a, int path_a) const;
