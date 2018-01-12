@@ -15,7 +15,8 @@ namespace argweaver {
          va_list ap;
          va_start(ap, ndim);
          dimSize = new int[ndim];
-         multipliers = new int[max(1, ndim-1)];
+         multipliers = new int[ndim];
+         multipliers[ndim-1] = 1;
          matSize = 1;
          for (int i=0; i < ndim; i++) {
              dimSize[i] = va_arg(ap, int);
@@ -37,7 +38,7 @@ namespace argweaver {
          defaultVal = val;
      }
 
-     /*     void set(int *idxArr, double val) {
+     void set(int *idxArr, double val) {
          int idx=0;
          for (int i=0; i < ndim; i++)
              idx += idxArr[i] * multipliers[i];
@@ -51,7 +52,7 @@ namespace argweaver {
              idx += va_arg(ap, int) * multipliers[i];
          va_end(ap);
          mat[idx] = val;
-         }*/
+     }
      void set_all(double val) {
          for (int i=0; i < matSize; i++)
              mat[i] = val;
@@ -160,7 +161,7 @@ namespace argweaver {
      // should have the same number of arguments as the dimension of the matrix
      // returns mat[pos1][pos2][...]
      // if any of the positions are < 0, returns 0.0
-     /*     double get(int pos1, ...) {
+     double get(int pos1, ...) {
          va_list ap;
          int idx = pos1 * multipliers[0];
          va_start(ap, pos1);
@@ -171,7 +172,7 @@ namespace argweaver {
          }
          va_end(ap);
          return mat[idx];
-         }*/
+     }
 
      int ndim;
      int *dimSize;
