@@ -43,9 +43,6 @@ const char *STATS_SUFFIX = ".stats";
 const char *LOG_SUFFIX = ".log";
 const char *COAL_RECORDS_SUFFIX = ".cr";
 
-// debug options level
-const int DEBUG_OPT = 1;
-
 
 const int EXIT_ERROR = 1;
 
@@ -172,9 +169,6 @@ public:
         config.add(new ConfigSwitch
                    ("-h", "--help", &help,
                     "display help information"));
-        config.add(new ConfigSwitch
-                   ("", "--help-advanced", &help_debug,
-                    "display help information about advanced options"));
     }
 
     int parse_args(int argc, char **argv)
@@ -189,12 +183,6 @@ public:
         // display help
         if (help) {
             config.printHelp();
-            return EXIT_ERROR;
-        }
-
-        // display debug help
-        if (help_debug) {
-            config.printHelp(stderr, DEBUG_OPT);
             return EXIT_ERROR;
         }
 
