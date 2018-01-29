@@ -28,7 +28,7 @@
 using namespace argweaver;
 
 // version info
-#define VERSION_TEXT "0.8.1"
+#define VERSION_TEXT "1.0"
 #define VERSION_INFO  "\
 ARGweaver " VERSION_TEXT " \n\
 Matt Rasmussen\n\
@@ -42,9 +42,10 @@ const char *STATS_SUFFIX = ".stats";
 const char *LOG_SUFFIX = ".log";
 const char *COAL_RECORDS_SUFFIX = ".cr";
 
-// debug options level
-const int DEBUG_OPT = 1;
-
+// help categories
+const int ADVANCED_OPT = 1;
+const int POPMODEL_OPT = 2;
+const int EXPERIMENTAL_OPT = 3;
 
 const int EXIT_ERROR = 1;
 
@@ -66,8 +67,12 @@ public:
     void make_parser()
     {
         config.clear();
-
+        config.add(new ConfigParamComment("Input/output options"));
         // input/output
+        config.add(new ConfigParam<string>
+		   ("-o", "--output", "<output prefix>", &out_prefix,
+                    "arg-sample",
+                    "prefix for all output filenames (default='arg-sample')"));
 	config.add(new ConfigParam<string>
 		   ("-s", "--sites", "<sites alignment>", &sites_file,
 		    "sequence alignment in sites format"));
@@ -92,40 +97,24 @@ public:
                     " (one per line). All files should be aligned to same reference"
                     " genome"));
         config.add(new ConfigParam<string>
-                   ("", "--vcf-genotype-filter", "<filter string>", &vcf_filter,
-                    "String describing filtering for individual genotypes in VCF file."
-                    " For example: \"GQ<5;DP<4;DP>30\" will mask genotypes with"
-                    " GQ < 5 or DP < 4 or DP > 30. Currently the comparison operator"
-                    " can only be < or >. All filtered genotypes will be masked."));
-        config.add(new ConfigParam<double>
-                   ("", "--vcf-min-qual", "<minQualScore>", &vcf_min_qual, 0.0,
-                    "Minimum QUAL score for variants read from VCF. Others will be"
-                    " masked. Default=0"));
+                   ("", "--tabix-dir", "<directory>", &tabix_dir,
+                    " path to tabix executable. May be required if using --vcf"
+                    " and tabix is not in PATH"));
+	config.add(new ConfigParam<string>
+		   ("", "--age-file", "<age file>", &age_file,
+		    " file giving age for any ancient samples (two-columns, "
+		    " first column is sample name, second age in generations)."
+		    " Age will be rounded to nearest discrete time point in"
+		    " the model, with a maximum of the second-to-oldest point."));
+
         config.add(new ConfigSwitch
                    ("", "--use-genotype-probs", &use_genotype_probs,
                     "(for VCF input) Use genotype probabilities given by the"
                     " PL, GL, or PP scores in the VCF file. Default: ignore these scores and"
                     " treat assigned genotypes (after any filters) as"
-                    " certain.", DEBUG_OPT));
-        config.add(new ConfigParam<double>
-                   ("", "--mask-uncertain", "<cutoff>", &mask_uncertain, 0.0,
-                    "(for use --use-genotype-probs)"
-                    " Mask any genotype if probability of most likely call < cutoff"
-                    " according to PL score in VCF file", DEBUG_OPT));
-        config.add(new ConfigParam<string>
-                   ("", "--pop-file", "<population assigment file>", &pop_file,
-                    "file assigning each haplotype to a population index",
-                    DEBUG_OPT));
-	config.add(new ConfigParam<string>
-		   ("-o", "--output", "<output prefix>", &out_prefix,
-                    "arg-sample",
-                    "prefix for all output filenames (default='arg-sample')"));
-        config.add(new ConfigParam<string>
-                   ("-a", "--arg", "<SMC file>", &arg_file, "",
-                    "initial ARG file (*.smc) for resampling (optional)"));
-        /*        config.add(new ConfigParam<string>
-                   ("", "--cr", "<CR file>", &cr_file, "",
-                   "initial ARGfile (*.cf) for resampling (optional)"));*/
+                    " certain.", ADVANCED_OPT));
+
+
         config.add(new ConfigParam<string>
                    ("", "--region", "<start>-<end>",
                     &subregion_str, "",
@@ -133,6 +122,45 @@ public:
                     "the [chr:] prefix should be added ONLY if alignment is in"
                     "vcf format. If this option is given, the vcf must also"
                     "be indexed with tabix"));
+        config.add(new ConfigParam<string>
+                   ("", "--subsites", "<subsites file>", &subsites_file,
+                    "file listing NAMES from sites file (or sequences from"
+                    " fasta) to keep; others will not be used. May be diploid"
+                    " or haploid names (i.e., ind will have same effect as"
+                    " ind_1 and ind_2)"));
+        config.add(new ConfigParam<string>
+                   ("-a", "--arg", "<SMC file>", &arg_file, "",
+                    "initial ARG file (*.smc) for resampling (optional)"));
+        /*        config.add(new ConfigParam<string>
+                   ("", "--cr", "<CR file>", &cr_file, "",
+                   "initial ARGfile (*.cf) for resampling (optional)"));*/
+
+        config.add(new ConfigSwitch
+                   ("", "--unphased", &unphased,
+                    "data is unphased (will integrate over phasings)."));
+        config.add(new ConfigParam<string>
+                   ("", "--unphased-file", "<filename>", &unphased_file, "",
+                    "use this file to identify haplotype pairs (file should"
+                    " have two sequence names per line). By default, will"
+                    " first check for the naming convention <ind>_1 <ind>_2 to"
+                    " determine pairs. If the convention is not used, will assume"
+                    " haplotype pairs are adjacent to each other in sequence"
+                    " file. This option should not be used with VCF files."));
+        config.add(new ConfigParam<double>
+                   ("", "--randomize-phase", "<frac_random>", &randomize_phase,
+                    0.0, "randomize phasings at start", ADVANCED_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--no-sample-phase", &no_sample_phase,
+                    "Do not sample phase. Otherwise, if data is unphased, phase"
+                    " will be sampled at same frequency as ARGs", ADVANCED_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--sample-phase", "<niters>", &sample_phase_step, 0,
+                    "output phasings every <niters> samples. The default"
+                    " is to sample at same frequency as ARGs (see --sample-step),"
+                    " unless --no-sample-phase is given",
+                    ADVANCED_OPT));
+
+        config.add(new ConfigParamComment("Masking options"));
 	config.add(new ConfigParam<string>
 		   ("", "--maskmap", "<sites mask>",
                     &maskmap, "",
@@ -156,14 +184,22 @@ public:
                     " must be observed at each site to count as a variant;"
                     " windows are determined after applying --subsites but"
                     " before any masking or compression is performed)"));
-
-
         config.add(new ConfigParam<string>
-                   ("", "--subsites", "<subsites file>", &subsites_file,
-                    "file listing NAMES from sites file (or sequences from"
-                    " fasta) to keep; others will not be used. May be diploid"
-                    " or haploid names (i.e., ind will have same effect as"
-                    " ind_1 and ind_2)"));
+                   ("", "--vcf-genotype-filter", "<filter string>", &vcf_filter,
+                    "String describing filtering for individual genotypes in VCF file."
+                    " For example: \"GQ<5;DP<4;DP>30\" will mask genotypes with"
+                    " GQ < 5 or DP < 4 or DP > 30. Currently the comparison operator"
+                    " can only be < or >. All filtered genotypes will be masked."));
+        config.add(new ConfigParam<double>
+                   ("", "--vcf-min-qual", "<minQualScore>", &vcf_min_qual, 0.0,
+                    "Minimum QUAL score for variants read from VCF. Others will be"
+                    " masked. Default=0"));
+        config.add(new ConfigParam<double>
+                   ("", "--mask-uncertain", "<cutoff>", &mask_uncertain, 0.0,
+                    "(for use --use-genotype-probs)"
+                    " Mask any genotype if probability of most likely call < cutoff"
+                    " according to PL score in VCF file", ADVANCED_OPT));
+
 #ifdef ARGWEAVER_MPI
         config.add(new ConfigSwitch
                    ("", "--mpi", &mpi, "this is an mpi run, add <rank>.sites"
@@ -171,93 +207,22 @@ public:
                     " <rank>.smc.gz to --arg option (if given)"));
 #endif
 
-	config.add(new ConfigParam<string>
-		   ("", "--age-file", "<age file>", &age_file,
-		    " file giving age for any ancient samples (two-columns, "
-		    " first column is sample name, second age in generations)."
-		    " Age will be rounded to nearest discrete time point in"
-		    " the model, with a maximum of the second-to-oldest point."));
-        config.add(new ConfigParam<string>
-                   ("", "--tabix-dir", "<directory>", &tabix_dir,
-                    " path to tabix executable. May be required if using --vcf"
-                    " and tabix is not in PATH"));
         // model parameters
         config.add(new ConfigParamComment("Model parameters"));
-        config.add(new ConfigParam<string>
-                   ("-N", "--popsize", "<population size>", &popsize_str,
-                    "10000",
-                    "effective population size (default=1e4)"));
-        config.add(new ConfigParam<string>
-                   ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
-                    "", "File describing population tree (for multiple populations)"));
-        config.add(new ConfigParam<int>
-                   ("", "--max-migs", "<max_migs>", &max_migrations,
-                    -1, "For use with --pop-tree-file, do not thread lineages with more"
-                    " than this many migrations. The default of -1 implies no maximum."
-                    " Setting this value may reduce runtime significantly."));
-	config.add(new ConfigParam<int>
-		   ("", "--popsize-em", "<n>", &popsize_em, 0,
-		    "Do EM update of popsizes after every n threading operations"));
-	config.add(new ConfigParam<double>
-		   ("", "--popsize-em-min-event", "<num>", &popsize_em_min_event,
-		    2000.0,
-		    "Minimum number of events per time interval; time intervals with"
-		    " fewer events will be combined with previous time interval for"
-		    " EM computations"));
-        config.add(new ConfigParam<int>
-                   ("", "--sample-popsize", "<num>", &sample_popsize_num, 0,
-                    "sample population size using Hamiltonian Monte Carlo every"
-                    "<num> threading operations (default=0 means do not sample)"));
-        config.add(new ConfigParam<int>
-                   ("", "--popsize-config", "<num>", &popsize_config, 0,
-                    "Choose configuration for population sizes:\n"
-                    "  0: constant population size across time (default)\n"
-                    "  1: different population size in each population\n"
-                    "  2: most fine-grained; different population size in each time\n"
-                    " interval and population\n"));
-        config.add(new ConfigSwitch
-                   ("", "--sample-popsize-const", &sample_popsize_const,
-                    "update popsize but keep constant across times/populations"));
-        config.add(new ConfigParam<string>
-                   ("", "--sample-popsize-config", "<popsize config file>",
-                    &popsize_config_file, "",
-                    "optional, for use with --sample-popsize.\n"
-                    " Overrides popsize-config option, which provides some common configs\n"
-                    " This file should contain up to 2-5 entries per line, in the format:"
-                    " <param_name> <time_idx> <pop_idx=0> <optimize=1> <init_val=N>\n"
-                    " The last three values are optional. All entries with the same\n"
-                    " param_name will be constrained to have the same population size\n"
-                    " Population sizes are initialized to the default value of N unless\n"
-                    " specified here."));
-	config.add(new ConfigParam<double>
-		   ("", "--epsilon", "<val>", &epsilon,
-		    0.01, "(for use with --sample-popsize) epsilon value for"
-		    "Hamiltonian population size updates", DEBUG_OPT));
-        config.add(new ConfigParam<double>
-		   ("", "--pseudocount", "<val>", &pseudocount,
-		    1.0, "(for use with --sample-popsize) gives weight to prior",
-		    DEBUG_OPT));
-#ifdef ARGWEAVER_MPI
-        config.add(new ConfigParam<int>
-                   ("", "--mcmcmc", "<int>", &mcmcmc_numgroup,
-                    1, "number of mcmcmc threads",
-                    DEBUG_OPT));
-        config.add(new ConfigParam<double>
-                   ("", "--mcmcmc-heat", "<val>", &mcmcmc_heat,
-                    0.05, "heat interval for each thread in (MC)^3 group",
-                    DEBUG_OPT));
-#endif
-        config.add(new ConfigSwitch
-                   ("", "--init-popsize-random", &init_popsize_random,
-                    "(for use with --sample-popsize). Initialize each"
-                    " population size parameter to a random number sampled"
-                    " uniformly in [5000, 50000]"));
         config.add(new ConfigParam<double>
                    ("-m", "--mutrate", "<mutation rate>", &mu, 2.5e-8,
                     "mutations per site per generation (default=2.5e-8)"));
+        config.add(new ConfigParam<string>
+                   ("-M", "--mutmap", "<mutation rate map file>", &mutmap, "",
+                    "mutation map file (optional)"));
         config.add(new ConfigParam<double>
                    ("-r", "--recombrate", "<recombination rate>", &rho, 1.5e-8,
                     "recombination per site per generation (default=1.5e-8)"));
+        config.add(new ConfigParam<string>
+                   ("-R", "--recombmap", "<recombination rate map file>",
+                    &recombmap, "",
+                    "recombination map file (optional)"));
+
         config.add(new ConfigParam<int>
                    ("-t", "--ntimes", "<ntimes>", &ntimes, 20,
                     "number of time points (default=20)"));
@@ -270,7 +235,14 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--delta", "<delta>", &delta, 0.01,
                     "delta value for choosing log times (bigger value-> more"
-                    " dense time points at leaves", DEBUG_OPT));
+                    " dense time points at leaves"));
+        config.add(new ConfigParam<string>
+                   ("", "--times-file", "<times filename>", &times_file, "",
+                    "file containing time points (optional)"));
+        config.add(new ConfigParam<string>
+                   ("-N", "--popsize", "<population size>", &popsize_str,
+                    "10000",
+                    "effective population size (default=1e4)"));
         config.add(new ConfigParam<string>
                    ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
                     "Two column file with columns time, popsize."
@@ -280,16 +252,102 @@ public:
                     " the first row having t=0.\n"
                     " If using the multiple population model, a third colum indicates"
                     "   the population number, with the first population numbered zero"));
+        // note the following two are ConfigSwitch with default value=true,
+        // so that providing the switch makes the variable false
+        config.add(new ConfigSwitch
+                   ("", "--smc-orig", &model.smc_prime,
+                    "Use non-prime SMC model instead of SMC-prime", 0, true));
+        config.add(new ConfigSwitch
+                   ("", "--invisible-recombs", &invisible_recombs,
+                    "Output invisible recombinations which do not affect tree"
+                    " topology (this will provide more accurate count of"
+                    " recombination events, but may increase the runtime",
+                    ADVANCED_OPT, false));
+
+        // Population model options
         config.add(new ConfigParam<string>
-                   ("", "--times-file", "<times filename>", &times_file, "",
-                    "file containing time points (optional)"));
+                   ("", "--pop-file", "<population assigment file>", &pop_file,
+                    "file assigning each haplotype to a population index",
+                    POPMODEL_OPT));
         config.add(new ConfigParam<string>
-                   ("-M", "--mutmap", "<mutation rate map file>", &mutmap, "",
-                    "mutation map file (optional)"));
+                   ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
+                    "", "File describing population tree (for multiple populations)",
+                    POPMODEL_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--max-migs", "<max_migs>", &max_migrations,
+                    -1, "For use with --pop-tree-file, do not thread lineages with more"
+                    " than this many migrations. The default of -1 implies no maximum."
+                    " Setting this value may reduce runtime significantly.",
+                    POPMODEL_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--no-resample-mig", &no_resample_mig,
+                    "Do not perform migration-specific resampling",
+                    POPMODEL_OPT));
+
+
+        // Population size sampling options
+        config.add(new ConfigParamComment("Population size sampling", EXPERIMENTAL_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--sample-popsize", "<num>", &sample_popsize_num, 0,
+                    "sample population size using Hamiltonian Monte Carlo every"
+                    "<num> threading operations (default=0 means do not sample)",
+                    EXPERIMENTAL_OPT));
+	config.add(new ConfigParam<int>
+		   ("", "--popsize-em", "<n>", &popsize_em, 0,
+		    "Do EM update of popsizes after every n threading operations",
+                    EXPERIMENTAL_OPT));
+	config.add(new ConfigParam<double>
+		   ("", "--popsize-em-min-event", "<num>", &popsize_em_min_event,
+		    2000.0,
+		    "Minimum number of events per time interval; time intervals with"
+		    " fewer events will be combined with previous time interval for"
+		    " EM computations", EXPERIMENTAL_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--popsize-config", "<num>", &popsize_config, 0,
+                    "Choose configuration for population sizes:\n"
+                    "  0: constant population size across time (default)\n"
+                    "  1: different population size in each population\n"
+                    "  2: most fine-grained; different population size in each time\n"
+                    " interval and population",
+                    EXPERIMENTAL_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--sample-popsize-const", &sample_popsize_const,
+                    "update popsize but keep constant across times/populations",
+                    EXPERIMENTAL_OPT));
         config.add(new ConfigParam<string>
-                   ("-R", "--recombmap", "<recombination rate map file>",
-                    &recombmap, "",
-                    "recombination map file (optional)"));
+                   ("", "--sample-popsize-config", "<popsize config file>",
+                    &popsize_config_file, "",
+                    "optional, for use with --sample-popsize.\n"
+                    " Overrides popsize-config option, which provides some common configs\n"
+                    " This file should contain up to 2-5 entries per line, in the format:"
+                    " <param_name> <time_idx> <pop_idx=0> <optimize=1> <init_val=N>\n"
+                    " The last three values are optional. All entries with the same\n"
+                    " param_name will be constrained to have the same population size\n"
+                    " Population sizes are initialized to the default value of N unless\n"
+                    " specified here.", EXPERIMENTAL_OPT));
+	config.add(new ConfigParam<double>
+		   ("", "--epsilon", "<val>", &epsilon,
+		    0.01, "(for use with --sample-popsize) epsilon value for"
+		    "Hamiltonian population size updates", EXPERIMENTAL_OPT));
+        config.add(new ConfigParam<double>
+		   ("", "--pseudocount", "<val>", &pseudocount,
+		    1.0, "(for use with --sample-popsize) gives weight to prior",
+		    EXPERIMENTAL_OPT));
+#ifdef ARGWEAVER_MPI
+        config.add(new ConfigParam<int>
+                   ("", "--mcmcmc", "<int>", &mcmcmc_numgroup,
+                    1, "number of mcmcmc threads",
+                    EXPERIMENTAL_OPT));
+        config.add(new ConfigParam<double>
+                   ("", "--mcmcmc-heat", "<val>", &mcmcmc_heat,
+                    0.05, "heat interval for each thread in (MC)^3 group",
+                    EXPERIMENTAL_OPT));
+#endif
+        config.add(new ConfigSwitch
+                   ("", "--init-popsize-random", &init_popsize_random,
+                    "(for use with --sample-popsize). Initialize each"
+                    " population size parameter to a random number sampled"
+                    " uniformly in [5000, 50000]", EXPERIMENTAL_OPT));
 
 
         // sampling
@@ -310,11 +368,7 @@ public:
 		   ("", "--no-sample-arg", &no_sample_arg,
 		    "Do not sample the ARG; hold at initial value "
 		    "(usually for use with --sample-popsize)",
-		    DEBUG_OPT));
-        config.add(new ConfigSwitch
-                   ("", "--no-resample-mig", &no_resample_mig,
-                    "Do not perform migration-specific resampling",
-                   DEBUG_OPT));
+		    EXPERIMENTAL_OPT));
 
         // misc
         config.add(new ConfigParamComment("Miscellaneous"));
@@ -324,16 +378,16 @@ public:
                     "alignment compression factor (default=1)"));
         config.add(new ConfigParam<int>
                    ("", "--climb", "<# of climb iterations>", &nclimb, 0,
-                    "(default=0)"));
+                    "(default=0)", ADVANCED_OPT));
         config.add(new ConfigParam<int>
 		   ("", "--num-buildup", "<# of buildup iterations>", &num_buildup,
-                    1, "(default=0)"));
+                    1, "(default=0)", ADVANCED_OPT));
         config.add(new ConfigParam<int>
                    ("", "--sample-step", "<sample step size>", &sample_step,
                     10, "number of iterations between steps (default=10)"));
         config.add(new ConfigSwitch
                    ("", "--no-compress-output", &no_compress_output,
-                    "do not use compressed output"));
+                    "do not gzip output files"));
         config.add(new ConfigParam<int>
                    ("-x", "--randseed", "<random seed>", &randseed, 0,
                     "seed for random number generator (default=current time)"));
@@ -344,65 +398,30 @@ public:
                    ("", "--write-sites-only", &write_sites_only,
                     "Same as --write-sites, but exit after reading and writing sites\n"));
 
-        // advance options
-        config.add(new ConfigParamComment("Advanced Options", DEBUG_OPT));
+        // advanced options
+        config.add(new ConfigParamComment("Advanced Options", ADVANCED_OPT));
         config.add(new ConfigSwitch
                    ("", "--gibbs", &gibbs,
-                    "use Gibbs sampling"));
+                    "use Gibbs sampling", ADVANCED_OPT));
         config.add(new ConfigParam<double>
                    ("", "--prob-path-switch", "<probability>",
                     &prob_path_switch, .1,
-                    "removal path switch (default=.1)", DEBUG_OPT));
+                    "removal path switch (default=.1)", ADVANCED_OPT));
         config.add(new ConfigSwitch
                    ("", "--infsites", &infsites,
                     "assume infinite sites model (at most one mutation per site)",
-                    DEBUG_OPT));
-        config.add(new ConfigSwitch
-                   ("", "--unphased", &unphased,
-                    "data is unphased (will integrate over phasings)."));
-        config.add(new ConfigParam<string>
-                   ("", "--unphased-file", "<filename>", &unphased_file, "",
-                    "use this file to identify haplotype pairs (file should"
-                    " have two sequence names per line). By default, will"
-                    " first check for the naming convention <ind>_1 <ind>_2 to"
-                    " determine pairs. If the convention is not used, will assume"
-                    " haplotype pairs are adjacent to each other in sequence"
-                    " file. This option should not be used with VCF files."));
-        config.add(new ConfigParam<double>
-                   ("", "--randomize-phase", "<frac_random>", &randomize_phase,
-                    0.0, "randomize phasings at start", DEBUG_OPT));
-        config.add(new ConfigSwitch
-                   ("", "--no-sample-phase", &no_sample_phase,
-                    "Do not sample phase. Otherwise, if data is unphased, phase"
-                    " will be sampled at same frequency as ARGs"));
-        config.add(new ConfigParam<int>
-                   ("", "--sample-phase", "<niters>", &sample_phase_step, 0,
-                    "output phasings every <niters> samples. The default"
-                    " is to sample at same frequency as ARGs (see --sample-step),"
-                    " unless --no-sample-phase is given",
-                    DEBUG_OPT));
+                    ADVANCED_OPT));
         config.add(new ConfigParam<int>
                    ("", "--resample-window", "<window size>",
                     &resample_window, 100000,
                     "sliding window for resampling (default=100000)",
-                    DEBUG_OPT));
+                    ADVANCED_OPT));
         config.add(new ConfigParam<int>
                    ("", "--resample-window-iters", "<iterations>",
                     &resample_window_iters, 10,
                     "number of iterations per sliding window for resampling"
-                    " (default=10)", DEBUG_OPT));
-        // note the following two are ConfigSwitch with default value=true,
-        // so that providing the switch makes the variable false
-        config.add(new ConfigSwitch
-                   ("", "--smc-orig", &model.smc_prime,
-                    "Use non-prime SMC model consistent with original ARGweaver"
-                    " release (otherwise use SMC')", DEBUG_OPT, true));
-        config.add(new ConfigSwitch
-                   ("", "--invisible-recombs", &invisible_recombs,
-                    "Output invisible recombinations which do not affect tree"
-                    " topology (this will provide more accurate count of"
-                    " recombination events, but may increase the runtime",
-                    DEBUG_OPT, false));
+                    " (default=10)", ADVANCED_OPT));
+
 
         // help information
         config.add(new ConfigParamComment("Information"));
@@ -418,8 +437,16 @@ public:
                    ("-h", "--help", &help,
                     "display help information"));
         config.add(new ConfigSwitch
-                   ("", "--help-advanced", &help_debug,
+                   ("", "--help-advanced", &help_advanced,
                     "display help information about advanced options"));
+        config.add(new ConfigSwitch
+                   ("", "--help-experimental", &help_experimental,
+                    "display help information about experimental options",
+                    ADVANCED_OPT));
+        config.add(new ConfigSwitch
+                   ("", "--help-popmodel", &help_popmodel,
+                    "display help information for population-based models"
+                    " (advanced usage)", ADVANCED_OPT));
     }
 
     int parse_args(int argc, char **argv)
@@ -438,8 +465,18 @@ public:
         }
 
         // display debug help
-        if (help_debug) {
-            config.printHelp(stderr, DEBUG_OPT);
+        if (help_advanced) {
+            config.printHelp(stderr, ADVANCED_OPT);
+            return EXIT_ERROR;
+        }
+
+        if (help_popmodel) {
+            config.printHelp(stderr, POPMODEL_OPT);
+            return EXIT_ERROR;
+        }
+
+        if (help_experimental) {
+            config.printHelp(stderr, EXPERIMENTAL_OPT);
             return EXIT_ERROR;
         }
 
@@ -560,7 +597,9 @@ public:
     int verbose;
     bool version;
     bool help;
-    bool help_debug;
+    bool help_advanced;
+    bool help_experimental;
+    bool help_popmodel;
 
     // logging
     FILE *stats_file;
@@ -780,7 +819,10 @@ string get_out_sites_file(const Config &config, int iter)
     } else {
         snprintf(iterstr, 10, ".%d", iter);
     }
-    return config.out_prefix + config.mcmcmc_prefix + iterstr + SITES_SUFFIX;
+    string sitesfile = config.out_prefix + config.mcmcmc_prefix + iterstr + SITES_SUFFIX;
+    if (!config.no_compress_output)
+        sitesfile = sitesfile + ".gz";
+    return sitesfile;
 }
 
 bool log_sequences(string chrom, const Sequences *sequences,
@@ -789,8 +831,6 @@ bool log_sequences(string chrom, const Sequences *sequences,
     Sites sites(chrom);
     string out_sites_file = get_out_sites_file(*config, iter);
     make_sites_from_sequences(sequences, &sites);
-    if (!config->no_compress_output)
-        out_sites_file += ".gz";
     if (sites_mapping)
         uncompress_sites(&sites, sites_mapping);
     CompressStream stream(out_sites_file.c_str(), "w");
@@ -1316,6 +1356,31 @@ bool setup_resume(Config &config)
     }
     config.arg_file = arg_file;
 
+    string sites_file = get_out_sites_file(config, config.resume_iter);
+    Sites test_sites;
+    if (read_sites(sites_file.c_str(), &test_sites, -1, -1, true)) {
+        printLog(LOG_LOW, "Detected phased output sites file. Using %s as input"
+                 " and assuming data is unphased\n", sites_file.c_str());
+        config.sites_file = sites_file;
+        config.unphased=1;
+        config.vcf_file = "";
+        config.vcf_list_file = "";
+        config.subsites_file="";
+        config.fasta_file="";
+
+        string maskfile = config.out_prefix + config.mcmcmc_prefix + ".masked_regions.bed";
+        CompressStream stream(maskfile.c_str(), "r");
+        if (stream.stream != NULL) {
+            printLog(LOG_LOW, "Using mask file %s output from prior run\n",
+                     maskfile.c_str());
+            config.maskmap=maskfile;
+            config.maskN=-1;
+            config.mask_cluster="";
+            config.ind_maskmap="";
+            config.mask_uncertain=0.0;
+        }
+    }
+
     printLog(LOG_LOW, "resuming at stage=%s, iter=%d, arg=%s\n",
              config.resume_stage.c_str(), config.resume_iter,
              config.arg_file.c_str());
@@ -1381,6 +1446,21 @@ int main(int argc, char **argv)
     if (!check_overwrite(c))
         return EXIT_ERROR;
 
+    // setup logging
+    set_up_logging(c, c.verbose, (c.resume ? "a" : "w"));
+
+        // try to resume a previous run
+    if (!setup_resume(c)) {
+        printError("resume failed.");
+        if (c.overwrite) {
+            c.resume = false;
+            printLog(LOG_LOW, "Resume failed.  Sampling will start from scratch"
+                     " since overwrite is enabled.\n");
+        } else {
+            return EXIT_ERROR;
+        }
+    }
+
 #ifdef ARGWEAVER_MPI
     if (c.mpi) {
         int numcore = MPI::COMM_WORLD.Get_size();
@@ -1408,8 +1488,7 @@ int main(int argc, char **argv)
     }
 #endif
 
-    // setup logging
-    set_up_logging(c, c.verbose, (c.resume ? "a" : "w"));
+
 
     // log intro
     if (c.resume)
@@ -1680,8 +1759,9 @@ int main(int argc, char **argv)
     if (nmasked == (int)sequences.length())
         c.all_masked=true;
 
-    print_masked_regions(sequences, sites_mapping, sites.chrom,
-                         c.out_prefix + c.mcmcmc_prefix + ".masked_regions.bed");
+    if (!c.resume)
+        print_masked_regions(sequences, sites_mapping, sites.chrom,
+                             c.out_prefix + c.mcmcmc_prefix + ".masked_regions.bed");
     if (c.write_sites || c.write_sites_only) {
         log_sequences(sites.chrom, &sequences, &c, sites_mapping, -1);
         printLog(LOG_LOW, "Wrote sites\n");
@@ -1727,12 +1807,13 @@ int main(int argc, char **argv)
             printError("Cannot use --unphased-file with VCF input");
         c.model.unphased_file = c.unphased_file;
     }
-    sequences.set_pairs(&c.model);
+    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
+        c.model.unphased = true;
+    if (c.model.unphased)
+        sequences.set_pairs(&c.model);
     if (c.randomize_phase > 0.0) {
         sequences.randomize_phase(c.randomize_phase);
     }
-    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
-        c.model.unphased = true;
     if (c.no_sample_phase)
         c.sample_phase_step=0;
     else if (c.sample_phase_step == 0)
@@ -1794,17 +1875,6 @@ int main(int argc, char **argv)
         }
     }
 
-    // try to resume a previous run
-    if (!setup_resume(c)) {
-        printError("resume failed.");
-        if (c.overwrite) {
-            c.resume = false;
-            printLog(LOG_LOW, "Resume failed.  Sampling will start from scratch"
-                     " since overwrite is enabled.\n");
-        } else {
-            return EXIT_ERROR;
-        }
-    }
 
     // make compressed model
     ArgModel model(c.model);

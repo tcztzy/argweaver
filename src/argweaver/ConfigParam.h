@@ -33,13 +33,13 @@ class ConfigParamBase
 {
 public:
     ConfigParamBase(string shortarg, string longarg, string argstr,
-                    string help="", int debug=0) :
+                    string help="", int category=0) :
         kind(OPTION_ARG),
         shortarg(shortarg),
         longarg(longarg),
         argstr(argstr),
         help(help),
-        debug(debug)
+        category(category)
     {
     }
 
@@ -56,15 +56,15 @@ public:
     string longarg;
     string argstr;
     string help;
-    int debug;
+    int category;
 };
 
 
 class ConfigParamComment : public ConfigParamBase
 {
 public:
-    ConfigParamComment(string msg, int debug=0) :
-        ConfigParamBase("", "", "", "", debug),
+    ConfigParamComment(string msg, int category=0) :
+        ConfigParamBase("", "", "", "", category),
         msg(msg)
     {
         kind = OPTION_COMMENT;
@@ -87,16 +87,16 @@ class ConfigParam : public ConfigParamBase
 {
 public:
     ConfigParam(string shortarg, string longarg, string argstr,
-                T *value, string help, int debug=0) :
-        ConfigParamBase(shortarg, longarg, argstr, help, debug),
+                T *value, string help, int category=0) :
+        ConfigParamBase(shortarg, longarg, argstr, help, category),
         value(value),
         hasDefault(false)
     {
     }
 
     ConfigParam(string shortarg, string longarg, string argstr,
-                T *value, T defaultValue, string help, int debug=0) :
-        ConfigParamBase(shortarg, longarg, argstr, help, debug),
+                T *value, T defaultValue, string help, int category=0) :
+        ConfigParamBase(shortarg, longarg, argstr, help, category),
         value(value),
         defaultValue(defaultValue),
         hasDefault(true)
@@ -125,9 +125,9 @@ class ConfigSwitch : public ConfigParamBase
 {
 public:
     ConfigSwitch(string shortarg, string longarg,
-                 bool *value, string help, int debug=0,
+                 bool *value, string help, int category=0,
                  bool default_val=false) :
-    ConfigParamBase(shortarg, longarg, "", help, debug),
+    ConfigParamBase(shortarg, longarg, "", help, category),
         value(value), default_val(default_val)
     {
         *value = default_val;
@@ -261,14 +261,14 @@ public:
         return true;
     }
 
-    void printHelp(FILE *stream=stderr, int debug=0)
+    void printHelp(FILE *stream=stderr, int category=0)
     {
         fprintf(stream, "Usage: %s [OPTION]\n\n", prog.c_str());
 
         for (unsigned int i=0; i<rules.size(); i++) {
 
-            // skip rules that are for debug only if debug mode is not enabled
-            if (rules[i]->debug > debug)
+            //only print rules for the given category
+            if (rules[i]->category != category)
                 continue;
 
             if (rules[i]->kind == OPTION_ARG) {

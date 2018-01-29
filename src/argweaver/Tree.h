@@ -335,6 +335,8 @@ public:
     set<Node*> lca(set<Node*> derived);
     bool haveMig(int p[2], int t[2], const ArgModel *model);
 
+    double maxCoalRate(const ArgModel *model);
+
 protected:
     //returns age1-age2 and asserts it is positive,
     //rounds up to zero if slightly neg

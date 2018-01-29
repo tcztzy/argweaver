@@ -52,6 +52,7 @@ vector<string> ind_dist_leaf2;
 set<string> cluster_group;
 
 const int EXIT_ERROR = 1;
+const int EXPERIMENTAL_OPT = 3;
 
 class MigStat {
 public:
@@ -164,17 +165,15 @@ public:
                    "will return a boolean statistic named statName indicating existance"
                    "of a lineage that is in pop1 at the time interval immediately"
                    "after time t and pop2 at the time interval before time t2"
-                   "(indicating move from pop1 to pop2 looking backwards in time)"));
+                   "(indicating move from pop1 to pop2 looking backwards in time)",
+                   EXPERIMENTAL_OPT));
 
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
                    ("-E", "--tree", &rawtrees,
                     "output newick tree strings (cannot use summary options"
                     " with this)"));
-        config.add(new ConfigSwitch
-                   ("", "--html", &html,
-                    "output HTML instead of plain text (useful with --tree;"
-                    " makes link to GIF image)"));
+
         config.add(new ConfigSwitch
                    ("-T", "--tmrca", &tmrca,
                     "time to the most recent common ancestor"));
@@ -194,7 +193,7 @@ public:
         config.add(new ConfigSwitch
                    ("", "--invis-recombs-per-time", &invis_recombs_per_time,
                     "number of invisiblel recombinations for each time interval"
-                    " (requires --log-file)"));
+                    " (requires --log-file)", EXPERIMENTAL_OPT));
         config.add(new ConfigSwitch
                    ("", "--branchlen-per-time", &branchlen_per_time,
                    "total branchlen existing at each time interval"
@@ -213,8 +212,17 @@ public:
                     "popsize estimated by coal rates in local tree"
                     " (not recommended for estimating population sizes)"));
         config.add(new ConfigSwitch
+                   ("", "--max-coal-rate", &max_coal_rate,
+                    "Maximum rate of coalescence in tree (measured in fraction"
+                    " of branches coalescing per generation, take max over all pairs"
+                    " of discrete time points", EXPERIMENTAL_OPT));
+        config.add(new ConfigSwitch
                    ("-A", "--allele-age", &allele_age,
-                    "(requires --snp). Compute allele age for SNPs"));
+                    "(requires --snp). Compute allele age for SNPs. Only works"
+                    " for pre-phased SNPs"));
+        config.add(new ConfigSwitch
+                   ("", "--min-allele-age", &min_allele_age,
+                    "(requires --snp). Compute minimum possible age for SNP"));
         config.add(new ConfigParam<string>
                    ("-D", "--node-dist", "<leaf0;leaf1,leaf2;...>",
                     &node_dist,
@@ -254,15 +262,15 @@ public:
         config.add(new ConfigSwitch
                    ("-C", "--coalcounts", &coalcounts,
                     "number of coal events at each discretized time point"
-                    " (requires --timefile)"));
+                    " (requires --log-file)"));
         config.add(new ConfigSwitch
                    ("", "--coalcounts-cluster", &coalcounts_cluster,
                     "maximum number of coalescences clustered together at each time point"
-                    " (requires --timefile)"));
-        /*        config.add(new ConfigParam<string>
+                    " (requires --log-file)"));
+        config.add(new ConfigParam<string>
                    ("-G", "--group", "<group_file1,groupfile2,...>", &groupfile,
                     "Output boolean indicating whether individuals in each group"
-                    " file cluster together in the local tree."));*/
+                    " file cluster together in the local tree."));
         /*        config.add(new ConfigParam<string>
                    ("", "--group-no-root", "<group_noroot_file>",
                     &group_noroot_file,
@@ -288,12 +296,13 @@ public:
                     "For each leaf, indicate binary whether the SPR operation"
                     "at the end of segment affects the branch coming from that"
                     "leaf"));*/
-        /*        config.add(new ConfigParam<string>
+        config.add(new ConfigParam<string>
                    ("", "--cluster-test", "<group_file>", &cluster_group_file,
-                    "Return maximum likelihood ratio statistic across all nodes "
+                    "Return maximum likelihood ratio statistic"
                     " relating to whether lineages in group_file are randomly"
                     " disperesed between the children, as well as the time of the"
-                    " most significant node"));*/
+                    " most significant node (maximum taken over nodes)",
+                    EXPERIMENTAL_OPT));
         /*                    "Return minimum number of pruning operations required to "
                     " reduce each local tree to the lineages named in <group_file>."
                     " (Lower numbers indicate clustering)"));*/
@@ -324,11 +333,18 @@ public:
                    ("-t", "--tabix-dir", "<tabix dir>", &tabix_dir,
                     "Specify the directory of the tabix executable"));
         config.add(new ConfigSwitch
+                   ("", "--html", &html,
+                    "output HTML instead of plain text (useful with --tree;"
+                    " makes link to GIF image)", EXPERIMENTAL_OPT));
+        config.add(new ConfigSwitch
                    ("-q", "--quiet", &quiet, "Proceed quietly"));
         config.add(new ConfigSwitch
                    ("-v", "--version", &version, "display version information"));
         config.add(new ConfigSwitch
                    ("-h", "--help", &help, "display help information"));
+        config.add(new ConfigSwitch
+                   ("-h", "--help-advanced", &help_advanced,
+                    "display help information for experimental/advanced options"));
     }
 
     int parse_args(int argc, char **argv) {
@@ -339,6 +355,10 @@ public:
         }
         if (help) {
             config.printHelp();
+            return EXIT_ERROR;
+        }
+        if (help_advanced) {
+            config.printHelp(stderr, EXPERIMENTAL_OPT);
             return EXIT_ERROR;
         }
         if (version) {
@@ -376,7 +396,9 @@ public:
     bool tmrca_half;
     bool rth;
     bool popsize;
+    bool max_coal_rate;
     bool allele_age;
+    bool min_allele_age;
     string node_dist;
     bool node_dist_all;
     string min_coal_time;
@@ -398,6 +420,7 @@ public:
     bool quiet;
     bool version;
     bool help;
+    bool help_advanced;
 };
 
 void checkResults(IntervalIterator<vector<double> > *results) {
@@ -487,8 +510,9 @@ public:
 
 
 void scoreBedLine(BedLine *line, vector<string> &statname,
-                      ArgSummarizeData &data,
-                      double allele_age=-1, int infsites=-1) {
+                  ArgSummarizeData &data,
+                  double allele_age=-1, double min_allele_age = -1,
+                  int infsites=-1) {
     Tree * tree = (line->trees->pruned_tree != NULL ?
                    line->trees->pruned_tree :
                    line->trees->orig_tree);
@@ -526,6 +550,9 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
         else if (statname[i]=="zero_len") {
             line->stats[i] = tree->num_zero_branches();
         }
+        else if (statname[i]=="max_coal_rate") {
+            line->stats[i] = tree->maxCoalRate(model);
+        }
         else if (statname[i]=="tree") {
             if (line->trees->pruned_tree != NULL) {
                 string tmp =
@@ -537,6 +564,8 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
         }
         else if (statname[i]=="allele_age")
             line->stats[i] = allele_age;
+        else if (statname[i]=="min_allele_age")
+            line->stats[i] = min_allele_age;
         else if (statname[i]=="inf_sites")
             line->stats[i] = (double)infsites;
         else if (statname[i].substr(0, 9)=="node_dist") {
@@ -891,6 +920,8 @@ public:
 	    if (count[i] > count[allele1_val])
 		allele1_val = i;
 	}
+        // go to next line if this line is invariant
+        if (count[allele1_val] == 0) return readNext();
 	allele1 = int2dna[allele1_val];
 	allele2 = int2dna[allele2_val];
 	allele1_inds = allele_inds[allele1_val];
@@ -954,14 +985,16 @@ public:
             }
         }
         double age=0.0;
+        double minage=0.0;
         for (set<Node*>::iterator it4=lca.begin(); it4 != lca.end(); ++it4) {
             Node *n = *it4;
             assert(n != t->root);
             double tempage = n->age + (n->parent->age - n->age)/2;  //midpoint
+            minage = n->age;
             if (tempage > age) age = tempage;
         }
         if (num_derived == 0 || total-num_derived == 0) age = -1;
-        scoreBedLine(l, statname, data, age, lca.size()==1);
+        scoreBedLine(l, statname, data, age, minage, lca.size()==1);
         l->derAllele = (major_is_derived ? allele2 : allele1);
         l->otherAllele = (major_is_derived ? allele1 : allele2);
         l->derFreq = (major_is_derived ? total-num_derived : num_derived);
@@ -1487,10 +1520,14 @@ int main(int argc, char *argv[]) {
         statname.push_back(string("rth"));
     if (c.popsize)
         statname.push_back(string("popsize"));
+    if (c.max_coal_rate)
+        statname.push_back(string("max_coal_rate"));
     if (c.allele_age) {
         statname.push_back(string("allele_age"));
         statname.push_back(string("inf_sites"));
     }
+    if (c.min_allele_age)
+        statname.push_back(string("min_allele_age"));
     if (c.zero)
         statname.push_back(string("zero_len"));
 
@@ -1806,9 +1843,9 @@ int main(int argc, char *argv[]) {
                 " --allele-age\n");
         return 1;
     }
-    if (c.allele_age && c.snpfile.empty()) {
+    if ((c.allele_age || c.min_allele_age) && c.snpfile.empty()) {
         fprintf(stderr, "Error: need to specify snp file with --snp to use"
-                " --allele-age\n");
+                " --allele-age or --min-allele-age\n");
         return 1;
     }
 

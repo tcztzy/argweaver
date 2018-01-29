@@ -1375,6 +1375,7 @@ double Tree::cluster_test(const set<string> &cluster_groups,
     int count[nnodes];
     int total[nnodes];
     double maxstat=0.0;
+    double totalstat=0.0;
     *cluster_time = 0.0;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < nnodes; i++) {
@@ -1420,8 +1421,10 @@ double Tree::cluster_test(const set<string> &cluster_groups,
                 maxstat = currstat;
                 *cluster_time = postnodes[i]->age;
             }
+            totalstat += currstat;
         }
     }
+    return totalstat;
     return maxstat;
 }
 
@@ -1801,6 +1804,46 @@ bool Tree::haveMig(int p[2], int t[2], const ArgModel *model) {
     }
     return false;
 }
+
+
+double Tree::maxCoalRate(const ArgModel *model) {
+    int lineage_counts[model->ntimes];
+    int root_time = -1;
+    for (int i=0; i < model->ntimes; i++) lineage_counts[i]=0;
+    for (int i=0; i < nnodes; i++) {
+        int age;
+        for (age = 0; age < model->ntimes; age++)
+            if (fabs(nodes[i]->age - model->times[age]) < 1) break;
+        assert(age < model->ntimes);
+        Node *parent = nodes[i]->parent;
+        if (parent == NULL) {
+            root_time = age;
+            lineage_counts[root_time] = 1;
+            continue;
+        }
+        int parent_age;
+        for (parent_age=age; parent_age < model->ntimes; parent_age++)
+            if (fabs(parent->age - model->times[parent_age]) < 1) break;
+        assert(parent_age < model->ntimes);
+        for (int a=age; a < parent_age; a++)
+            lineage_counts[a]++;
+    }
+    double max_coal_rate=-1;
+    for (int start_time=0; start_time < root_time; start_time++) {
+        for (int end_time=start_time+1; end_time <= root_time; end_time++) {
+            double time = model->times[end_time] - model->times[start_time] +
+                model->coal_time_steps[2*end_time];
+            if (start_time > 0) time += model->coal_time_steps[2*start_time-1];
+            double coal_rate = (lineage_counts[start_time] - lineage_counts[end_time])/(double)lineage_counts[end_time]/time;
+            if (coal_rate > max_coal_rate) {
+                max_coal_rate = coal_rate;
+            }
+        }
+    }
+    return max_coal_rate;
+
+}
+
 
 //=============================================================================
 // primitive tree format conversion functions
