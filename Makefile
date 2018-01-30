@@ -39,7 +39,7 @@ endif
 ifdef DEBUG
 	CFLAGS := $(CFLAGS) -g -DDEBUG
 else
-	CFLAGS := $(CFLAGS) -O3 -funroll-loops
+	CFLAGS := $(CFLAGS) -O3 -funroll-loops -Wno-strict-overflow
 endif
 
 
