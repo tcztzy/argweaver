@@ -36,14 +36,7 @@ const char *SITES_SUFFIX = ".sites";
 const char *STATS_SUFFIX = ".stats";
 const char *LOG_SUFFIX = ".log";
 
-
-// debug options level
-const int DEBUG_OPT = 1;
-
-
 const int EXIT_ERROR = 1;
-
-
 
 // parsing command-line options
 class Config
@@ -112,18 +105,13 @@ public:
                     " third columns should also be the same."));
 	config.add(new ConfigSwitch
                    ("", "--sample-popsize-const", &sample_popsize_const,
-		    "sample popsize, keep constant across times", DEBUG_OPT));
+		    "sample popsize, keep constant across times"));
 	config.add(new ConfigParam<double>
                    ("", "--time-step", "<time>", &time_step, 0,
                     "linear time step in generations (optional)"));
-	config.add(new ConfigParam<double>
-		   ("", "--epsilon", "<val>", &epsilon,
-		    0.01, "(for use with --sample-popsize) epsilon value for"
-		    "Hamiltonian population size updates", DEBUG_OPT));
         config.add(new ConfigParam<double>
 		   ("", "--pseudocount", "<val>", &pseudocount,
-		    0.0, "gives weight to prior",
-		    DEBUG_OPT));
+		    0.0, "gives weight to prior"));
         config.add(new ConfigSwitch
                    ("", "--init-popsize-random", &init_popsize_random,
                     "(for use with --sample-popsize). Initialize each"
@@ -168,9 +156,6 @@ public:
         config.add(new ConfigSwitch
                    ("-h", "--help", &help,
                     "display help information"));
-        config.add(new ConfigSwitch
-                   ("", "--help-advanced", &help_debug,
-                    "display help information about advanced options"));
     }
 
     int parse_args(int argc, char **argv)
@@ -185,12 +170,6 @@ public:
         // display help
         if (help) {
             config.printHelp();
-            return EXIT_ERROR;
-        }
-
-        // display debug help
-        if (help_debug) {
-            config.printHelp(stderr, DEBUG_OPT);
             return EXIT_ERROR;
         }
 
@@ -224,7 +203,6 @@ public:
     string popsize_config_file;
     int sample_popsize_num;
     bool sample_popsize_const;
-    double epsilon;
     double pseudocount;
     int arg_start, arg_step;
     double min_events;
@@ -247,7 +225,6 @@ public:
     int verbose;
     bool version;
     bool help;
-    bool help_debug;
 
     //logging
     FILE *stats_file;
@@ -331,7 +308,7 @@ void print_stats_header(Config *config) {
 void print_stats_popsizes(Config *config, int iter, ArgModel *model) {
     fprintf(config->stats_file, "popsize_mle\t%i", iter);
     for (int i=0; i < config->model.ntimes-1; i++)
-	fprintf(config->stats_file, "\t%.1f", model->popsizes[2*i]);
+	fprintf(config->stats_file, "\t%.1lf", model->popsizes[2*i]);
     fprintf(config->stats_file, "\n");
 }
 
