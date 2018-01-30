@@ -266,7 +266,7 @@ inline double TransMatrix::self_recomb_prob(int a, int path_a,
                     ( a < min_d ? 0 :
                       a - min_d + 1 ));
     double rv = branchProbs.get(path_d, min_d, max_d, path_a, age_idx);
-    if (rv >= 0) return rv * D[a];
+    if (rv >= 0) return rv;
 
     double term1 = get_l_term(max_d, path_d, a, path_a)
         - get_l_term(min_d - 1, path_d, a, path_a);
@@ -288,7 +288,7 @@ inline double TransMatrix::self_recomb_prob(int a, int path_a,
         }
     }
 
-    return rv * D[a];
+    return rv;
 }
 
 
@@ -357,7 +357,7 @@ double TransMatrix::self_recomb_prob_slow(int a, int path_a,
         } else {
             eterm = E2_prime->get(path_d, path_a, d);
         }
-        prob = exp(bterm + cterm + log(pathprob * D[a] * eterm));
+        prob = exp(bterm + cterm + log(pathprob * eterm));
         assert(!isnan(prob));
     }
     double term2;
@@ -370,7 +370,7 @@ double TransMatrix::self_recomb_prob_slow(int a, int path_a,
         term2 = G2_prime->get(path_d, path_a, d)
             * F2_prime->get(path_d, path_a, d);
     }
-    prob += D[a] * term2;
+    prob += term2;
     assert(!isnan(prob));
     return prob;
 }
@@ -490,7 +490,7 @@ void TransMatrix::calc_self_recomb_probs_smcPrime(const LocalTree *tree,
                          -self_recomb_prob(a, path_a, age, parent_age, path_d));
             }
         }
-        self_recomb[s] = prob;
+        self_recomb[s] = prob * D[a];
         //        assert(self_recomb[s] + norecombs[a] <= 1.0);
     }
 }
