@@ -133,11 +133,11 @@ void write_fasta(FILE *stream, Sequences *seqs)
 void write_sites(FILE *stream, Sites *sites, bool write_masked) {
     bool have_base_probs = sites->base_probs.size() > 0;
     int nseq = (int)sites->names.size();
-    fprintf(stream, "NAMES");
+    fprintf(stream, "#NAMES");
     for (int i=0; i < nseq; i++)
         fprintf(stream, "\t%s", sites->names[i].c_str());
     fprintf(stream, "\n");
-    fprintf(stream, "REGION\t%s\t%i\t%i\n",
+    fprintf(stream, "#REGION\t%s\t%i\t%i\n",
             sites->chrom.c_str(), sites->start_coord + 1, sites->end_coord);
     if (sites->positions.size() != sites->cols.size()) {
         fprintf(stderr, "Error in write_sites: positions.size()=%i cols.size=%i\n",
@@ -189,13 +189,26 @@ bool read_sites(FILE *infile, Sites *sites,
 
     // parse lines
     int lineno = 0;
+    bool isHeader=false;
+    char *line0;
+
     while (!error && (line = fgetline(infile))) {
         chomp(line);
         lineno++;
+        if (line[0] == '#') {
+            isHeader=true;
+            unsigned int i=1;
+            for (; i < strlen(line); i++)
+                if (!(line[i] == '#' || isspace(line[i]))) break;
+            line0 = &line[i];
+        } else {
+            isHeader=false;
+            line0=line;
+        }
 
-        if (strncmp(line, "NAMES\t", 6) == 0) {
+        if (strncmp(line0, "NAMES\t", 6) == 0) {
             // parse NAMES line
-            split(&line[6], delim, sites->names);
+            split(&line0[6], delim, sites->names);
             nseqs = sites->names.size();
 
             // assert every name is non-zero in length
@@ -210,10 +223,10 @@ bool read_sites(FILE *infile, Sites *sites,
                 }
             }
 
-        } else if (strncmp(line, "REGION\t", 7) == 0) {
+        } else if (strncmp(line0, "REGION\t", 7) == 0) {
             // parse RANGE line
             char chrom[51];
-            if (sscanf(line, "REGION\t%50s\t%d\t%d",
+            if (sscanf(line0, "REGION\t%50s\t%d\t%d",
                        chrom,
                        &sites->start_coord, &sites->end_coord) != 3) {
                 if (!quiet) printError("bad REGION format");
@@ -230,13 +243,13 @@ bool read_sites(FILE *infile, Sites *sites,
                 sites->end_coord = subregion_end;
 
 
-        } else if (strncmp(line, "RANGE\t", 6) == 0) {
+        } else if (strncmp(line0, "RANGE\t", 6) == 0) {
             // parse RANGE line
             if (!quiet)
                 printError("deprecated RANGE line detected (use REGION instead)");
             delete [] line;
             return false;
-        } else if (strncmp(line, "POPS\t", 5) == 0) {
+        } else if (strncmp(line0, "POPS\t", 5) == 0) {
             if (nseqs == 0) {
                 if (!quiet)
                     printError("NAMES line should come before POP line");
@@ -244,7 +257,7 @@ bool read_sites(FILE *infile, Sites *sites,
                 return false;
             }
             vector<string> popstr;
-            split(&line[5], delim, popstr);
+            split(&line0[5], delim, popstr);
             if ((int)popstr.size() != nseqs) {
                 if (!quiet)
                     printError("number of entries in POPS line should match entries in NAMES line");
@@ -254,6 +267,8 @@ bool read_sites(FILE *infile, Sites *sites,
             for (int i=0; i < nseqs; i++)
                 sites->pops.push_back(atoi(popstr[i].c_str()));
 
+        } else if (isHeader) {
+            // no known tag; treat as comment
         } else {
             // parse a site line
             vector<string> fields;
