@@ -1319,6 +1319,7 @@ bool Sequences::set_pairs_by_name() {
     for (unsigned int i=0; i < names.size(); i++) {
         if (pairs[i] != -1) continue;
         int len = names[i].length();
+        if (len < 3) continue;
         string basename = names[i].substr(0, len-2);
         string ext = names[i].substr(len-2, 2);
         string target_ext;
