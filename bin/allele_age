@@ -154,10 +154,10 @@ while [[ 1 ]]; do
         useSites=$sitesfile
     else
         useSites=$baseout.$num.sites.gz
-	if [[ -n $hapArg1 && -e $useSites ]]; then
-	    subsites $hapArg1 -s $useSites -o $tmpdir/tmp.sites
-	    useSites=$tmpdir/tmp.sites
-	fi
+        if [[ -n $hapArg2 && -e $useSites ]]; then
+            subsites $hapArg1 -s $useSites -o $tmpdir/tmp.sites
+            useSites=$tmpdir/tmp.sites
+        fi
     fi
     file=$baseout.$num.smc.gz
     if [[ ( $endnum -ne -1 && $num -gt $endnum) || ! -e $file || ! -e $useSites ]]; then
@@ -173,12 +173,13 @@ while [[ 1 ]]; do
     tabix -p bed $tmpdir/tmp.bed.gz
     tabix -p bed $tmpdir/tmp.sites.bed.gz
     chr=`zcat $tmpdir/tmp.bed.gz | awk '$0 !~ /^#/ {print $1; exit}'`
-    if [[ -n $regionarg && -z $regionarg2 ]]; then
-        $regionarg2="--region $chr:$region"
+    if [[ -n "$regionarg" && -z "$regionarg2" ]]; then
+        regionarg2="--region $chr:$region"
     fi
     echo $num $file $useSites >> /dev/stderr
     arg-summarize --log-file $baseout.log --snp-file $tmpdir/tmp.sites.bed.gz \
-      -a $tmpdir/tmp.bed.gz $regionarg2 --allele-age $hapArg $indArg | bgzip \
+         -a $tmpdir/tmp.bed.gz $regionarg2 --allele-age --min-allele-age $hapArg $indArg |
+       bgzip \
           > $tmpdir/$num.allele_age.bed.gz
     num=$(($num+$interval))
     rm -f $tmpdir/tmp.sites.bed.gz $tmpdir/tmp.bed.gz
@@ -196,6 +197,7 @@ zcat $tmpdir/$startnum.allele_age.bed.gz | grep "^#" > $baseout.allele_age.bed
       rm -f $tmpdir/$i.allele_age.bed.gz
   done ) | sort-bed - >> $baseout.allele_age.bed
 bgzip -f $baseout.allele_age.bed
+tabix -p bed $baseout.allele_age.bed.gz
 
 if [[ $deleteTmpDir == 1 ]]; then
     rmdir $tmpdir
