@@ -237,6 +237,7 @@ double calc_log_tree_prior(const ArgModel *model, const LocalTree *tree,
     lineages.count(tree, model->pop_tree);
     double lnl = 0.0;
     int npop = model->num_pops();
+
     for (int pop=0; pop < npop; pop++) {
         for (int i=0; i<model->ntimes-1; i++) {
             int a, b;

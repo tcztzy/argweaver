@@ -374,6 +374,7 @@ inline int sample(const double *weights, int nweights)
 
     // make random sample
     double pick = frand(total);
+    while (pick == 0) pick=frand(total);
 
     // find choosen item index
     double x = 0.0;
@@ -383,8 +384,10 @@ inline int sample(const double *weights, int nweights)
             return i;
         }
     }
-    assert(weights[nweights-1] > 0);
-    return nweights - 1;
+    int i = nweights - 1;
+    while (i >= 0 && weights[i]==0) i--;
+    assert(i >= 0);
+    return i;
 }
 
 

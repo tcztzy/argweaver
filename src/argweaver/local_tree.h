@@ -870,7 +870,6 @@ bool write_local_trees(const char *filename, const LocalTrees *trees,
                        bool pop_model=false,
                        const vector<int> &self_recomb_pos=vector<int>(),
                        const vector<Spr> &self_recombs=vector<Spr>());
-
 bool parse_local_tree(const char* newick, LocalTree *tree,
                       const double *times, int ntimes);
 bool read_local_trees(FILE *infile, const double *times, int ntimes,

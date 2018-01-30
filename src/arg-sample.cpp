@@ -235,7 +235,10 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--delta", "<delta>", &delta, 0.01,
                     "delta value for choosing log times (bigger value-> more"
-                    " dense time points at leaves"));
+                    " dense time points at leaves (default=0.01)"));
+        config.add(new ConfigParam<string>
+                   ("", "--popsize-file", "<popsize filename>", &popsize_file, "",
+                    "file containing population sizes for each time span (optional)"));
         config.add(new ConfigParam<string>
                    ("", "--times-file", "<times filename>", &times_file, "",
                     "file containing time points (optional)"));
