@@ -369,18 +369,14 @@ bool read_sites(FILE *infile, Sites *sites,
 bool read_sites(const char *filename, Sites *sites,
                 int subregion_start, int subregion_end, bool quiet)
 {
-    FILE *infile;
-    if ((infile = fopen(filename, "r")) == NULL) {
+    CompressStream stream(filename);
+    if (stream.stream == NULL) {
         if (!quiet)
             printError("cannot read file '%s'", filename);
         return false;
     }
 
-    bool result = read_sites(infile, sites, subregion_start, subregion_end, quiet);
-
-    fclose(infile);
-
-    return result;
+    return read_sites(stream.stream, sites, subregion_start, subregion_end, quiet);
 }
 
 
