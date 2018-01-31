@@ -1,0 +1,10 @@
+This directory contains an R package to aid plotting ARGweaver results
+
+To install the package, use:
+R CMD INSTALL argweaver
+from this directory
+
+Some functions require the packages "ape" or "rphast" to be installed as well.
+Both are currently available on CRAN and can be installed with the R command
+install.packages("ape")
+install.packages("rphast")
