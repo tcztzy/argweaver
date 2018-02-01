@@ -826,7 +826,7 @@ plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1
                 stop("Need to give chromosome")
             }
         }
-        x <- read.table(pipe(sprintf("tabix %s %s:%i-%i", file, chrom,start, end)), header=FALSE, stringsAsFactors=FALSE)
+        x <- read.table(pipe(sprintf("tabix %s %s:%.0f-%.0f", file, chrom,start, end)), header=FALSE, stringsAsFactors=FALSE)
         names(x) <- c("chrom", "chromStart", "chromEnd", "MCMC", "tree")
     } else {
         x <- scan(file, what=character(), nmax=1, quiet=TRUE)
