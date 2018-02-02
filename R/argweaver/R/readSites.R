@@ -8,7 +8,7 @@
 readSites <- function(file) {
     names <- scan(file, nlines=1, what=character(), quiet=TRUE)[-1]
     region <- scan(file, nlines=2, what=character(), quiet=TRUE)[-(1:(length(names)+1))]
-    if (region[1] != "REGION" || region[1] != "#REGION")
+    if (region[1] != "REGION" && region[1] != "#REGION")
         stop("Expected string REGION at beginning of SITES file\n")
     if (length(region) != 4)
         stop("Format error in SITES file\n")
