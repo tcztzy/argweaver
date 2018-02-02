@@ -602,15 +602,15 @@ def iter_sites(filename):
         if line and line[0].isdigit():
             break
 
-        if line.startswith("NAMES"):
+        if line.startswith("NAMES") or line.startswith("#NAMES"):
             header["names"] = line.split("\t")[1:]
 
-        elif line.startswith("REGION"):
+        elif line.startswith("REGION") or line.startswith("#REGION"):
             tokens = line.split("\t")
             header["chrom"] = tokens[1]
             header["region"] = map(int, tokens[2:])
 
-        elif line.startswith("RANGE"):
+        elif line.startswith("RANGE") or line.startswith("#RANGE"):
             raise Exception("deprecated RANGE line, use REGION instead")
 
     yield header
