@@ -1343,7 +1343,7 @@ bool Sequences::set_pairs_by_name() {
         } else if (ext == "_2") {
             target_ext = "_1";
         } else {
-            return false;
+            continue;
         }
         for (unsigned int j=i+1; j < names.size(); j++) {
             if (names[i].substr(0, len-2) == basename &&
