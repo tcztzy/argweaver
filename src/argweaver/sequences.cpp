@@ -438,6 +438,9 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
     static bool warnRefLen=false;
     static bool warnProbs=false;
     vector<bool> keep_ind;
+    vector<string> sample_names;
+    vector<int> ploidy;
+    ploidy.clear();
 
     if (genotype_filter != NULL && strlen(genotype_filter) > 0) {
         vector<string> tmp;
@@ -461,35 +464,11 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
             continue;
         }
         if (strncmp(line, headerStart, strlen(headerStart)) == 0) {
-            vector<string> diploid_names;
-            split(&line[strlen(headerStart)], delim, diploid_names);
-            nsample = (int)diploid_names.size();
-            nseqs = 0;
-            for (int i=0; i < (int)diploid_names.size(); i++) {
-                if (keep_inds.size() > 0 && keep_inds.find(diploid_names[i]) == keep_inds.end()) {
-                    keep_ind.push_back(false);
-                    continue;
-                }
-                nseqs += 2;
-                keep_ind.push_back(true);
-                for (int j=0; j < 2; j++) {
-                    char tmp[diploid_names[i].length()+3];
-                    sprintf(tmp, "%s_%i", diploid_names[i].c_str(), j+1);
-                    sites->names.push_back(string(tmp));
-                }
-            }
-            if (add_ref) {
-                sites->names.push_back("REF");
-                nseqs++;
-            }
-            printf("nseqs = %i\n", nseqs - add_ref);
+            split(&line[strlen(headerStart)], delim, sample_names);
+            nsample = (int)sample_names.size();
             continue;
         }
-        // otherwise this line contains a variant
-        if (nseqs == 0) {
-            printError("Did not find header with sequence names in VCF file\n");
-            return false;
-        }
+
         vector<string> fields;
         split(line, delim, fields);
         if ((int)fields.size() != 9 + nsample) {
@@ -591,8 +570,53 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
             }
         }
 
+
         vector<string> seqfields;
         string gtstr;
+        // on first input line, process sample names and figure out ploidy
+        // (only ploidy 1 or two supported)
+        if (ploidy.size() == 0) {
+            nseqs = 0;
+            for (int i=0; i < nsample; i++) {
+                if (keep_inds.size() > 0 && keep_inds.find(sample_names[i]) == keep_inds.end()) {
+                    keep_ind.push_back(false);
+                }
+                keep_ind.push_back(true);
+                split(fields[9+i].c_str(), ":", seqfields);
+                gtstr = seqfields[gt_idx];
+                if (gtstr.length() == 1) {
+                    ploidy.push_back(1);
+                    if (keep_ind[i]) {
+                        nseqs++;
+                        sites->names.push_back(sample_names[i]);
+                    }
+                } else if (gtstr.length() == 3) {
+                    ploidy.push_back(2);
+                    if (keep_ind[i]) {
+                        nseqs += 2;
+                        for (int j=0; j < 2; j++) {
+                            char tmp[sample_names[i].length()+3];
+                            sprintf(tmp, "%s_%i", sample_names[i].c_str(), j+1);
+                            sites->names.push_back(string(tmp));
+                        }
+                    }
+                } else {
+                    printError("Bad genotype on line %i of VCF", lineno);
+                    return false;
+                }
+            }
+            if (add_ref) {
+                sites->names.push_back("REF");
+                nseqs++;
+            }
+            printf("nseqs = %i\n", nseqs - add_ref);
+            // otherwise this line contains a variant
+        }
+        if (nseqs - add_ref  <= 0) {
+            printError("Did not find sequences to keep in VCF file\n");
+            return false;
+        }
+
         char col[nseqs+1];
         col[nseqs] = '\0';
         int idx=0;
@@ -624,13 +648,14 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
             if (parse_genotype_probs) {
                 BaseProbs bp = BaseProbs('N');
                 base_probs.push_back(bp);
-                base_probs.push_back(bp);
+                if (ploidy[i] == 2) base_probs.push_back(bp);
             }
             total++;
             if (masked) {
-                col[idx] = col[idx+1] = 'N';
-                idx +=2;
-                num_masked+=2;
+                col[idx] = 'N';
+                if (ploidy[i] == 2) col[idx+1] = 'N';
+                idx += ploidy[i];
+                num_masked+= ploidy[i];
                 continue;
             }
             if (parse_genotype_probs && pl_idx == -1 &&
@@ -642,18 +667,25 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
                 }
             }
             gtstr = seqfields[gt_idx];
-            if (gtstr.length() != 3) {
+            if (ploidy[i]==2 && gtstr.length() != 3) {
                 printError("genotype not length three on line %i of VCF",
                            lineno);
                 return false;
             }
-            if (gtstr.c_str()[1] != '|' &&
-                gtstr.c_str()[1] != '/') {
-                printError("genotype middle character not '|' or '/' on line %i",
+            if (ploidy[i]==1 && gtstr.length() != 1) {
+                printError("genotype not length one on line %i of VCF for haploid sample",
                            lineno);
                 return false;
             }
-            for (int j=0; j < 2; j++) {
+            if (ploidy[i] == 2) {
+                if (gtstr.c_str()[1] != '|' &&
+                    gtstr.c_str()[1] != '/') {
+                    printError("genotype middle character not '|' or '/' on line %i",
+                               lineno);
+                    return false;
+                }
+            }
+            for (int j=0; j < ploidy[i]; j++) {
                 char allele = gtstr.c_str()[j*2];
                 if (allele == '.') {
                     col[idx] = 'N';
