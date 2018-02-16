@@ -97,6 +97,13 @@ public:
                     " (one per line). All files should be aligned to same reference"
                     " genome"));
         config.add(new ConfigParam<string>
+                   ("", "--rename-seqs", "<name_map_file.txt>", &rename_file,
+                    "Used to rename sequences (usually from cryptic names in VCF"
+                    " files to more meaningful names). The file should have two"
+                    " columns, with the old sequence name, followed by the new"
+                    " sequence name. Names can be diploid or haploid, and any old"
+                    " names not matching the current sequence set will be ignored."));
+        config.add(new ConfigParam<string>
                    ("", "--tabix-dir", "<directory>", &tabix_dir,
                     " path to tabix executable. May be required if using --vcf"
                     " and tabix is not in PATH"));
@@ -511,6 +518,7 @@ public:
     string sites_file;
     string vcf_file;
     string vcf_list_file;
+    string rename_file;
     string vcf_filter;
     double vcf_min_qual;
     string subsites_file;
@@ -1635,6 +1643,9 @@ int main(int argc, char **argv)
         printError("must specify sequences (use --fasta or --sites)");
         return EXIT_ERROR;
     }
+
+    if (c.rename_file != "")
+        sites.rename(c.rename_file);
 
     if (keep_inds.size() > 0) {
         if (sites.subset(keep_inds)) {
