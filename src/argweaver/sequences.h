@@ -526,6 +526,7 @@ public:
         return false;
     }
 
+    bool rename(string rename_file);
     int remove_invariant();
     int subset(vector<int> keep);
     int subset(set<string> names_to_keep);

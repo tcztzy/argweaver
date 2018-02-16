@@ -904,6 +904,45 @@ int Sites::remove_invariant() {
 }
 
 
+bool Sites::rename(string rename_file) {
+    FILE *infile = fopen(rename_file.c_str(), "r");
+    if (infile == NULL) {
+        printError("Error opening %s", rename_file.c_str(), "\n");
+        assert(0);
+    }
+    char oldname[1000], newname[1000];
+    int nseq = get_num_seqs();
+    while (EOF != fscanf(infile, "%s %s", oldname, newname)) {
+        // first check for exact matches
+        bool found=false;
+        for (int i=0; i < nseq; i++) {
+            if (strcmp(names[i].c_str(), oldname) == 0) {
+                names[i] = string(newname);
+                found=true;
+                break;
+            }
+        }
+        // now check for oldname_1, oldname_2
+        if (!found) {
+            char tmpstr[2][3]={"_1", "_2"};
+            char tmptarget[2][1002];
+            char newname2[1002];
+            for (int j=0; j < 2; j++)
+                sprintf(tmptarget[j], "%s%s", oldname, tmpstr[j]);
+            for (int i=0; i < nseq; i++) {
+                for (int j=0; j < 2; j++) {
+                    if (strcmp(tmptarget[j], names[i].c_str())==0) {
+                        sprintf(newname2, "%s%s", newname, tmpstr[j]);
+                        names[i] = string(newname2);
+                    }
+                }
+            }
+        }
+    }
+    fclose(infile);
+    return true;
+}
+
 int Sites::subset(vector<int> keep) {
     bool have_base_probs = ( base_probs.size() > 0 );
     std::sort(keep.begin(), keep.end());
