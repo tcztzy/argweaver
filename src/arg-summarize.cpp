@@ -849,13 +849,6 @@ public:
         char tmp[1000], c;
         string str;
         assert(1==fscanf(snp_in->stream, "%s", tmp));
-        if (strcmp(tmp, "#NAMES")==0) {
-            isBed=true;
-        } else if (strcmp(tmp, "NAMES")==0) {
-            isBed=false;
-        } else {
-            assert(strcmp(tmp, "#NAMES")==0 || strcmp(tmp, "NAMES")==0);
-        }
         done=0;
         while ('\n' != (c=fgetc(snp_in->stream)) && c!=EOF) {
             assert(c=='\t');
@@ -863,15 +856,7 @@ public:
             str = string(tmp);
             inds.push_back(str);
         }
-        if (!isBed) { //sites file; read REGION section
-            char tmp2[1000];
-            int tmpint[2];
-            assert(4 == fscanf(snp_in->stream, "%s %s %i %i",
-                               tmp, tmp2, &tmpint[0], &tmpint[1]));
-            c=fgetc(snp_in->stream);
-            assert(c==EOF || c=='\n');
-        }
-        if (c==EOF) done=1;
+        firstLine=true;
     }
 
     int readNext() {
@@ -879,11 +864,35 @@ public:
         char a;
 	vector<set<string> > allele_inds;
 	int count[4]={0,0,0,0};
+        bool alreadyRead=false;
         if (done) return 1;
-        if (isBed) {
-            if (EOF==fscanf(snp_in->stream, "%s %i %i", chr, &tmpStart, &coord)) {
+        if (firstLine) {
+            if (EOF == fscanf(snp_in->stream, "%s", chr)) {
                 done=1;
                 return 1;
+            }
+            isBed=!(strcmp(chr, "REGION")==0 || strcmp(chr, "#REGION")==0);
+            firstLine=false;
+            if (!isBed) {
+                char c;
+                while ('\n'!=(c=fgetc(snp_in->stream)) && c!=EOF);
+                if (c==EOF) {
+                    done=1;
+                    return 1;
+                } else {
+                    return readNext();
+               }
+            } else {
+                assert(2==fscanf(snp_in->stream, "%i %i", &tmpStart, &coord));
+                alreadyRead=true;
+            }
+        }
+        if (isBed) {
+            if (!alreadyRead) {
+                if (EOF==fscanf(snp_in->stream, "%s %i %i", chr, &tmpStart, &coord)) {
+                    done=1;
+                    return 1;
+                }
             }
             assert(tmpStart==coord-1);
         } else {
@@ -892,7 +901,6 @@ public:
                 return 1;
             }
         }
-        assert(tmpStart==coord-1);
 	for (int i=0; i < 4; i++)
 	    allele_inds.push_back(set<string>());
         assert('\t' == fgetc(snp_in->stream));
@@ -1013,6 +1021,7 @@ public:
     int coord;  //1-based
     int done;
     bool isBed;
+    bool firstLine;
 };
 
 
