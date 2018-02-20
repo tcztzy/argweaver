@@ -1730,12 +1730,12 @@ int main(int argc, char **argv)
         if (sites_mapping)
             compress_mask(maskmap, sites_mapping);
         apply_mask_sequences(&sequences, maskmap);
-        if (ind_maskmap.size() > 0) {
-            for (int i=0; i < (int)ind_maskmap.size(); i++) {
-                compress_mask(ind_maskmap[i], sites_mapping);
-                apply_mask_sequences(&sequences, ind_maskmap[i],
-                                     sites.names[i].c_str());
-            }
+    }
+    if (ind_maskmap.size() > 0) {
+        for (int i=0; i < (int)ind_maskmap.size(); i++) {
+            compress_mask(ind_maskmap[i], sites_mapping);
+            apply_mask_sequences(&sequences, ind_maskmap[i],
+                                 sites.names[i].c_str());
         }
     }
     if (c.ind_maskmap != "") {
