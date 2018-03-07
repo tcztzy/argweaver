@@ -550,12 +550,9 @@ after time 100 there is only a single population, pop 0.
 void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
     char str[10000], c;
     int ntimes = pop_tree->model->ntimes;
-    double time_steps[2*ntimes-1];
+    const double *time_steps = pop_tree->model->coal_time_steps;
     int npop=-1;
     int last_mig_from_pop=-1, last_mig_to_pop=-1, last_mig_tidx=-1;
-    time_steps[0] = 0.0;
-    for (int i=1; i < 2*ntimes-1; i++)
-        time_steps[i] = time_steps[i-1] + pop_tree->model->coal_time_steps[i-1];
     while (1==fscanf(infile, "%s", str)) {
         if (str[0] == '#') {
             while ('\n' != (c=fgetc(infile)) && c != EOF);
@@ -576,7 +573,9 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
             bool is_mig=(strcmp(str, "mig")==0);
             if (3 != fscanf(infile, "%lf %i %i", &tgen, &from_pop, &to_pop))
                 exitError("Premature end of population file\n");
-            int tidx = get_closest_half_time(tgen, time_steps, 2*ntimes-1);
+            double closest_time;
+            int tidx = get_closest_half_time(tgen, time_steps, 2*ntimes-1,
+                                             &closest_time);
             if (is_mig) {
                 if (1 != fscanf(infile, "%lf", &prob))
                     exitError("Premature end of population file\n");
@@ -584,10 +583,10 @@ void read_population_tree(FILE *infile, PopulationTree *pop_tree) {
                 last_mig_to_pop = to_pop;
                 last_mig_tidx = tidx;
             }
-            if (fabs(tgen - time_steps[tidx]) > 1)
+            if (fabs(tgen - closest_time) > 1)
                 printLog(LOG_LOW, "Using time %f instead of %f for %s event in "
-                         "popfile\n",
-                         time_steps[tidx], tgen, str);
+                         "popfile (half-time index %i)\n",
+                         closest_time, tgen, str, tidx);
             pop_tree->add_migration(tidx, from_pop, to_pop, prob);
         } else if (strcmp(str, "migEstimate")==0) {
             char paramName[1000];

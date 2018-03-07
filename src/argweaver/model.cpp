@@ -443,31 +443,44 @@ void ArgModel::set_popsize_config_by_pop_tree() {
     printf("Done set_popsize_config_by_pop_tree numParam = %i\n", nextpop);
 }
 
-int get_closest_half_time(double tgen, const double *time_steps, int ntime) {
-    int closest=1;
-    double dist = fabs(tgen - time_steps[closest]);
+int get_closest_half_time(double tgen, const double *time_steps, int ntime,
+                          double *closest_time0) {
+    int closest_idx=1;
+    double currtime = time_steps[0];
+    double closest_time = currtime;
+    double dist = fabs(tgen - closest_time);
     for (int i=3; i < ntime; i+=2) {
-        double tempdist = fabs(tgen - time_steps[i]);
+        currtime += time_steps[i-2] + time_steps[i-1];
+        double tempdist = fabs(tgen - currtime);
         if (tempdist < dist) {
             dist = tempdist;
-            closest = i;
+            closest_idx = i;
+            closest_time = currtime;
         }
     }
-    return closest;
+    if (closest_time0 != NULL) *closest_time0 = closest_time;
+    return closest_idx;
 }
 
 
-int get_closest_times2(double tgen, const double *time_steps, int ntime) {
-    int closest=0;
-    double dist = fabs(tgen - time_steps[closest]);
+int get_closest_times2(double tgen, const double *time_steps, int ntime,
+                       double *closest_time0) {
+    int closest_idx=0;
+    double closest_time=0;
+    double currtime = 0;
+    double dist = fabs(tgen - currtime);
+    currtime += time_steps[0];
     for (int i=1; i < ntime; i++) {
-        double tempdist = fabs(tgen - time_steps[i]);
+        double tempdist = fabs(tgen - currtime);
         if (tempdist < dist) {
             dist = tempdist;
-            closest = i;
+            closest_idx = i;
+            closest_time = currtime;
         }
+        currtime += time_steps[i];
     }
-    return closest;
+    if (closest_time0 != NULL) *closest_time0 = closest_time;
+    return closest_idx;
 }
 
 
@@ -528,10 +541,12 @@ void ArgModel::read_population_sizes(string popsize_file) {
         else if (last_time[pop] > curr_time)
             exitError("Times in popsize file should be increasing");
         last_time[pop] = curr_time;
-        pop_idx[pop] = get_closest_times2(curr_time, coal_time_steps, 2*ntimes - 1);
-        if (fabs(coal_time_steps[pop_idx[pop]] - curr_time) > 2)
-            fprintf(stderr, "Rounding time %.1f in %s to %f\n", curr_time,
-                    popsize_file.c_str(), coal_time_steps[pop_idx[pop]]);
+        double closest_time;
+        pop_idx[pop] = get_closest_times2(curr_time, coal_time_steps, 2*ntimes - 1,
+                                          &closest_time);
+        if (fabs(closest_time - curr_time) > 2)
+            fprintf(stderr, "Rounding time %.1f in %s to %f (half-time index %i)\n", curr_time,
+                    popsize_file.c_str(), closest_time, pop_idx[pop]);
         for (int i=pop_idx[pop]; i < 2*ntimes - 1; i++)
             popsizes[pop][i] = curr_size;
 

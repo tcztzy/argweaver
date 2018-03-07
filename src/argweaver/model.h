@@ -594,10 +594,12 @@ void uncompress_model(ArgModel *model, const SitesMapping *sites_mapping,
 
  // not implemented efficiently, as only called a few times; get closest
  // of the in-between half time intervals to tgen
-int get_closest_half_time(double tgen, const double *time_steps, int ntime);
+int get_closest_half_time(double tgen, const double *time_steps, int ntime,
+                          double *closest_time0=NULL);
 
 // get closets of all (half and whole) time intervals
-int get_closest_times2(double tgen, const double *time_steps, int ntime);
+int get_closest_times2(double tgen, const double *time_steps, int ntime,
+                       double *closest_time0=NULL);
 
 
 } // namespace argweaver

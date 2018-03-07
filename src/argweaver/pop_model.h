@@ -412,7 +412,8 @@ class PopulationTree {
 
 void read_population_tree(FILE *infile, PopulationTree *pop_tree);
 
-int get_closest_half_time(double treal, const double *time_steps, int ntime);
+int get_closest_half_time(double treal, const double *time_steps, int ntime,
+                          double *closest_time);
 
 
 } // namespace argweaver
