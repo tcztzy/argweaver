@@ -138,7 +138,8 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                     double path_prob =
                         pop_tree->subpath_prob(minage, start_pop, time, end_pop, p);
                     if (path_prob > 0.0 &&
-                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p) + curr_nummig <= 1) {
+                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
+                        + curr_nummig <= pop_tree->max_migrations) {
                         int path1 =
                             pop_tree->unique_path(minage, start_pop, time,
                                                   end_pop, p);
@@ -148,7 +149,8 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                             pop_tree->consistent_path(path1, target_path,
                                                       minage, time, -1);
                         states.push_back(State(i, time, path));
-                    } /*else if (path_prob > 0 && pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
+                    } /*else if (path_prob > 0 &&
+                        pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p)
                                > pop_tree->max_migrations) {
                         printf("skipping state nummig=%i maxmig=%i\n", pop_tree->subpath_num_mig(minage, start_pop, time, end_pop, p),
                                pop_tree->max_migrations);

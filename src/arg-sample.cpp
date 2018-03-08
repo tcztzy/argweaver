@@ -283,16 +283,20 @@ public:
                    ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
                     "", "File describing population tree (for multiple populations)",
                     POPMODEL_OPT));
-        config.add(new ConfigParam<int>
+        /*        config.add(new ConfigParam<int>
                    ("", "--max-migs", "<max_migs>", &max_migrations,
                     -1, "For use with --pop-tree-file, do not thread lineages with more"
                     " than this many migrations. The default of -1 implies no maximum."
                     " Setting this value may reduce runtime significantly.",
-                    POPMODEL_OPT));
+                    POPMODEL_OPT));*/
         config.add(new ConfigSwitch
                    ("", "--no-resample-mig", &no_resample_mig,
                     "Do not perform migration-specific resampling",
                     POPMODEL_OPT));
+        config.add(new ConfigParam<int>
+                   ("", "--start-mig", "<start_mig>", &start_mig_iter,
+                    0, "Do not allow migration events until after iteration"
+                    " <start_mig>", POPMODEL_OPT));
 
 
         // Population size sampling options
@@ -538,7 +542,7 @@ public:
     // model parameters
     string popsize_str;
     string pop_tree_file;
-    int max_migrations;
+    //    int max_migrations;
     string pop_file;
     double mu;
     double rho;
@@ -572,6 +576,7 @@ public:
     string mcmcmc_prefix;
     bool no_sample_arg;
     bool no_resample_mig;
+    int start_mig_iter;
 
     // search
     int nclimb;
@@ -1136,6 +1141,8 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
         double heat = model->mc3.heat;
+        if (model->pop_tree != NULL && i >= config->start_mig_iter)
+            model->pop_tree->max_migrations = 1;
 
 #ifndef ARGWEAVER_MPI
         do_leaf[i] = ( frand() < frac_leaf );
@@ -1792,7 +1799,7 @@ int main(int argc, char **argv)
         c.model.set_log_times(c.maxtime, c.ntimes, c.delta);
     if (c.pop_tree_file != "") {
         c.model.read_population_tree(c.pop_tree_file);
-        c.model.pop_tree->max_migrations = c.max_migrations;
+        c.model.pop_tree->max_migrations = ( c.start_mig_iter <= 0 ? 1 : 0 );
         if (c.pop_file != "") {
             sequences.set_pops_from_file(c.pop_file);
         }
