@@ -4,9 +4,10 @@
 ##' @param file (Alternative to x) Sites file (may be gzipped. may NOT be streamed)
 ##' @param start The start coordinate of the plot. NULL implies start from beginning of region
 ##' @param end The end coordinate of the plot. NULL implies go to end of region.
-##' @param majColor The color of the major allele
-##' @param minColor The color of the minor allele
-#### @param baseColor A list indicating color for each base
+##' @param anc Ancestral sample name. If NULL, allele1 is major allele and allele2 is minor allele
+##' @param allele1Color The color(s) for allele1 (will be recycled across sites)
+##' @param allele2Color The color(s) for allele2 (will be recycled across sites)
+##' @param missingColor The color for N allleles
 ##' @param stretch A horizontal expansion factor for sites (so that sparse sites are
 ##' visible in a large region)
 ##' @param indOrder A character vector giving order to list haplotypes (if NULL use
@@ -20,8 +21,11 @@
 ##' @export
 plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
 #                      baseColor=list(N=rgb(0,0,0,0.2), A="red",
-#                                     C="green", G="blue", T="purple"),
-                      majColor="black", minColor="red", 
+                                        #                                     C="green", G="blue", T="purple"),
+                      anc=NULL,
+                      allele1Color="black",
+                      allele2Color=c("red", "orange", "yellow", "green", "turquoise", "purple"),
+                      missingColor=rgb(0,0,0,0.1),
                       stretch=1, indOrder=NULL, textColor=NULL,
                       useCoords=TRUE, xlab=NULL, textSize=1, ...) {
     if (is.null(x)) {
@@ -66,7 +70,11 @@ plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
     majAllele <- mapply(function(a,c,g,t) {x <- c(a,c,g,t)
         names(x) <- alleles
         names(x)[which.max(x)]}, count[["A"]], count[["C"]], count[["G"]], count[["T"]])
-
+    if (!is.null(anc)) {
+        w <- which(names(x$sites) == anc)
+        if (length(w) != 1) stop("Error finding ancestral sequence ", anc)
+        majAllele <- ifelse(x$sites[,w] == "N", majAllele, as.character(x$sites[,w]))
+    }
     par(mar=c(4,6,3,1), mgp=c(2,1,0), xaxs="i", yaxs="i")
 
     ylim <- c(min(ypos,na.rm=TRUE)-0.5, max(ypos,na.rm=TRUE)+0.5)
