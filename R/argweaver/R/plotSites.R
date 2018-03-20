@@ -86,17 +86,54 @@ plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
     }
     plot(c(0),c(0), type="n", yaxt="n", xlim=c(min(xmin), max(xmax)),
          ylim=ylim, xlab=xlab, ylab="", ...)
+    allele2Color <- rep(allele2Color, length.out=nrow(x$sites))
+    allele1Color <- rep(allele1Color, length.out=nrow(x$sites))
     for (i in 1:numind) {
         if (is.na(ypos[i])) next
         rect(xleft=xmin, xright=xmax,
              ybottom=ypos[i]-0.5, ytop=ypos[i]+0.5, border=NA,
-             col=ifelse(x$sites[,i]==majAllele,majColor,ifelse(x$sites[,i]=="N", rgb(0,0,0,0.1), minColor)))
-                                        #col=as.character(baseColor[as.character(x$sites[,i])]))
+             col=ifelse(x$sites[,i]==majAllele,allele1Color,ifelse(x$sites[,i]=="N", missingColor, allele2Color)))
         if (is.null(textColor) || is.null(textColor[[names(x$sites)[i]]])) {
             textcol <- "black"
         } else textcol <- textColor[[names(x$sites)[i]]]
         mtext(names(x$sites)[i], side=2, at=ypos[i], las=2, col=textcol, cex=textSize)
     }
     abline(h=seq(from=min(ypos, na.rm=TRUE)-0.5, to=max(ypos,na.rm=TRUE)+0.5, by=2), lty=3, col="gray")
+    invisible(x)
+}
+
+
+##' call plotTreeFromBed at the sites in a site file; color individual nodes by allele
+##' @param bedFile bed.gz file from smc2bed with trees
+##' @param sites Sites object, as returned by readSites(). Will plot one tree for each site.
+##' @param pos If not NULL, a vector of integers giving which sites to plot. If NULL,
+##' plot all sites
+##' @export
+plotTreesAtSites <- function(bedFile, sites, pos=NULL, start=NULL, end=NULL, doSingletons=FALSE,
+                             colors=list(A="red", C="green", G="turquoise", T="purple",N="gray"),
+                             ...) {
+    if (is.null(pos)) pos <- sites$pos
+    if (!is.null(start)) pos <- pos[pos >=start]
+    if (!is.null(end)) pos <- pos[pos <= end]
+    numskip <- 0
+    for (i in 1:length(pos)) {
+        f <- which(sites$pos == pos[i])
+        if (length(f) != 1) {
+            numskip <- numskip+1
+            next
+        }
+        if (!doSingletons) {
+            tmp <- table(as.character(sites$sites[f,]))
+            if (sum(tmp > 1 & names(tmp) != "N") <= 1) {
+                numskip <- numskip+1
+                next
+            }
+        }
+        currCol <- list()
+        currCol[names(sites$sites)] <- colors[as.character(unlist(sites$sites[f,]))]
+        cat("plotting pos ", pos[i], "\n")
+        plotTreesFromBed(bedFile, col=currCol, start=pos[i], end=pos[i], treeInfo=pos[i], ...)
+    }
+    if (numskip > 0) warning("Skipped ", numskip, " sites that were not found")
     invisible(NULL)
 }
