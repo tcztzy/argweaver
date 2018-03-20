@@ -571,21 +571,36 @@ public:
     }
 
     //round_dir < 0: round down (returns lower bound on coordinate)
-    //round_dir >= 0: round up (returns upper bound on coordinate)
-    int compress(int pos, int round_dir, int start=0) const {
+    //round_dir > 0: round up (returns upper bound on coordinate)
+    int compress(int pos, int round_dir=0, int start=0) const {
         const int n = all_sites.size();
+        if (start < 0) start=0;
         for (int pos2 = start; pos2<n; pos2++) {
-            if (all_sites[pos2] == pos) return pos2;
-            if (all_sites[pos2] > pos) {
-                if (round_dir >= 0 || pos2 == 0) return pos2;
-                else return pos2 - 1;
+            if (all_sites_start[pos2] <= pos &&
+                all_sites_end[pos2] >= pos) {
+                if (round_dir == 0) return pos2;
+                if (round_dir < 0) {
+                    if (all_sites_end[pos2] == pos) return pos2;
+                    return pos2-1;
+                } else {
+                    if (all_sites_start[pos2] == pos) return pos2;
+                    return pos2+1;
+                }
             }
         }
+        assert(0);
         return n;
     }
 
     int uncompress(int pos) const {
         return all_sites[pos];
+    }
+
+    int uncompress_start(int pos) const {
+        return all_sites_start[pos];
+    }
+    int uncompress_end(int pos) const {
+        return all_sites_end[pos];
     }
 
     vector<int> uncompress(const vector<int> pos,
@@ -655,7 +670,18 @@ public:
 
     vector<int> old_sites; // the original position of each variant site
     vector<int> new_sites; // the new position of each variant site
+
+    // all_sites has length = the length of compressed sequence
+    // all_sites[i] gives original position of compressed sequence i
+    // if i is variant, then this should be exact
+    // if i is invariant it will be mid-point of compressed region
+    // The original coordinates of compressed site i will be
+    // from all_sites_start[i] to all_sites_end[i]. These coordinates
+    // are 0-based but end-inclusive. Therefore if compression is 1
+    // then all_sites_start=all_sites_end=0..(numsite-1)
     vector<int> all_sites; // the original position of each site
+    vector<int> all_sites_start;
+    vector<int> all_sites_end;
 };
 
 
@@ -700,6 +726,8 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites);
 
 void apply_mask_sequences(Sequences *sequences, const TrackNullValue &maskmap,
                           const char *ind=NULL);
+void apply_mask_sites(Sites *sites, const TrackNullValue &mask,
+                      const char *ind, vector<TrackNullValue> *ind_maskmap);
 
 void print_masked_regions(const Sequences &sequences,
                           const SitesMapping *sites_mapping,
@@ -798,20 +826,23 @@ void uncompress_track(Track<T> &track, const SitesMapping *sites_mapping,
 
 
 template<class T>
-void compress_mask(Track<T> &track, SitesMapping *sites_mapping)
+void compress_mask(Track<T> &track, SitesMapping *sites_mapping,
+                       bool expand_mask=false)
 {
     track.merge();
     if (sites_mapping) {
         int prev_start_orig = 0, prev_start_new = 0;
+        int round_dir1 = expand_mask ? -1 : 1;
+        int round_dir2 = expand_mask ? 1 : -1;
         for (unsigned int i=0; i<track.size(); i++) {
             if (track[i].start < prev_start_orig)
                 prev_start_new = 0;
-            prev_start_orig = track[i].start;
+            prev_start_orig =track[i].start-1;
             track[i].start = sites_mapping->compress(track[i].start,
-                                                     1, prev_start_new);
-            prev_start_new = track[i].start;
-            track[i].end = sites_mapping->compress(track[i].end,
-                                                    1, track[i].start);
+                                                     round_dir1, prev_start_new);
+            prev_start_new = track[i].start-1;
+            track[i].end = sites_mapping->compress(track[i].end-1,
+                                                    round_dir2, prev_start_new)+1;
         }
     }
 }

@@ -1083,12 +1083,12 @@ TrackNullValue Sequences::get_masked_regions(string chrom,
             }
         }
         if (masked) {
-            int start = i;
-            int end = i+1;
-            if (sites_mapping) {
-                start = sites_mapping->uncompress(start);
-                end = sites_mapping->uncompress(end);
-            }
+            int start = ( sites_mapping ?
+                          sites_mapping->uncompress_start(i) :
+                          i );
+            int end = ( sites_mapping ?
+                        sites_mapping->uncompress_end(i)+1 :
+                        ( i+1 ));
             masked_regions.push_back(RegionNullValue(chrom, start, end, ' '));
         }
     }
@@ -1329,6 +1329,78 @@ void apply_mask_sequences(Sequences *sequences,
         }
     }
 }
+
+
+
+
+/* Apply track maskmap to samples indicated by "ind" (either on haplotype
+   or two diploid lineages named ind_1 and ind_2). If a masked region falls
+   within a variant position of the sites object, then the allele is changed to
+   'N' for this position. However, invariant sites are not added to the object.
+   Instead, the maskmap is added to ind_masks for the samples indicated by ind
+ */
+void apply_mask_sites(Sites *sites,
+                      const TrackNullValue &mask,
+                      const char *ind,
+                      vector<TrackNullValue> *ind_masks)
+{
+    const char maskchar = 'N';
+    int maskind[sites->get_num_seqs()];
+    int num_mask=0;
+    bool have_base_probs = ( sites->base_probs.size() > 0 );
+
+    // first see if there is an exact match to ind
+    for (int i=0; i < (int)sites->get_num_seqs(); i++) {
+        if (strcmp(sites->names[i].c_str(), ind)==0) {
+            num_mask = 1;
+            maskind[0] = i;
+            printLog(LOG_HIGH, "Applying individual mask to %s\n", ind);
+            break;
+        }
+    }
+    // else check to see if it is a diploid match
+    if (num_mask == 0) {
+        for (int j=0; j <= 2; j++) {
+            char hapname[strlen(ind)+3];
+            sprintf(hapname, "%s_%i", ind, j);
+            for (int i=0; i < (int)sites->get_num_seqs(); i++) {
+                if (strcmp(sites->names[i].c_str(), hapname)==0) {
+                    maskind[num_mask++] = i;
+                    printLog(LOG_LOW, "Applying individual mask to %s\n",
+                             sites->names[i].c_str());
+                    break;
+                }
+            }
+        }
+        if (num_mask != 2) {
+            printLog(LOG_LOW, "Warning: No sequences matched ind mask name %s; mask not applied\n", ind);
+            return;
+        }
+    }
+    for (int j=0; j < num_mask; j++)
+        (*ind_masks)[maskind[j]].merge_tracks(mask);
+
+    unsigned int last_pos=0;
+    int last_mask_pos=0;
+    for (unsigned int k=0; k<mask.size(); k++) {
+        if (mask[k].start < last_mask_pos) last_pos=0;
+        for (int i=mask[k].start; i<mask[k].end; i++) {
+            while (last_pos < sites->positions.size() &&
+                   sites->positions[last_pos] < i)
+                last_pos++;
+            if (last_pos != sites->positions.size() &&
+                sites->positions[last_pos] == i) {
+                for (int j=0; j < num_mask; j++) {
+                    sites->cols[last_pos][maskind[j]] = maskchar;
+                    if (have_base_probs)
+                        sites->base_probs[last_pos][maskind[j]].set_mask();
+                }
+            }
+            last_mask_pos = i;
+        }
+    }
+}
+
 
 
 // Converts a Sequences alignment to a Sites alignment
@@ -1674,6 +1746,8 @@ bool find_compress_cols(const Sites *sites, int compress,
     if (compress == 1) {
         for (int i=sites->start_coord; i<=sites->end_coord; i++) {
             sites_mapping->all_sites.push_back(i);
+            sites_mapping->all_sites_start.push_back(i);
+            sites_mapping->all_sites_end.push_back(i);
         }
 
         for (int i=0; i<ncols; i++) {
@@ -1732,6 +1806,17 @@ bool find_compress_cols(const Sites *sites, int compress,
                                      new_end);
     else
         sites_mapping->new_end = new_end;
+
+    sites_mapping->all_sites_start.clear();
+    sites_mapping->all_sites_end.clear();
+    sites_mapping->all_sites_start.push_back(sites_mapping->old_start);
+    for (unsigned int i=0; i < sites_mapping->all_sites.size()-1; i++) {
+        int pos = ( sites_mapping->all_sites[i] +
+                    sites_mapping->all_sites[i+1] ) / 2;
+        sites_mapping->all_sites_end.push_back(pos);
+        sites_mapping->all_sites_start.push_back(pos+1);
+    }
+    sites_mapping->all_sites_end.push_back(sites_mapping->old_end);
 
     return true;
 }
@@ -1849,9 +1934,14 @@ TrackNullValue unmask_ind(Sites *sites, int ind) {
 }
 
 void unmask_inds(Sites *sites, vector<TrackNullValue> *masked_regions) {
-    masked_regions->clear();
-    for (int i=0; i < sites->get_num_seqs(); i++)
-        masked_regions->push_back(unmask_ind(sites, i));
+    if (masked_regions->size() == 0) {
+        for (int i=0; i < sites->get_num_seqs(); i++)
+            masked_regions->push_back(TrackNullValue());
+    }
+    for (int i=0; i < sites->get_num_seqs(); i++) {
+        TrackNullValue curr_mask = unmask_ind(sites, i);
+        (*masked_regions)[i].merge_tracks(curr_mask);
+    }
 }
 
 
