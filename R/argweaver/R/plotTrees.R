@@ -723,7 +723,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
                      col="black", leafCol=col, leafLabels=NULL, timeScale=1,
                      drawSpr=FALSE, sites=NULL, chromStart=NULL, chromEnd=NULL,
                      ylab="Generations", logScale=FALSE, ylim=NULL, add=FALSE,
-                     mar=c(8,4,1,1), ...) {
+                     mar=c(8,4,1,1), mod=NULL, ...) {
     if (!is.null(mar)) {
         if (length(mar) != 4)
             stop("mar should be numeric vector of length 4")
@@ -741,7 +741,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
     if (!is.null(prune)) tree <- pruneTree(tree, seqs=prune, all.but=FALSE)
     if (!is.null(keepSeqs)) tree <- pruneTree(tree, seqs=keepSeqs, all.but=TRUE)
     rv <- drawTree(tree, call.plotSpr=drawSpr, col=col, leafCol=leafCol, cex.leafname=0.8,
-                   leafLabels=leafLabels, timeScale=timeScale)
+                   leafLabels=leafLabels, timeScale=timeScale,  mod=mod)
 
     if (!is.null(sites)) {
         sites <- sites[sites$pos >= chromStart & sites$pos <=chromEnd,]
@@ -771,16 +771,19 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
                       drawSpr=FALSE, ylab="Generations", logScale=FALSE, ylim=NULL, add=FALSE,
                       mar=c(8,4,1,1),
 #                      sites=NULL,
-                      regionSide=1, regionLine=4, ...) {
+                      regionSide=1, regionLine=4, mod=NULL, popwidth=NULL, ...) {
     if (!is.null(treeInfo)) {
         if (length(treeInfo) != length(trees))
             warning("treeInfo should be same length as trees ", length(treeInfo), ", ", length(trees))
     }
     rv <- list()
+    if (add == FALSE && !is.null(mod)) add <- TRUE
+    mod2 <- NULL
     for (i in 1:length(trees)) {
+        if (!is.null(mod)) mod2 <- drawPopModel(mod, popwidth=popwidth, timescale=timeScale, ylim=ylim)
         rv[[i]] <- plotTree(trees[i], prune=prune, keepSeqs=keepSeqs, col=col, leafCol=leafCol,
                  leafLabels=leafLabels, timeScale=timeScale, drawSpr=drawSpr, ylab=ylab,
-                 logScale=logScale, ylim=ylim, add=add, mar=mar, ...)
+                 logScale=logScale, ylim=ylim, add=add, mar=mar, mod=mod2, ...)
         if (is.element(regionSide, 1:4))
             mtext(treeInfo[i], side=regionSide, line=regionLine, ...)
         if (!is.null(treeInfo)) cat(treeInfo[i], "\n")
@@ -815,6 +818,7 @@ plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1
                              ylab="Generations", logScale=FALSE, ylim=NULL, mar=c(8,4,1,1),
                              add=FALSE,  #sitesFile=NULL,
                              regionSide=1, regionLine=4, regionRep=TRUE,
+                             treeInfo=NULL, mod=NULL, popwidth=NULL,
                              ...) {
 #    if (!is.null(sitesFile)) {
 #        sites <- readSites(sitesFile)
@@ -864,7 +868,8 @@ plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1
         return(invisible(NULL))
     }
     rv <- list()
-    treeInfo <- sprintf("%s:%.0f-%.0f", x[,1], x[,2]+1,x[,3])
+    if (is.null(treeInfo))
+        treeInfo <- sprintf("%s:%.0f-%.0f", x[,1], x[,2]+1,x[,3])
     if (regionRep) treeInfo <- sprintf("%s rep=%i", treeInfo, x[,4])
     rv$plots <- plotTrees(x$tree, prune=prune, keepSeqs=keepSeqs,
               treeInfo=treeInfo,
@@ -872,7 +877,7 @@ plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1
               drawSpr=drawSpr,
               ylab=ylab, logScale=logScale, ylim=ylim, add=add, mar=mar,
 #              sites=if(is.null(sites)) {NULL} else {sites[sites$chromStart > x[,2] & sites$chromEnd < x[,3],]},
-              regionSide=regionSide, regionLine=regionLine,
+              regionSide=regionSide, regionLine=regionLine, mod=mod, popwidth=popwidth,
               ...)
     rv$input <- x
     invisible(rv)
