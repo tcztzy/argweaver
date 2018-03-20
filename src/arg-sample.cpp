@@ -179,6 +179,20 @@ public:
                     " mask for that sample. Sample name can refer to haploid or"
                     " diploid. If they are diploid, will append _1 and _2 to"
                     " names to search for relevant lineages to mask"));
+        config.add(new ConfigSwitch
+                   ("", "--expand-ind-mask",
+                    &expand_ind_mask,
+                    "This option is used to deal with Ns in a SITES file in the"
+                    " case when the sites file was written by arg-sample run"
+                    " with compression. In this case the N should apply to the"
+                    " entire compressed site, and not a single base. Hint: to"
+                    " run arg-sample and initialize the sites from a previous"
+                    " run, use --sites <prev_outroot>[.rep].sites.gz"
+                    " --maskmap <prev_outroot>.masked_regions.bed"
+                    " --expand-ind-mask. The compression rate needs to be the"
+                    " same as in the previous run. No other masking options are"
+                    " necessary",
+                    ADVANCED_OPT));
         config.add(new ConfigParam<int>
                    ("", "--mask-Ns", "<num>",
                     &maskN, -1,
@@ -533,6 +547,9 @@ public:
     string age_file;
     string maskmap;
     string ind_maskmap;
+
+
+    bool expand_ind_mask;
     int maskN;
     string mask_cluster;
     string tabix_dir;
@@ -1396,6 +1413,7 @@ bool setup_resume(Config &config)
             config.mask_cluster="";
             config.ind_maskmap="";
             config.mask_uncertain=0.0;
+            config.expand_ind_mask=true;
         }
     }
 
@@ -1661,11 +1679,35 @@ int main(int argc, char **argv)
         }
     }
 
-    //read in mask
+    //read in masks
+    vector<TrackNullValue> ind_maskmap;
+    for (int i=0; i < sites.get_num_seqs(); i++)
+        ind_maskmap.push_back(TrackNullValue());
+    if (c.ind_maskmap != "") {
+        FILE *infile = fopen(c.ind_maskmap.c_str(), "r");
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening ind_maskmap %s\n", c.ind_maskmap.c_str());
+            return EXIT_ERROR;
+        }
+        char ind[10000], maskfile[100000];
+        while (EOF != fscanf(infile, "%s %s", ind, maskfile)) {
+            CompressStream stream(maskfile, "r");
+            TrackNullValue indmask;
+            if (!stream.stream ||
+                !read_track_filter(stream.stream, &indmask, seq_region)) {
+                printError("cannot read mask %s for ind %s\n", maskfile, ind);
+                return EXIT_ERROR;
+            }
+            apply_mask_sites(&sites, indmask, ind, &ind_maskmap);
+        }
+        fclose(infile);
+    }
+
     TrackNullValue maskmap_orig;
     TrackNullValue maskmap = sites.remove_masked();
     if (c.maskmap != "") {
         //read mask
+        printLog(LOG_LOW, "Reading %s\n", c.maskmap.c_str());
         TrackNullValue curr_maskmap;
         CompressStream stream(c.maskmap.c_str(), "r");
         if (!stream.stream ||
@@ -1707,7 +1749,6 @@ int main(int argc, char **argv)
 
     // before compression unmask everything; do not want masked sites to
     // prevent compression- reapply masks after compression
-    vector<TrackNullValue> ind_maskmap;
     if (sites.get_num_sites() > 0) {
         unmask_inds(&sites, &ind_maskmap);
         int nremove = sites.remove_invariant();
@@ -1732,6 +1773,8 @@ int main(int argc, char **argv)
 
     // compress mask
     maskmap_orig = maskmap;
+    if (!c.resume)
+        maskmap.write_track_regions(c.out_prefix + c.mcmcmc_prefix + ".masked_regions.bed");
     if (maskmap.size() > 0) {
         // apply mask
         if (sites_mapping)
@@ -1740,31 +1783,10 @@ int main(int argc, char **argv)
     }
     if (ind_maskmap.size() > 0) {
         for (int i=0; i < (int)ind_maskmap.size(); i++) {
-            compress_mask(ind_maskmap[i], sites_mapping);
+            compress_mask(ind_maskmap[i], sites_mapping, c.expand_ind_mask);
             apply_mask_sequences(&sequences, ind_maskmap[i],
                                  sites.names[i].c_str());
         }
-    }
-    if (c.ind_maskmap != "") {
-        FILE *infile = fopen(c.ind_maskmap.c_str(), "r");
-        if (infile == NULL) {
-            fprintf(stderr, "Error opening ind_maskmap %s\n", c.ind_maskmap.c_str());
-            return EXIT_ERROR;
-        }
-        char ind[10000], maskfile[100000];
-        while (EOF != fscanf(infile, "%s %s", ind, maskfile)) {
-            CompressStream stream(maskfile, "r");
-            TrackNullValue indmask;
-            if (!stream.stream ||
-                !read_track_filter(stream.stream, &indmask, seq_region)) {
-                printError("cannot read mask %s for ind %s\n", maskfile, ind);
-                return EXIT_ERROR;
-            }
-            if (sites_mapping)
-                compress_mask(indmask, sites_mapping);
-            apply_mask_sequences(&sequences, indmask, ind);
-        }
-        fclose(infile);
     }
 
     // report number of masked sites
@@ -1780,9 +1802,6 @@ int main(int argc, char **argv)
     if (nmasked == (int)sequences.length())
         c.all_masked=true;
 
-    if (!c.resume)
-        print_masked_regions(sequences, sites_mapping, sites.chrom,
-                             c.out_prefix + c.mcmcmc_prefix + ".masked_regions.bed");
     if (c.write_sites || c.write_sites_only) {
         log_sequences(sites.chrom, &sequences, &c, sites_mapping, -1);
         printLog(LOG_LOW, "Wrote sites\n");
@@ -1977,8 +1996,8 @@ int main(int argc, char **argv)
         c.resample_region[0] -= 1; // convert to 0-index
 
         if (sites_mapping) {
-            c.resample_region[0] = sites_mapping->compress(c.resample_region[0], -1);
-            c.resample_region[1] = sites_mapping->compress(c.resample_region[1], 1);
+            c.resample_region[0] = sites_mapping->compress(c.resample_region[0]);
+            c.resample_region[1] = sites_mapping->compress(c.resample_region[1]-1)+1;
         }
     }
 
