@@ -7,7 +7,8 @@
 plotTrees(trees, prune = NULL, keepSeqs = NULL, treeInfo = NULL,
   col = "black", leafCol = col, leafLabels = NULL, timeScale = 1,
   drawSpr = FALSE, ylab = "Generations", logScale = FALSE, ylim = NULL,
-  add = FALSE, mar = c(8, 4, 1, 1), regionSide = 1, regionLine = 4, ...)
+  add = FALSE, mar = c(8, 4, 1, 1), regionSide = 1, regionLine = 4,
+  mod = NULL, popwidth = NULL, ...)
 }
 \arguments{
 \item{trees}{A character vector, each element is a newick tree to plot}
@@ -46,6 +47,9 @@ for each leaf name. If NULL, the leaf names are displayed.}
 (1=bottom, 2=left, 3=top, 4=right, anything else = don't print)}
 
 \item{regionLine}{Print region of eaach tree on this line of the margin}
+
+\item{mod}{(Advanced; for use with multi-population version of ARGweaver) A model
+file read in with the function readPopModel, will draw population model underneath tree}
 
 \item{...}{Passed to plot function}
 }

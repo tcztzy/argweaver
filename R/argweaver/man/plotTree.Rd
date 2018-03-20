@@ -8,7 +8,7 @@ plotTree(tree, prune = NULL, keepSeqs = NULL, col = "black",
   leafCol = col, leafLabels = NULL, timeScale = 1, drawSpr = FALSE,
   sites = NULL, chromStart = NULL, chromEnd = NULL,
   ylab = "Generations", logScale = FALSE, ylim = NULL, add = FALSE,
-  mar = c(8, 4, 1, 1), ...)
+  mar = c(8, 4, 1, 1), mod = NULL, ...)
 }
 \arguments{
 \item{tree}{A newick string containing a tree}
@@ -46,6 +46,9 @@ for each leaf name. If NULL, the leaf names are displayed.}
 \item{add}{If TRUE, do not create a new plot}
 
 \item{mar}{Margins for plot}
+
+\item{mod}{(Advanced; for use with multi-population version of ARGweaver) A model
+file read in with the function readPopModel, will draw population model underneath tree}
 
 \item{...}{Passed to plot function}
 }

@@ -9,7 +9,7 @@ plotTreesFromBed(file = NULL, iter = "max", chrom = NULL, start = -1,
   leafCol = col, leafLabels = NULL, interval = 1, timeScale = 1,
   drawSpr = FALSE, ylab = "Generations", logScale = FALSE, ylim = NULL,
   mar = c(8, 4, 1, 1), add = FALSE, regionSide = 1, regionLine = 4,
-  regionRep = TRUE, ...)
+  regionRep = TRUE, treeInfo = NULL, mod = NULL, popwidth = NULL, ...)
 }
 \arguments{
 \item{file}{A bed file produced by smc2bed}
@@ -59,6 +59,11 @@ for each leaf name. If NULL, the leaf names are displayed.}
 \item{regionLine}{Print region of each tree on this line of the margin}
 
 \item{regionRep}{If TRUE, include MCMC rep in region string}
+
+\item{treeInfo}{If given, should be a character vector of same length as trees}
+
+\item{mod}{(Advanced; for use with multi-population version of ARGweaver) A model
+file read in with the function readPopModel, will draw population model underneath tree}
 
 \item{...}{Passed to plot function}
 }

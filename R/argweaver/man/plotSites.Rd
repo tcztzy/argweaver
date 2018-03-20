@@ -4,9 +4,11 @@
 \alias{plotSites}
 \title{Plot a sites file}
 \usage{
-plotSites(x = NULL, file = NULL, start = NULL, end = NULL,
-  majColor = "black", minColor = "red", stretch = 1, indOrder = NULL,
-  textColor = NULL, useCoords = TRUE, xlab = NULL, textSize = 1, ...)
+plotSites(x = NULL, file = NULL, start = NULL, end = NULL, anc = NULL,
+  allele1Color = "black", allele2Color = c("red", "orange", "yellow",
+  "green", "turquoise", "purple"), missingColor = rgb(0, 0, 0, 0.1),
+  stretch = 1, indOrder = NULL, textColor = NULL, useCoords = TRUE,
+  xlab = NULL, textSize = 1, ...)
 }
 \arguments{
 \item{x}{A sites file object as read by readSites().}
@@ -17,9 +19,13 @@ plotSites(x = NULL, file = NULL, start = NULL, end = NULL,
 
 \item{end}{The end coordinate of the plot. NULL implies go to end of region.}
 
-\item{majColor}{The color of the major allele}
+\item{anc}{Ancestral sample name. If NULL, allele1 is major allele and allele2 is minor allele}
 
-\item{minColor}{The color of the minor allele}
+\item{allele1Color}{The color(s) for allele1 (will be recycled across sites)}
+
+\item{allele2Color}{The color(s) for allele2 (will be recycled across sites)}
+
+\item{missingColor}{The color for N allleles}
 
 \item{stretch}{A horizontal expansion factor for sites (so that sparse sites are
 visible in a large region)}
