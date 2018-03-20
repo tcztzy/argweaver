@@ -1350,7 +1350,7 @@ void make_sites_from_sequences(const Sequences *sequences, Sites *sites)
                             // has baseprobs and is not certain
         for (int j=0; j < nseqs; j++) {
             if (seqs[j][i] == 'N' ||
-                seqs[j][i] != seqs[j][0] ||
+                seqs[j][i] != seqs[0][i] ||
                 (have_base_probs && !sequences->base_probs[j][i].is_certain())) {
                 isSite=true;
                 break;
