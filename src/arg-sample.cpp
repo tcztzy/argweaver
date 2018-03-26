@@ -1846,6 +1846,7 @@ int main(int argc, char **argv)
         if (c.vcf_file != "" || c.vcf_list_file != "")
             printError("Cannot use --unphased-file with VCF input");
         c.model.unphased_file = c.unphased_file;
+        c.unphased = true;
     }
     if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
         c.model.unphased = true;
