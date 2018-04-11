@@ -602,6 +602,14 @@ bool ArgModel::paths_equal(int path1, int path2, int t1, int t2) const {
     return pop_tree->paths_equal(path1, path2, t1, t2);
 }
 
+
+bool ArgModel::paths_equal(int path1, int path2, double t1, double t2) const {
+    if (pop_tree == NULL || path1==path2) return true;
+    int t1d = discretize_time(t1);
+    int t2d = discretize_time(t2);
+    return pop_tree->paths_equal(path1, path2, t1d, t2d);
+}
+
 int ArgModel::max_matching_path(int path1, int path2, int t) const {
     if (pop_tree == NULL) return ntimes-1;
     return pop_tree->max_matching_path(path1, path2, t);

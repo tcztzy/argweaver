@@ -535,6 +535,7 @@ class ArgModel
     int num_pop_paths() const;
     double path_prob(int path, int t1, int t2) const;
     bool paths_equal(int path1, int path2, int t1, int t2) const;
+    bool paths_equal(int path1, int path2, double t1, double t2) const;
     int max_matching_path(int path1, int path2, int t) const;
     int path_to_root(const LocalNode *nodes, int node, int time) const;
     int path_to_root(const spidir::Node *node, double time) const;
