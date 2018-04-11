@@ -1917,16 +1917,23 @@ TrackNullValue unmask_ind(Sites *sites, int ind) {
     int numind = sites->get_num_seqs();
     for (int i=0; i < sites->get_num_sites(); i++) {
         if (sites->cols[i][ind] == 'N') {
+            bool variant=false;
             char c='N';
-            for (int j=0; j < numind; j++)
+            for (int j=0; j < numind; j++) {
                 if (sites->cols[i][j] != 'N') {
-                    c = sites->cols[i][j];
-                    break;
+                    if (c == 'N')
+                        c = sites->cols[i][j];
+                    else if (c != sites->cols[i][j]) {
+                        variant=true;
+                    }
                 }
-            sites->cols[i][ind] = c;
-            masked.push_back(RegionNullValue(sites->chrom,
-                                             sites->positions[i],
-                                             sites->positions[i]+1, ' '));
+            }
+            if (!variant) {
+                sites->cols[i][ind] = c;
+                masked.push_back(RegionNullValue(sites->chrom,
+                                                 sites->positions[i],
+                                                 sites->positions[i]+1, ' '));
+            }
         }
     }
     masked.merge();
