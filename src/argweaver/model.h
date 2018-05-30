@@ -308,6 +308,13 @@ class ArgModel
         return ntimes + 1;
     }
 
+
+    double get_mintime(int t) const {
+        if (t == 0) return coal_time_steps[0]*0.5;
+        return (coal_time_steps[2*t-1] + coal_time_steps[2*t])*0.5;
+    }
+
+
     double get_mintime() const {
         return times[1] * .1;
     }
