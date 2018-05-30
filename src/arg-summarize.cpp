@@ -1469,10 +1469,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: must specify argfile\n");
         return 1;
     }
-    if (c.logfile.empty()) {
-        fprintf(stderr, "Error: must specify logfile\n");
-    }
-    data.model = new ArgModel(c.logfile.c_str());
+    if (!c.logfile.empty()) {
+        data.model = new ArgModel(c.logfile.c_str());
+    } else data.model = NULL;
     if (c.html) {
         html=true;
         printf("<html>\n");
@@ -1529,8 +1528,13 @@ int main(int argc, char *argv[]) {
         statname.push_back(string("rth"));
     if (c.popsize)
         statname.push_back(string("popsize"));
-    if (c.max_coal_rate)
+    if (c.max_coal_rate) {
+        if (data.model == NULL) {
+            fprintf(stderr, "--log-file required for --max-coalrate\n");
+            return 1;
+        }
         statname.push_back(string("max_coal_rate"));
+    }
     if (c.allele_age) {
         statname.push_back(string("allele_age"));
         statname.push_back(string("inf_sites"));
@@ -1620,7 +1624,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.coalcounts) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --coalcounts\n");
             return 1;
         }
@@ -1631,7 +1635,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.coalcounts_cluster) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --coalcounts-cluster\n");
             return 1;
         }
@@ -1642,7 +1646,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.recombs_per_time) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --recombs-per-time\n");
             return 1;
         }
@@ -1652,8 +1656,8 @@ int main(int argc, char *argv[]) {
             statname.push_back(string(tmp));
         }
     }
-    if (c.recombs_per_time) {
-        if (c.logfile.empty()) {
+    if (c.invis_recombs_per_time) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --invis-recombs-per-time\n");
             return 1;
         }
@@ -1664,7 +1668,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.branchlen_per_time) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --branchlen-per-time\n");
             return 1;
         }
