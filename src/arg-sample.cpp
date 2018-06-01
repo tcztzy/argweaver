@@ -1857,7 +1857,7 @@ int main(int argc, char **argv)
     }
     if (c.no_sample_phase)
         c.sample_phase_step=0;
-    else if (c.sample_phase_step == 0)
+    else if (c.sample_phase_step == 0 && c.unphased)
         c.sample_phase_step = c.sample_step;
 
     if (c.sample_popsize_num > 0) {
