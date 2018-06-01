@@ -546,7 +546,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     }
 
     //now apply SPR
-    if (model->pop_tree != NULL) {
+    if (model != NULL && model->pop_tree != NULL) {
         recomb_node->pop_path =
             model->consistent_path(recomb_node->pop_path,
                                    spr->pop_path,
