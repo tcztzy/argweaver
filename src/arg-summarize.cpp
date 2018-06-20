@@ -56,7 +56,8 @@ const int EXPERIMENTAL_OPT = 3;
 
 class MigStat {
 public:
-    MigStat(string name, int p0[2], double dt, const ArgModel *model) : name(name) {
+    MigStat(string name, int p0[2], double dt, const ArgModel *model,
+            const string hap="") : name(name),hap(hap){
         bool found=false;
         // ensure that t[0] < t[1]
         p[0] = p0[0];
@@ -75,6 +76,7 @@ public:
     string name;
     int p[2];
     int t[2];
+    string hap;
 };
 
 
@@ -167,6 +169,13 @@ public:
                    "after time t and pop2 at the time interval before time t2"
                    "(indicating move from pop1 to pop2 looking backwards in time)",
                    EXPERIMENTAL_OPT));
+        config.add(new ConfigParam<string>
+                   ("", "--hap-mig-file", "<migfile.txt>", &hapmigfile,
+                    "Similar to --mig-file, but migfile.txt has five columns:\n"
+                    " statName pop1 pop2 t hap\n"
+                    " where hap is one of the haploid lineages of the ARG, will"
+                    " report whether the lineage whose descendent is hap goes from\n"
+                    " pop1 to pop2 at time t (looking backwards)"));
 
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
@@ -381,6 +390,7 @@ public:
     string coalgroup_file;
     string spr_leaf_names;
     string migfile;
+    string hapmigfile;
     int sample_num;
 
     bool rawtrees;
@@ -711,7 +721,8 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                 if (statname[i] == data.migstat[j].name) {
                     line->stats[i] = (int)tree->haveMig(data.migstat[j].p,
                                                         data.migstat[j].t,
-                                                        data.model);
+                                                        data.model,
+                                                        data.migstat[j].hap);
                 }
             }
         }
@@ -1806,6 +1817,26 @@ int main(int argc, char *argv[]) {
         while (EOF != fscanf(infile, "%s %i %i %lf", migname, &p[0], &p[1],
                              &dt)) {
             data.migstat.push_back(MigStat(string(migname), p, dt, data.model));
+            statname.push_back(string(migname));
+        }
+        fclose(infile);
+    }
+    if (!c.hapmigfile.empty()) {
+        if (data.model == NULL) {
+            fprintf(stderr, "--log-file required with --hap-mig-file\n");
+            exit(1);
+        }
+        FILE *infile = fopen(c.hapmigfile.c_str(), "r");
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening %s\n", c.migfile.c_str());
+            exit(1);
+        }
+        char migname[1000], hap[1000];
+        int p[2];
+        double dt;
+        while (EOF != fscanf(infile, "%s %i %i %lf %s", migname, &p[0], &p[1],
+                             &dt, hap)) {
+            data.migstat.push_back(MigStat(string(migname), p, dt, data.model, string(hap)));
             statname.push_back(string(migname));
         }
         fclose(infile);
