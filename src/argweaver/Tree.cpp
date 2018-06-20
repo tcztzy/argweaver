@@ -1813,6 +1813,32 @@ set<Node*> Tree::lca(set<Node*> derived) {
     return rv;
 }
 
+bool Tree::haveMig(int p[2], int t[2], const ArgModel *model, string hap) {
+    if (hap == "")
+        return haveMig(p, t, model);
+    map<string,int>::iterator it = nodename_map.find(hap);
+    if (it == nodename_map.end()) {
+        printf("Error finding hap %s in tree\n", hap.c_str());
+        assert(0);
+    }
+    double dt[2];
+    dt[0] = model->times[t[0]];
+    dt[1] = model->times[t[1]];
+    Node *node = nodes[it->second];
+    while (true) {
+        if (node->age-2 > dt[0]) return false;
+        if (node->parent == NULL ||
+            node->parent->age+2 >= dt[1]) {
+            return (model->get_pop(node->pop_path, t[0])==p[0] &&
+                    model->get_pop(node->pop_path, t[1])==p[1]);
+        }
+        node = node->parent;
+    }
+    assert(0);
+    return false;
+}
+
+
 bool Tree::haveMig(int p[2], int t[2], const ArgModel *model) {
     assert(t[0] < t[1]);
     double dt[2];

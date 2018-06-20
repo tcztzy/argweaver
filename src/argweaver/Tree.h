@@ -333,6 +333,7 @@ public:
     double cluster_test(const set<string> &cluster_group,
                         double *cluster_time) const;
     set<Node*> lca(set<Node*> derived);
+    bool haveMig(int p[2], int t[2], const ArgModel *model, const string hap);
     bool haveMig(int p[2], int t[2], const ArgModel *model);
 
     double maxCoalRate(const ArgModel *model);
