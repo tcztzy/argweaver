@@ -111,7 +111,7 @@ void get_coal_states_external(const LocalTree *tree, int ntimes, States &states,
                                           tree->nodes[i].age,
                                           i == tree->root ? -1 :
                                           tree->nodes[tree->nodes[i].parent].age);
-        assert(curr_nummig <= 1);
+        assert(curr_nummig <= pop_tree->max_migrations);
     }
 
     // iterate over the branches of the tree
@@ -222,7 +222,7 @@ void get_coal_states_internal(const LocalTree *tree, int ntimes,
                                           i == tree->root ? -1 :
                                           tree->nodes[tree->nodes[i].parent].age);
         }
-        assert(curr_nummig <= 1);
+        //        assert(curr_nummig <= 1);
     }
 
 

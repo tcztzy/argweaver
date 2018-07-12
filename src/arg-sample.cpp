@@ -297,12 +297,13 @@ public:
                    ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
                     "", "File describing population tree (for multiple populations)",
                     POPMODEL_OPT));
-        /*        config.add(new ConfigParam<int>
+        config.add(new ConfigParam<int>
                    ("", "--max-migs", "<max_migs>", &max_migrations,
-                    -1, "For use with --pop-tree-file, do not thread lineages with more"
-                    " than this many migrations. The default of -1 implies no maximum."
-                    " Setting this value may reduce runtime significantly.",
-                    POPMODEL_OPT));*/
+                    1, "For use with --pop-tree-file, do not thread lineages with more"
+                    " than this many migrations. Setting this to any value other"
+                    " than one is experimental, and may significantly increase"
+                    " run-time and cause issues with MCMC mixing",
+                    POPMODEL_OPT));
         config.add(new ConfigSwitch
                    ("", "--no-resample-mig", &no_resample_mig,
                     "Do not perform migration-specific resampling",
@@ -559,7 +560,7 @@ public:
     // model parameters
     string popsize_str;
     string pop_tree_file;
-    //    int max_migrations;
+    int max_migrations;
     string pop_file;
     double mu;
     double rho;
@@ -1158,8 +1159,11 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
         double heat = model->mc3.heat;
-        if (model->pop_tree != NULL && i >= config->start_mig_iter)
-            model->pop_tree->max_migrations = 1;
+        if (model->pop_tree != NULL && i >= config->start_mig_iter) {
+            if (model->pop_tree->max_migrations != config->max_migrations)
+                printLog(LOG_LOW, "Changing max_migrations to %i\n", config->max_migrations);
+            model->pop_tree->max_migrations = config->max_migrations;
+        }
 
 #ifndef ARGWEAVER_MPI
         do_leaf[i] = ( frand() < frac_leaf );
