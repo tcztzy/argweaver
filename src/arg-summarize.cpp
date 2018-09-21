@@ -175,7 +175,8 @@ public:
                     " statName pop1 pop2 t hap\n"
                     " where hap is one of the haploid lineages of the ARG, will"
                     " report whether the lineage whose descendent is hap goes from\n"
-                    " pop1 to pop2 at time t (looking backwards)"));
+                    " pop1 to pop2 at time t (looking backwards)",
+		    EXPERIMENTAL_OPT));
 
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
