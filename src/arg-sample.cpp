@@ -1839,7 +1839,7 @@ int main(int argc, char **argv)
         }
         if (c.model.num_pops() != 1 && !c.model.smc_prime) {
             printLog(LOG_LOW, "Warning: Using original SMC model. --smc-prime option "
-                     "is recommended for multiple population models");
+                     "is recommended for multiple population models\n");
         }
     }
 

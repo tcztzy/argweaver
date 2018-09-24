@@ -524,7 +524,8 @@ void ArgModel::read_population_sizes(string popsize_file) {
         } else if (splitStr.size() == 3) {
             pop = atoi(splitStr[2].c_str());
             if (pop < 0 || pop >= num_pops())
-                exitError("Error parsing population in popsize file\n");
+                exitError("Error parsing population %s in popsize file (%s)\n",
+                          splitStr[2].c_str(), popsize_file.c_str());
             curr_time = atof(splitStr[0].c_str());
             curr_size = atof(splitStr[1].c_str());
         } else {
