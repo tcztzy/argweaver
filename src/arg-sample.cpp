@@ -276,17 +276,26 @@ public:
                     " the first row having t=0.\n"
                     " If using the multiple population model, a third colum indicates"
                     "   the population number, with the first population numbered zero"));
-        // note the following two are ConfigSwitch with default value=true,
-        // so that providing the switch makes the variable false
+
         config.add(new ConfigSwitch
-                   ("", "--smc-orig", &model.smc_prime,
-                    "Use non-prime SMC model instead of SMC-prime", 0, true));
+                   ("", "--smc-prime", &model.smc_prime,
+                    "Use SMC' model (this option is generally slower"
+                    " but represents a more accurate model). It is"
+                    " recommended with the --pop-tree-file option, or for"
+                    " ARGs with small numbers of highly diverged samples"));
+        // note that --invisible-recombs has value=true,
+        // so that providing the switch makes the variable false
         config.add(new ConfigSwitch
                    ("", "--invisible-recombs", &invisible_recombs,
                     "Output invisible recombinations which do not affect tree"
                     " topology (this will provide more accurate count of"
                     " recombination events, but may increase the runtime",
                     ADVANCED_OPT, false));
+        config.add(new ConfigSwitch
+                   ("", "--smc-orig", &do_nothing,
+                    "This option is deprecated and does nothing; it is kept"
+                    " for backwards compatibility. The original SMC model is the"
+                    " default; see --smc-prime", ADVANCED_OPT));
 
         // Population model options
         config.add(new ConfigParam<string>
@@ -295,7 +304,8 @@ public:
                     POPMODEL_OPT));
         config.add(new ConfigParam<string>
                    ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
-                    "", "File describing population tree (for multiple populations)",
+                    "", "File describing population tree (for multiple populations)"
+                    " (Note --smc-prime is recommended with this option)",
                     POPMODEL_OPT));
         config.add(new ConfigParam<int>
                    ("", "--max-migs", "<max_migs>", &max_migrations,
@@ -634,6 +644,7 @@ public:
     bool help_advanced;
     bool help_experimental;
     bool help_popmodel;
+    bool do_nothing;
 
     // logging
     FILE *stats_file;
@@ -1489,7 +1500,7 @@ int main(int argc, char **argv)
     // setup logging
     set_up_logging(c, c.verbose, (c.resume ? "a" : "w"));
 
-        // try to resume a previous run
+    // try to resume a previous run
     if (!setup_resume(c)) {
         printError("resume failed.");
         if (c.overwrite) {
@@ -1825,6 +1836,10 @@ int main(int argc, char **argv)
         c.model.pop_tree->max_migrations = ( c.start_mig_iter <= 0 ? 1 : 0 );
         if (c.pop_file != "") {
             sequences.set_pops_from_file(c.pop_file);
+        }
+        if (c.model.num_pops() != 1 && !c.model.smc_prime) {
+            printLog(LOG_LOW, "Warning: Using original SMC model. --smc-prime option "
+                     "is recommended for multiple population models");
         }
     }
 

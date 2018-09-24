@@ -658,6 +658,12 @@ ArgModel::ArgModel(const char *logfilename) {
             if (str_starts_with(line, "----------")) break;
             if (str_starts_with(line, "  mu = "))
                 assert(1 == sscanf(line, "  mu = %le", &mu));
+            if (str_starts_with(line, "  smc_prime = true")) {
+                smc_prime = true;
+            }
+            if (str_starts_with(line, "  smc_prime = false")) {
+                smc_prime = false;
+            }
             if (str_starts_with(line, "  rho = "))
                 assert(1 == sscanf(line, "  rho = %le", &rho));
             if (str_starts_with(line, "  ntimes = ")) {
@@ -813,6 +819,7 @@ void ArgModel::log_model() const {
     printLog(LOG_LOW, "model: \n");
     printLog(LOG_LOW, "  mu = %e\n", mu);
     printLog(LOG_LOW, "  rho = %e\n", rho);
+    printLog(LOG_LOW, "  smc_prime = %s\n", smc_prime ? "true" : "false");
     printLog(LOG_LOW, "  ntimes = %d\n", ntimes);
     printLog(LOG_LOW, "  times = [");
     for (int i=0; i<ntimes-1; i++)
