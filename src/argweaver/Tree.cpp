@@ -663,7 +663,7 @@ void SprPruned::update_spr_pruned(const ArgModel *model) {
         return;
     }
     int num=node_map.nm[orig_spr.recomb_node->name];
-    if (num == -1 || pruned_tree->nodes[num] == pruned_tree->root) {
+    if (num == -1) {
         pruned_spr.recomb_node = pruned_spr.coal_node = NULL;
     } else {
         assert(num>=0);
