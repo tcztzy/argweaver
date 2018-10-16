@@ -1780,7 +1780,7 @@ set<Node*> Tree::lca(set<Node*> derived) {
     set<Node*>::iterator it;
     set<Node*> rv;
 
-    if (derived.size() == 1) return derived;
+    if (derived.size() <= 1) return derived;
     ExtendArray<Node*> postnodes;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < postnodes.size(); i++) {
