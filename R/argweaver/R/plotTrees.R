@@ -768,7 +768,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
 ##' @export
 plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
                       col="black", leafCol=col, leafLabels=NULL, timeScale=1,
-                      drawSpr=FALSE, ylab="Generations", logScale=FALSE, ylim=NULL, add=FALSE,
+                      drawSpr=FALSE, ylab="Generations", xlab="", logScale=FALSE, ylim=NULL, add=FALSE,
                       mar=c(8,4,1,1),
 #                      sites=NULL,
                       regionSide=1, regionLine=4, mod=NULL, popwidth=NULL, ...) {
@@ -780,7 +780,7 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
     if (add == FALSE && !is.null(mod)) add <- TRUE
     mod2 <- NULL
     for (i in 1:length(trees)) {
-        if (!is.null(mod)) mod2 <- drawPopModel(mod, popwidth=popwidth, timescale=timeScale, ylim=ylim)
+        if (!is.null(mod)) mod2 <- drawPopModel(mod, popwidth=popwidth, timescale=timeScale, ylim=ylim, ylab=ylab, xlab=xlab)
         rv[[i]] <- plotTree(trees[i], prune=prune, keepSeqs=keepSeqs, col=col, leafCol=leafCol,
                  leafLabels=leafLabels, timeScale=timeScale, drawSpr=drawSpr, ylab=ylab,
                  logScale=logScale, ylim=ylim, add=add, mar=mar, mod=mod2, ...)
@@ -815,7 +815,7 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
 plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1,
                              prune=NULL, keepSeqs=NULL, col="black", leafCol=col, 
                              leafLabels=NULL, interval=1, timeScale=1, drawSpr=FALSE,
-                             ylab="Generations", logScale=FALSE, ylim=NULL, mar=c(8,4,1,1),
+                             ylab="Generations", xlab="", logScale=FALSE, ylim=NULL, mar=c(8,4,1,1),
                              add=FALSE,  #sitesFile=NULL,
                              regionSide=1, regionLine=4, regionRep=TRUE,
                              treeInfo=NULL, mod=NULL, popwidth=NULL,
@@ -875,7 +875,7 @@ plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1
               treeInfo=treeInfo,
               col=col, leafCol=leafCol, leafLabels=leafLabels, timeScale=timeScale,
               drawSpr=drawSpr,
-              ylab=ylab, logScale=logScale, ylim=ylim, add=add, mar=mar,
+              ylab=ylab, logScale=logScale, ylim=ylim, add=add, mar=mar, xlab=xlab,
 #              sites=if(is.null(sites)) {NULL} else {sites[sites$chromStart > x[,2] & sites$chromEnd < x[,3],]},
               regionSide=regionSide, regionLine=regionLine, mod=mod, popwidth=popwidth,
               ...)
