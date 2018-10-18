@@ -5,9 +5,12 @@
 ##' @param start The start coordinate of the plot. NULL implies start from beginning of region
 ##' @param end The end coordinate of the plot. NULL implies go to end of region.
 ##' @param anc Ancestral sample name. If NULL, allele1 is major allele and allele2 is minor allele
+##' @param singletons If TRUE, include singletons in plot
 ##' @param allele1Color The color(s) for allele1 (will be recycled across sites)
 ##' @param allele2Color The color(s) for allele2 (will be recycled across sites)
 ##' @param missingColor The color for N allleles
+### @param alleleColors A list giving color for each allele. alleleColors$anc gives
+### color for allele matching ancestral sample
 ##' @param stretch A horizontal expansion factor for sites (so that sparse sites are
 ##' visible in a large region)
 ##' @param indOrder A character vector giving order to list haplotypes (if NULL use
@@ -23,6 +26,8 @@ plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
 #                      baseColor=list(N=rgb(0,0,0,0.2), A="red",
                                         #                                     C="green", G="blue", T="purple"),
                       anc=NULL,
+                      singletons=FALSE,
+#                      alleleColors=list(A="red", C="green", G="blue", T="purple", N=rgb(0,0,0,0.1), anc="black"),
                       allele1Color="black",
                       allele2Color=c("red", "orange", "yellow", "green", "turquoise", "purple"),
                       missingColor=rgb(0,0,0,0.1),
@@ -36,6 +41,7 @@ plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
     if (is.null(end)) end <- x$region$end
 
     f <- x$pos >= start & x$pos <= end
+    if (sum(f) == 0) stop("No sites in start=",start," end=",end)
     x$pos <- x$pos[f]
     x$sites <- x$sites[f,]
 
@@ -54,9 +60,18 @@ plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
     }
     count <- list()
     alleles <- c("A", "C", "G", "T")
+    if (is.null(anc)) {
+        tmpsites <- x$sites
+    } else {
+        tmpsites <- x$sites[,names(x$sites) != anc]
+    }
     for (allele in alleles)
-        count[[allele]] <- apply(x$sites, 1, function(x) {sum(as.character(x)==allele)})
-    f <- (( (count[["A"]] > 1 ) + (count[["C"]] > 1) + (count[["G"]] > 1) + (count[["T"]]  > 1)) > 1)
+        count[[allele]] <- apply(tmpsites, 1, function(x) {sum(as.character(x)==allele)})
+    if (singletons) {minCount <- 1} else {minCount <- 2}
+    f <- (( (count[["A"]] >= minCount ) +
+            (count[["C"]] >= minCount ) +
+            (count[["G"]] >= minCount ) +
+            (count[["T"]] >= minCount )) > 1)
     x$pos <- x$pos[f]
     x$sites <- x$sites[f,]
     if (useCoords) {
@@ -122,12 +137,11 @@ plotTreesAtSites <- function(bedFile, sites, pos=NULL, start=NULL, end=NULL, doS
             numskip <- numskip+1
             next
         }
+        tmp <- table(as.character(sites$sites[f,]))
+        tmp <- tmp[names(tmp)!="N"]
+        if (length(tmp) == 1) next
         if (!doSingletons) {
-            tmp <- table(as.character(sites$sites[f,]))
-            if (sum(tmp > 1 & names(tmp) != "N") <= 1) {
-                numskip <- numskip+1
-                next
-            }
+            if (sum(tmp > 1) <= 1) next
         }
         currCol <- list()
         currCol[names(sites$sites)] <- colors[as.character(unlist(sites$sites[f,]))]
