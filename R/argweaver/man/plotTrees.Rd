@@ -6,9 +6,9 @@
 \usage{
 plotTrees(trees, prune = NULL, keepSeqs = NULL, treeInfo = NULL,
   col = "black", leafCol = col, leafLabels = NULL, timeScale = 1,
-  drawSpr = FALSE, ylab = "Generations", logScale = FALSE, ylim = NULL,
-  add = FALSE, mar = c(8, 4, 1, 1), regionSide = 1, regionLine = 4,
-  mod = NULL, popwidth = NULL, ...)
+  drawSpr = FALSE, ylab = "Generations", xlab = "", logScale = FALSE,
+  ylim = NULL, add = FALSE, mar = c(8, 4, 1, 1), regionSide = 1,
+  regionLine = 4, mod = NULL, popwidth = NULL, ...)
 }
 \arguments{
 \item{trees}{A character vector, each element is a newick tree to plot}
