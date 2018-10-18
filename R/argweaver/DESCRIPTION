@@ -1,7 +1,7 @@
 Package: argweaver
 Title: Process and Plot ARGweaver Results in R
 Version: 0.1
-Authors@R: person("Melissa", "Hubisz", email = "mjhubisz@gmail.com", role = c("aut", "cre"))
+Author: person("Melissa", "Hubisz", email = "mjhubisz@gmail.com", role = c("aut", "cre"))
 Maintainer: Melissa Hubisz <mjhubisz@gmail.com>
 Description: Process/Plot ARGweaver results in R. Reads and displays results from command line programs arg-sample and arg-summarize.
 License: MIT + file LICENSE

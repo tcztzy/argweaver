@@ -43,10 +43,10 @@ region represented in x}
 \item{chromLabel}{if TRUE and multiple chromosomes are being plotted, print chrom names
 on x-axis}
 
-\item{...}{Other arguments to be passed to plot functions}
-
-\item{chromBreaklty}{If multiple chromosomes plotted, this line type used in vertical
+\item{chromBreakLty}{If multiple chromosomes plotted, this line type used in vertical
 lines dividing them}
+
+\item{...}{Other arguments to be passed to plot functions}
 }
 \value{
 Invisibly returns the x-coordinates of the center of each chromosome plotted

@@ -763,6 +763,10 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
 ##' (1=bottom, 2=left, 3=top, 4=right, anything else = don't print)
 ##' @param regionLine Print region of eaach tree on this line of the margin
 ## #' @param ... Passed to plotTree function
+##' @param popwidth If mod is not null, popwidth can be a numeric vector
+##' of length equal to the number of populations, giving relative width
+##' of each
+##' @param xlab Label for x axis
 ##' @note This creates a new plot for each tree. If plotting to the screen, probably
 ##' want to call par(ask=TRUE) first.
 ##' @export
@@ -805,6 +809,8 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
 ##' (1=bottom, 2=left, 3=top, 4=right, anything else = don't print)
 ##' @param regionLine Print region of each tree on this line of the margin
 ##' @param regionRep If TRUE, include MCMC rep in region string
+##' @param xlab label for x axis
+##' @param popwidth If mod is not NULL, relative widths for each population
 ##' @note If the input file is bgzipp'ed and tabixed (which is done automatically when
 ##' created with the script smc2bed-all), then tabix can be used to read in the file. This
 ##' will be much more efficient if the region chrom:start-end covers a subset of the region

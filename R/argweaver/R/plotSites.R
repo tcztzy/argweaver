@@ -121,8 +121,13 @@ plotSites <- function(x=NULL, file=NULL, start=NULL, end=NULL,
 ##' call plotTreeFromBed at the sites in a site file; color individual nodes by allele
 ##' @param bedFile bed.gz file from smc2bed with trees
 ##' @param sites Sites object, as returned by readSites(). Will plot one tree for each site.
-##' @param pos If not NULL, a vector of integers giving which sites to plot. If NULL,
-##' plot all sites
+##' @param pos If not NULL, a vector of integers giving which sites to plot.
+##' If NULL, plot all sites
+##' @param start start position
+##' @param end end position
+##' @param doSingletons whether to plot singletons
+##' @param colors Color to use for each allele in leaf of tree
+##' @param ... Additional arguments passed to plotTreesFromBed
 ##' @export
 plotTreesAtSites <- function(bedFile, sites, pos=NULL, start=NULL, end=NULL, doSingletons=FALSE,
                              colors=list(A="red", C="green", G="turquoise", T="purple",N="gray"),

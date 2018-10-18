@@ -18,7 +18,7 @@
 ##' @param fillBottom if fill is TRUE, fill area
 ##' @param chromLabel if TRUE and multiple chromosomes are being plotted, print chrom names
 ##' on x-axis
-##' @param chromBreaklty If multiple chromosomes plotted, this line type used in vertical
+##' @param chromBreakLty If multiple chromosomes plotted, this line type used in vertical
 ##' lines dividing them
 ##' @param ... Other arguments to be passed to plot functions
 ##' @return Invisibly returns the x-coordinates of the center of each chromosome plotted
