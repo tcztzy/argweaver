@@ -734,7 +734,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
         if (!logScale) {
             plot(c(1), c(1), ylim=ylim, xaxt="n", xlab="", yaxs="i", bty="n",type="n", ylab=ylab, ...)
         } else {
-            if (ylim[1] == 0) yilm[1] <- 1
+            if (ylim[1] == 0) ylim[1] <- 1
             plot(c(1), c(1), ylim=ylim, xaxt="n", xlab="", yaxs="i", bty="n",type="n", log="y", ylab=ylab, ...)
         }
     }
