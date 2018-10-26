@@ -860,6 +860,7 @@ public:
     SnpStream(TabixStream *snp_in) : snp_in(snp_in) {
         char tmp[1000], c;
         string str;
+        // first string should be NAMES or #NAMES
         assert(1==fscanf(snp_in->stream, "%s", tmp));
         done=0;
         while ('\n' != (c=fgetc(snp_in->stream)) && c!=EOF) {
@@ -942,6 +943,11 @@ public:
 	}
         // go to next line if this line is invariant
         if (count[allele1_val] == 0) return readNext();
+        moreThanTwoAlleles=false;
+        for (int i=0; i < 4; i++) {
+            if (i == allele1_val || i == allele2_val) continue;
+            if (count[i] > 0) moreThanTwoAlleles=true;
+        }
 	allele1 = int2dna[allele1_val];
 	allele2 = int2dna[allele2_val];
 	allele1_inds = allele_inds[allele1_val];
@@ -1006,20 +1012,23 @@ public:
         }
         double age=0.0;
         double minage=0.0;
-        for (set<Node*>::iterator it4=lca.begin(); it4 != lca.end(); ++it4) {
-            Node *n = *it4;
-            assert(n != t->root);
-            double tempage = n->age + (n->parent->age - n->age)/2;  //midpoint
-            minage = n->age;
-            if (tempage > age) age = tempage;
+        if (!moreThanTwoAlleles) {
+            for (set<Node*>::iterator it4=lca.begin(); it4 != lca.end(); ++it4) {
+                Node *n = *it4;
+                assert(n != t->root);
+                double tempage = n->age + (n->parent->age - n->age)/2;  //midpoint
+                minage = n->age;
+                if (tempage > age) age = tempage;
+            }
         }
-        if (num_derived == 0 || total-num_derived == 0) age = -1;
+        if (moreThanTwoAlleles || num_derived == 0 || total-num_derived == 0)
+            age = -1;
         scoreBedLine(l, statname, data, age, minage, lca.size()==1);
         l->derAllele = (major_is_derived ? allele2 : allele1);
         l->otherAllele = (major_is_derived ? allele1 : allele2);
         l->derFreq = (major_is_derived ? total-num_derived : num_derived);
         l->otherFreq = (major_is_derived ? num_derived : total - num_derived);
-        l->infSites = (lca.size() == 1);
+        l->infSites = (lca.size() == 1 && !moreThanTwoAlleles);
 
         if (t2 != NULL) delete t2;
     }
@@ -1034,6 +1043,7 @@ public:
     int done;
     bool isBed;
     bool firstLine;
+    bool moreThanTwoAlleles;
 };
 
 
@@ -1103,7 +1113,9 @@ int summarizeRegionBySnp(Config *config, const char *region,
                         chrom, &start, &end, &sample)) return 0;
         assert('\t' == fgetc(infile.stream));
         newick = fgetline(infile.stream);
-        if (sample >= config->burnin && (config->sample_num == 0 || config->sample_num == sample)) break;
+        if (sample >= config->burnin && (config->sample_num == 0 ||
+                                         config->sample_num == sample))
+            break;
         delete [] newick;
     }
     chomp(newick);
