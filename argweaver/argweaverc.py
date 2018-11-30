@@ -84,27 +84,6 @@ if argweaverclib:
     delete_transition_probs = export(
         argweaverclib, "delete_transition_probs", C.c_int,
         [C.c_double_p_p, "transition_probs", C.c_int, "nstates"])
-    argweaver_assert_transmat = export(
-        argweaverclib, "arghmm_assert_transmat", C.c_bool,
-        [C.c_int, "nnodes", C.c_int_list, "ptree", C.c_int_list, "ages",
-         C.c_int, "ntimes", C.c_double_list, "times",
-         C.c_double_list, "popsizes", C.c_double, "rho"])
-    argweaver_assert_transmat_switch = export(
-        argweaverclib, "arghmm_assert_transmat_switch", C.c_bool,
-        [C.c_int, "nnodes", C.c_int_list, "ptree", C.c_int_list, "ages",
-         C.c_int, "recomb_name", C.c_int, "recomb_time",
-         C.c_int, "coal_name", C.c_int, "coal_time",
-         C.c_int, "ntimes", C.c_double_list, "times",
-         C.c_double_list, "popsizes", C.c_double, "rho"])
-    argweaver_assert_transmat_internal = export(
-        argweaverclib, "arghmm_assert_transmat_internal", C.c_bool,
-        [C.c_int, "nnodes", C.c_int_list, "ptree", C.c_int_list, "ages",
-         C.c_int, "ntimes", C.c_double_list, "times",
-         C.c_double_list, "popsizes", C.c_double, "rho"])
-    argweaver_assert_transmat_switch_internal = export(
-        argweaverclib, "arghmm_assert_transmat_switch_internal", C.c_bool,
-        [C.c_void_p, "trees", C.c_int, "ntimes", C.c_double_list, "times",
-         C.c_double_list, "popsizes", C.c_double, "rho"])
 
     # Emission calculation.
     new_emissions = export(
