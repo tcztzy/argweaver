@@ -4,11 +4,12 @@
 \alias{plotSites}
 \title{Plot a sites file}
 \usage{
-plotSites(x = NULL, file = NULL, start = NULL, end = NULL, anc = NULL,
-  singletons = FALSE, allele1Color = "black", allele2Color = c("red",
-  "orange", "yellow", "green", "turquoise", "purple"), missingColor = rgb(0,
-  0, 0, 0.1), stretch = 1, indOrder = NULL, textColor = NULL,
-  useCoords = TRUE, xlab = NULL, textSize = 1, ...)
+plotSites(x = NULL, file = NULL, start = NULL, end = NULL,
+  anc = NULL, singletons = FALSE, allele1Color = "black",
+  allele2Color = c("red", "orange", "yellow", "green", "turquoise",
+  "purple"), missingColor = rgb(0, 0, 0, 0.1), stretch = 1,
+  indOrder = NULL, textColor = NULL, useCoords = TRUE, xlab = NULL,
+  textSize = 1, ...)
 }
 \arguments{
 \item{x}{A sites file object as read by readSites().}

@@ -4,13 +4,13 @@
 \alias{plotTreesFromBed}
 \title{Plot trees from bed file produced by smc2bed}
 \usage{
-plotTreesFromBed(file = NULL, iter = "max", chrom = NULL, start = -1,
-  end = -1, prune = NULL, keepSeqs = NULL, col = "black",
-  leafCol = col, leafLabels = NULL, interval = 1, timeScale = 1,
-  drawSpr = FALSE, ylab = "Generations", xlab = "", logScale = FALSE,
-  ylim = NULL, mar = c(8, 4, 1, 1), add = FALSE, regionSide = 1,
-  regionLine = 4, regionRep = TRUE, treeInfo = NULL, mod = NULL,
-  popwidth = NULL, ...)
+plotTreesFromBed(file = NULL, iter = "max", chrom = NULL,
+  start = -1, end = -1, prune = NULL, keepSeqs = NULL,
+  col = "black", leafCol = col, leafLabels = NULL, interval = 1,
+  timeScale = 1, drawSpr = FALSE, ylab = "Generations", xlab = "",
+  logScale = FALSE, ylim = NULL, mar = c(8, 4, 1, 1), add = FALSE,
+  regionSide = 1, regionLine = 4, regionRep = TRUE,
+  treeInfo = NULL, mod = NULL, popwidth = NULL, ...)
 }
 \arguments{
 \item{file}{A bed file produced by smc2bed}

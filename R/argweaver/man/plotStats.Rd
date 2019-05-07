@@ -4,8 +4,8 @@
 \alias{plotStats}
 \title{Plot statistics trace vs iteration}
 \usage{
-plotStats(x, stat, add = FALSE, xlim = NULL, ylim = NULL, xlab = "Iter",
-  ylab = stat, ...)
+plotStats(x, stat, add = FALSE, xlim = NULL, ylim = NULL,
+  xlab = "Iter", ylab = stat, ...)
 }
 \arguments{
 \item{x}{A data.frame read in by readStatsFile. Alternatively, if

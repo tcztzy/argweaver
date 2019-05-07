@@ -31,7 +31,11 @@ meanPop <- function(idx, edge, mod) {
 
 
 
-
+##' scalePopModel: scale times in a population model
+##' @param mod A popmodel (usually read by readPopModel)
+##' @param scale Scaling factor
+##' @return a new popmodel with scaled times
+##' @export
 scalePopModel <- function(mod, scale) {
     mod$times <- mod$times*scale
     mod$div$time <- mod$div$time*scale

@@ -30,7 +30,7 @@
 plotBw <- function(x, y, y0=NULL, y1=NULL, col="black", alpha=0.2,
                    add=FALSE, xlim=NULL, chrom=NULL, ylab="Generations",
                    xlab="Coordinate", ylim=NULL, fill=FALSE, fillBottom=0,
-                   chromLabel=TRUE, chromBreakLty=3, ...) {
+                   chromLabel=TRUE, chromBreakLty=3, xaxt="s", ...) {
     if (!is.null(y0) || !is.null(y1)) {
         if (is.null(y0) || is.null(y1))
             stop("plotBw: need to supply both y0 and y1, or neither")
@@ -85,7 +85,7 @@ plotBw <- function(x, y, y0=NULL, y1=NULL, col="black", alpha=0.2,
             if (chromLabel) {
                 mtext(allChroms, side=1, line=0.5, at=midChrom, cex=0.7, las=2)
             }
-        } else axis(1)
+        } else if (xaxt != "n") axis(1)
     }
     invisible(midChrom)
 }

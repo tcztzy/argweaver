@@ -7,7 +7,7 @@
 plotBw(x, y, y0 = NULL, y1 = NULL, col = "black", alpha = 0.2,
   add = FALSE, xlim = NULL, chrom = NULL, ylab = "Generations",
   xlab = "Coordinate", ylim = NULL, fill = FALSE, fillBottom = 0,
-  chromLabel = TRUE, chromBreakLty = 3, ...)
+  chromLabel = TRUE, chromBreakLty = 3, xaxt = "s", ...)
 }
 \arguments{
 \item{x}{a data frame with at least three columns with names
