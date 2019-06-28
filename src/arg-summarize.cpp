@@ -633,7 +633,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
             for (int j=0; j < tree->nnodes; j++) {
                 if (tree->nodes[j] == tree->root) continue;
                 int age1 = model->discretize_time(tree->nodes[j]->age);
-                int age2 = model->discretize_time(tree->nodes[j]->age);
+                int age2 = model->discretize_time(tree->nodes[j]->parent->age);
                 for (int k=age1; k < age2; k++) {
                     line->stats[i + k] += (model->times[k + 1] - model->times[k]);
                 }
