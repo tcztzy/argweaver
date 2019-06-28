@@ -156,6 +156,9 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--randomize-phase", "<frac_random>", &randomize_phase,
                     0.0, "randomize phasings at start", ADVANCED_OPT));
+        config.add(new ConfigParam<double>
+                   ("", "--add-switch-errors", "<switch_error_rate>", &switch_error_rate,
+                    0.0, "add switch errors at this rate", ADVANCED_OPT));
         config.add(new ConfigSwitch
                    ("", "--no-sample-phase", &no_sample_phase,
                     "Do not sample phase. Otherwise, if data is unphased, phase"
@@ -636,6 +639,7 @@ public:
     bool unphased;
     string unphased_file;
     double randomize_phase;
+    double switch_error_rate;
     bool no_sample_phase;
     int sample_phase_step;
     bool all_masked;
@@ -1824,6 +1828,27 @@ int main(int argc, char **argv)
     if (nmasked == (int)sequences.length())
         c.all_masked=true;
 
+    // setup phasing options
+    if (c.unphased_file != "") {
+        if (c.vcf_file != "" || c.vcf_list_file != "")
+            printError("Cannot use --unphased-file with VCF input");
+        c.model.unphased_file = c.unphased_file;
+        c.unphased = true;
+    }
+    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
+        c.model.unphased = true;
+    if (c.model.unphased)
+        sequences.set_pairs(&c.model);
+    if (c.randomize_phase > 0.0) {
+        sequences.randomize_phase(c.randomize_phase);
+    }
+    if (c.switch_error_rate > 0.0)
+        sequences.add_switch_errors(c.switch_error_rate);
+    if (c.no_sample_phase)
+        c.sample_phase_step=0;
+    else if (c.sample_phase_step == 0 && c.model.unphased)
+        c.sample_phase_step = c.sample_step;
+
     if (c.write_sites || c.write_sites_only) {
         log_sequences(sites.chrom, &sequences, &c, sites_mapping, -1);
         printLog(LOG_LOW, "Wrote sites\n");
@@ -1867,24 +1892,7 @@ int main(int argc, char **argv)
 	sequences.set_age(c.age_file, c.model.ntimes, c.model.times);
     else sequences.set_age();
 
-    // setup phasing options
-    if (c.unphased_file != "") {
-        if (c.vcf_file != "" || c.vcf_list_file != "")
-            printError("Cannot use --unphased-file with VCF input");
-        c.model.unphased_file = c.unphased_file;
-        c.unphased = true;
-    }
-    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
-        c.model.unphased = true;
-    if (c.model.unphased)
-        sequences.set_pairs(&c.model);
-    if (c.randomize_phase > 0.0) {
-        sequences.randomize_phase(c.randomize_phase);
-    }
-    if (c.no_sample_phase)
-        c.sample_phase_step=0;
-    else if (c.sample_phase_step == 0 && c.model.unphased)
-        c.sample_phase_step = c.sample_step;
+
 
     if (c.sample_popsize_num > 0) {
 	if (c.popsize_em) {
