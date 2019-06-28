@@ -723,7 +723,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
                      col="black", leafCol=col, leafLabels=NULL, timeScale=1,
                      drawSpr=FALSE, sites=NULL, chromStart=NULL, chromEnd=NULL,
                      ylab="Generations", logScale=FALSE, ylim=NULL, add=FALSE,
-                     mar=c(8,4,1,1), mod=NULL, ...) {
+                     mar=c(8,4,1,1), mod=NULL, cex.leafname=0.8, ...) {
     if (!is.null(mar)) {
         if (length(mar) != 4)
             stop("mar should be numeric vector of length 4")
@@ -740,7 +740,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
     }
     if (!is.null(prune)) tree <- pruneTree(tree, seqs=prune, all.but=FALSE)
     if (!is.null(keepSeqs)) tree <- pruneTree(tree, seqs=keepSeqs, all.but=TRUE)
-    rv <- drawTree(tree, call.plotSpr=drawSpr, col=col, leafCol=leafCol, cex.leafname=0.8,
+    rv <- drawTree(tree, call.plotSpr=drawSpr, col=col, leafCol=leafCol, cex.leafname=cex.leafname,
                    leafLabels=leafLabels, timeScale=timeScale,  mod=mod)
 
     if (!is.null(sites)) {
