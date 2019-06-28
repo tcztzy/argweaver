@@ -127,7 +127,6 @@ void prob_tree_mutation(const LocalTree *tree, const ArgModel *model,
     const double *times = model->times;
     const int nnodes = tree->nnodes;
     const LocalNode *nodes = tree->nodes;
-    //    const double mintime = model->get_mintime();
 
     for (int i=0; i<nnodes; i++) {
         if (i == tree->root)

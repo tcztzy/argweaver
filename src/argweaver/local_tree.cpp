@@ -1133,8 +1133,8 @@ void write_newick_tree(FILE *out, const LocalTree *tree,
     if (names == NULL) {
         default_names = new char* [tree->nnodes];
         for (int i=0; i<tree->nnodes; i++) {
-            default_names[i] = new char [11];
-            snprintf(default_names[i], 10, "%d", i);
+            default_names[i] = new char [16];
+            snprintf(default_names[i], 15, "%d", i);
         }
         names2 = default_names;
     }

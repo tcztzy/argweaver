@@ -335,8 +335,8 @@ void print_arg_likelihood(const ArgModel *model,
                           const vector<class MigEvent> &migevents) {
     int start, end;
     if (sites_mapping != NULL) {
-        start = sites_mapping->compress(region->start, -1);
-        end = sites_mapping->compress(region->end, 1);
+        start = sites_mapping->compress(region->start);
+        end = sites_mapping->compress(region->end-1)+1;
     } else {
         start = region->start;
         end = region->end;
@@ -650,14 +650,14 @@ int main(int argc, char **argv)
 
     // setup init ARG
     LocalTrees *trees = NULL;
-    auto_ptr<LocalTrees> trees_ptr;
+    unique_ptr<LocalTrees> trees_ptr;
     if (c.arg_file == "") {
         printError("Error: --arg-file required\n");
         return EXIT_ERROR;
     }
     // init ARG from file
     trees = new LocalTrees();
-    trees_ptr = auto_ptr<LocalTrees>(trees);
+    trees_ptr = unique_ptr<LocalTrees>(trees);
     vector<string> seqnames;
     vector<int> invisible_recomb_pos;
     vector<Spr> invisible_recombs;
@@ -681,8 +681,8 @@ int main(int argc, char **argv)
     if (sites_mapping) {
         compress_local_trees(trees, sites_mapping);
         for (unsigned int i=0; i < invisible_recomb_pos.size(); i++)
-            invisible_recomb_pos[i] = sites_mapping->compress(invisible_recomb_pos[i]-1,
-                                                              1, i==0 ? 0 : invisible_recomb_pos[i-1]);
+            invisible_recomb_pos[i] = sites_mapping->compress(invisible_recomb_pos[i], 0,
+                                                              i==0 ? 0 : invisible_recomb_pos[i-1]);
     }
 
     printLog(LOG_LOW, "read input ARG (chrom=%s, start=%d, end=%d,"
