@@ -323,7 +323,7 @@ public:
                     POPMODEL_OPT));
         config.add(new ConfigParam<int>
                    ("", "--start-mig", "<start_mig>", &start_mig_iter,
-                    0, "Do not allow migration events until after iteration"
+                    0, "Start allowing migration events at this MCMC iteration"
                     " <start_mig>", POPMODEL_OPT));
 
 
@@ -492,9 +492,8 @@ public:
                     "display help information about experimental options",
                     ADVANCED_OPT));
         config.add(new ConfigSwitch
-                   ("", "--help-popmodel", &help_popmodel,
-                    "display help information for population-based models"
-                    " (advanced usage)", ADVANCED_OPT));
+                   ("-d", "--help-popmodel", &help_popmodel,
+                    "display help information for population-based models (ARGweaver-D)"));
     }
 
     int parse_args(int argc, char **argv)

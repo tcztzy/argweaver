@@ -52,7 +52,9 @@ vector<string> ind_dist_leaf2;
 set<string> cluster_group;
 
 const int EXIT_ERROR = 1;
-const int EXPERIMENTAL_OPT = 3;
+const int POPMODEL_OPT = 3;
+const int EXPERIMENTAL_OPT = 4;
+
 
 class MigStat {
 public:
@@ -163,12 +165,12 @@ public:
         config.add(new ConfigParam<string>
                   ("-m", "--mig-file", "<migfile.txt>", &migfile,
                    "Report statistics on migrations listed in this file. Format is:\n"
-                   "statName pop1 pop2 t\n"
-                   "will return a boolean statistic named statName indicating existance"
-                   "of a lineage that is in pop1 at the time interval immediately"
-                   "after time t and pop2 at the time interval before time t2"
-                   "(indicating move from pop1 to pop2 looking backwards in time)",
-                   EXPERIMENTAL_OPT));
+                   " statName pop1 pop2 t\n"
+                   " will return a boolean statistic named statName indicating existance"
+                   " of a lineage that is in pop1 at the time interval immediately"
+                   " after time t and pop2 at the time interval before time t2"
+                   " (indicating move from pop1 to pop2 looking backwards in time)",
+		   POPMODEL_OPT));
         config.add(new ConfigParam<string>
                    ("", "--hap-mig-file", "<migfile.txt>", &hapmigfile,
                     "Similar to --mig-file, but migfile.txt has five columns:\n"
@@ -176,7 +178,7 @@ public:
                     " where hap is one of the haploid lineages of the ARG, will"
                     " report whether the lineage whose descendent is hap goes from\n"
                     " pop1 to pop2 at time t (looking backwards)",
-		    EXPERIMENTAL_OPT));
+		    POPMODEL_OPT));
 
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
@@ -352,8 +354,10 @@ public:
                    ("-v", "--version", &version, "display version information"));
         config.add(new ConfigSwitch
                    ("-h", "--help", &help, "display help information"));
+	config.add(new ConfigSwitch
+		   ("-d", "--help-popmodel", &help_popmodel, "display help information specific to ARGweaver-D (population model)"));
         config.add(new ConfigSwitch
-                   ("-h", "--help-advanced", &help_advanced,
+                   ("", "--help-advanced", &help_advanced,
                     "display help information for experimental/advanced options"));
     }
 
@@ -365,6 +369,10 @@ public:
         }
         if (help) {
             config.printHelp();
+            return EXIT_ERROR;
+        }
+	if (help_popmodel) {
+            config.printHelp(stderr, POPMODEL_OPT);
             return EXIT_ERROR;
         }
         if (help_advanced) {
@@ -431,6 +439,7 @@ public:
     bool quiet;
     bool version;
     bool help;
+    bool help_popmodel;
     bool help_advanced;
 };
 
