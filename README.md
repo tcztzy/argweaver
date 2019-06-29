@@ -28,11 +28,11 @@ ARGweaver can be [downloaded](http://mdrasmus.github.io/argweaver) or
 
 ## Documentation
 
-See the [manual](http://github.com/CshlSiepelLab/argweaver/doc/argweaver-manual.html)
+See the [manual](http://compgen.cshl.edu/ARGweaver/doc/argweaver-manual.html)
 for documentation on the programs and file formats associated with ARGweaver.
 
 For ARGweaver-D, see additional documentation here:
-[ARGweaver-D manual](http://github.com/CshlSiepelLab/argweaver/doc/argweaver-d-manual.html)
+[ARGweaver-D manual](http://compgen.cshl.edu/ARGweaver/doc/argweaver-d-manual.html)
 
 ## Requirements
 
