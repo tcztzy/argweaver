@@ -97,7 +97,6 @@ class PopsizeConfig
     numsample(1),
     neighbor_prior(false),
     config_buildup(0),
-    epsilon(0.01),
     pseudocount(0)
   {
       if (sample) {
