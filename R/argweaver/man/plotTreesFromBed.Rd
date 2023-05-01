@@ -4,12 +4,13 @@
 \alias{plotTreesFromBed}
 \title{Plot trees from bed file produced by smc2bed}
 \usage{
-plotTreesFromBed(file = NULL, iter = "max", chrom = NULL, start = -1,
-  end = -1, prune = NULL, keepSeqs = NULL, col = "black",
-  leafCol = col, leafLabels = NULL, interval = 1, timeScale = 1,
-  drawSpr = FALSE, ylab = "Generations", logScale = FALSE, ylim = NULL,
-  mar = c(8, 4, 1, 1), add = FALSE, regionSide = 1, regionLine = 4,
-  regionRep = TRUE, treeInfo = NULL, mod = NULL, popwidth = NULL, ...)
+plotTreesFromBed(file = NULL, iter = "max", chrom = NULL,
+  start = -1, end = -1, prune = NULL, keepSeqs = NULL,
+  col = "black", leafCol = col, leafLabels = NULL, interval = 1,
+  timeScale = 1, drawSpr = FALSE, ylab = "Generations", xlab = "",
+  logScale = FALSE, ylim = NULL, mar = c(8, 4, 1, 1), add = FALSE,
+  regionSide = 1, regionLine = 4, regionRep = TRUE,
+  treeInfo = NULL, mod = NULL, popwidth = NULL, ...)
 }
 \arguments{
 \item{file}{A bed file produced by smc2bed}
@@ -45,6 +46,8 @@ for each leaf name. If NULL, the leaf names are displayed.}
 
 \item{ylab}{label for y axis}
 
+\item{xlab}{label for x axis}
+
 \item{logScale}{If TRUE, plot in log scale}
 
 \item{ylim}{Range for y axis (default; use range of tree)}
@@ -64,6 +67,8 @@ for each leaf name. If NULL, the leaf names are displayed.}
 
 \item{mod}{(Advanced; for use with multi-population version of ARGweaver) A model
 file read in with the function readPopModel, will draw population model underneath tree}
+
+\item{popwidth}{If mod is not NULL, relative widths for each population}
 
 \item{...}{Passed to plot function}
 }

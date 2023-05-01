@@ -126,7 +126,7 @@ namespace argweaver {
          mat[idx] = logadd(mat[idx], lnVal);
      }
 
-     double get(int pos0, int pos1) {
+     inline double get(int pos0, int pos1) {
 #ifdef DEBUG
          assert(ndim ==2);
 #endif
@@ -135,7 +135,7 @@ namespace argweaver {
          return mat[idx];
      }
 
-     double get(int pos0, int pos1, int pos2) {
+     inline double get(int pos0, int pos1, int pos2) {
 #ifdef DEBUG
          assert(ndim == 3);
 #endif
@@ -145,12 +145,24 @@ namespace argweaver {
          return mat[idx];
      }
 
-     double *getRow(int pos0) {
+
+     inline double get(int pos0, int pos1, int pos2, int pos3) {
+#ifdef DEBUG
+         assert(ndim == 3);
+#endif
+         if (pos0 < 0 || pos1 < 0 || pos2 < 0 || pos3 < 0) return defaultVal;
+         //         printf("get %i %i %i %i %i %i\n", pos0, pos1, pos2, multipliers[0], multipliers[1], multipliers[2]);
+         int idx = pos0*multipliers[0] + pos1 * multipliers[1] + pos2 * multipliers[2] + pos3;
+         return mat[idx];
+     }
+
+
+     inline double *getRow(int pos0) {
          assert(ndim == 2);
          return &mat[pos0*multipliers[0]];
      }
 
-     double *getRow(int pos0, int pos1) {
+     inline double *getRow(int pos0, int pos1) {
          assert(ndim == 3);
          return &mat[pos0*multipliers[0] + pos1*multipliers[1]];
      }
@@ -161,7 +173,7 @@ namespace argweaver {
      // should have the same number of arguments as the dimension of the matrix
      // returns mat[pos1][pos2][...]
      // if any of the positions are < 0, returns 0.0
-     double get(int pos1, ...) {
+     inline double get(int pos1, ...) {
          va_list ap;
          int idx = pos1 * multipliers[0];
          va_start(ap, pos1);

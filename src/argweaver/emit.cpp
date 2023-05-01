@@ -127,7 +127,6 @@ void prob_tree_mutation(const LocalTree *tree, const ArgModel *model,
     const double *times = model->times;
     const int nnodes = tree->nnodes;
     const LocalNode *nodes = tree->nodes;
-    const double mintime = model->get_mintime();
 
     for (int i=0; i<nnodes; i++) {
         if (i == tree->root)
@@ -136,7 +135,8 @@ void prob_tree_mutation(const LocalTree *tree, const ArgModel *model,
         if (parent_age == model->get_removed_root_time())
             continue;
 
-        double t = max(times[parent_age] - times[nodes[i].age], mintime);
+        double t = ( parent_age == nodes[i].age ? model->get_mintime(parent_age)
+                     : times[parent_age] - times[nodes[i].age] );
         muts[i] = prob_branch(t, model->mu, true);
         nomuts[i] = prob_branch(t, model->mu, false);
     }
@@ -402,8 +402,9 @@ void likelihood_sites(const LocalTree *tree, const ArgModel *model,
     double treelen = 0.0;
     for (int i=0; i<tree->nnodes; i++) {
         if (i != tree->root) {
-            double t = max(times[nodes[nodes[i].parent].age] -
-                           times[nodes[i].age], mintime);
+            double t = ( nodes[nodes[i].parent].age == nodes[i].age ?
+                         model->get_mintime(nodes[i].age) :
+                         times[nodes[nodes[i].parent].age] - times[nodes[i].age]);
             muts[i] = prob_branch(t, model->mu, true);
             nomuts[i] = prob_branch(t, model->mu, false);
             treelen += t;
@@ -440,7 +441,6 @@ double likelihood_tree(const LocalTree *tree, const ArgModel *model,
     const double *times = model->times;
     const int nnodes = tree->nnodes;
     const LocalNode *nodes = tree->nodes;
-    const double mintime = model->get_mintime();
     double invariant_lk = -1;
     lk_row table[nnodes];
 
@@ -453,8 +453,9 @@ double likelihood_tree(const LocalTree *tree, const ArgModel *model,
     double nomuts[tree->nnodes];
     for (int i=0; i<tree->nnodes; i++) {
         if (i != tree->root) {
-            double t = max(times[nodes[nodes[i].parent].age] -
-                           times[nodes[i].age], mintime);
+            double t = ( nodes[nodes[i].parent].age == nodes[i].age ?
+                  model->get_mintime(nodes[i].age) :
+                  times[nodes[nodes[i].parent].age] - times[nodes[i].age] );
             muts[i] = prob_branch(t, model->mu, true);
             nomuts[i] = prob_branch(t, model->mu, false);
         }
@@ -694,7 +695,6 @@ void calc_emissions(const States &states, const LocalTree *tree,
 		    PhaseProbs *phase_pr)
 {
     const int nstates = states.size();
-    const double mintime = model->get_mintime();
     const int newleaf = tree->get_num_leaves();
     const int maintree_root = internal ? tree->nodes[tree->root].child[1] :
         tree->root;
@@ -812,7 +812,8 @@ void calc_emissions(const States &states, const LocalTree *tree,
     while (top > 0) {
         int node = queue[--top];
         if (node != maintree_root)
-            maintreelen += max(tree->get_dist(node, model->times), mintime);
+            maintreelen += max(tree->get_dist(node, model->times),
+                               model->get_mintime(tree->nodes[node].age));
         if (!tree->nodes[node].is_leaf()) {
             queue[top++] = tree->nodes[node].child[0];
             queue[top++] = tree->nodes[node].child[1];
@@ -826,7 +827,8 @@ void calc_emissions(const States &states, const LocalTree *tree,
         while (top > 0) {
             int node = queue[--top];
             if (node != subtree_root)
-                subtreelen += max(tree->get_dist(node, model->times), mintime);
+                subtreelen += max(tree->get_dist(node, model->times),
+                                  model->get_mintime(tree->nodes[node].age));
             if (!tree->nodes[node].is_leaf()) {
                 queue[top++] = tree->nodes[node].child[0];
                 queue[top++] = tree->nodes[node].child[1];
@@ -853,9 +855,10 @@ void calc_emissions(const States &states, const LocalTree *tree,
 
         // get distances
 	double dist[3], mut[3], nomut[3];
-        dist[0] = max(coal_time - time1, mintime);
-        dist[1] = max(coal_time - time2, mintime);
-        dist[2] = max(parent_time - coal_time, mintime);
+        double curr_mintime = model->get_mintime(state.time);
+        dist[0] = max(coal_time - time1, curr_mintime);
+        dist[1] = max(coal_time - time2, curr_mintime);
+        dist[2] = max(parent_time - coal_time, curr_mintime);
 
         // get mutation probabilities
         mut[0] = prob_branch(dist[0], model->mu, true);
@@ -869,15 +872,15 @@ void calc_emissions(const States &states, const LocalTree *tree,
         double treelen;
         if (node2 == maintree_root)
             treelen = maintreelen + subtreelen
-                + max(coal_time - time1, mintime)
+                + max(coal_time - time1, curr_mintime)
                 + max(coal_time - model->times[tree->nodes[maintree_root].age],
-                      mintime);
+                      curr_mintime);
         else
             treelen = maintreelen + subtreelen
-                + max(coal_time - time1, mintime);
+                + max(coal_time - time1, curr_mintime);
 
         // calculate invariant_lk
-        double invariant_lk = .25 * exp(- model->mu * max(treelen, mintime));
+        double invariant_lk = .25 * exp(- model->mu * treelen);
 
         // fill in row of emission table
         for (int i=0; i<seqlen; i++) {

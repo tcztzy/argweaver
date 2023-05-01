@@ -6,9 +6,9 @@
 \usage{
 plotTrees(trees, prune = NULL, keepSeqs = NULL, treeInfo = NULL,
   col = "black", leafCol = col, leafLabels = NULL, timeScale = 1,
-  drawSpr = FALSE, ylab = "Generations", logScale = FALSE, ylim = NULL,
-  add = FALSE, mar = c(8, 4, 1, 1), regionSide = 1, regionLine = 4,
-  mod = NULL, popwidth = NULL, ...)
+  drawSpr = FALSE, ylab = "Generations", xlab = "",
+  logScale = FALSE, ylim = NULL, add = FALSE, mar = c(8, 4, 1, 1),
+  regionSide = 1, regionLine = 4, mod = NULL, popwidth = NULL, ...)
 }
 \arguments{
 \item{trees}{A character vector, each element is a newick tree to plot}
@@ -35,6 +35,8 @@ for each leaf name. If NULL, the leaf names are displayed.}
 
 \item{ylab}{label for y axis}
 
+\item{xlab}{Label for x axis}
+
 \item{logScale}{If TRUE, plot in log scale}
 
 \item{ylim}{Range for y axis (default; use range of tree)}
@@ -50,6 +52,10 @@ for each leaf name. If NULL, the leaf names are displayed.}
 
 \item{mod}{(Advanced; for use with multi-population version of ARGweaver) A model
 file read in with the function readPopModel, will draw population model underneath tree}
+
+\item{popwidth}{If mod is not null, popwidth can be a numeric vector
+of length equal to the number of populations, giving relative width
+of each}
 
 \item{...}{Passed to plot function}
 }

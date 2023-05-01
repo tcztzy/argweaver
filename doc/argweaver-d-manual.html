@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+  <title>ARGweaver-D documentation</title>
+  <link type="text/css" rel="stylesheet" href="manual.css">
+</head>
+
+<body>
+
+<!-- ====================================================================== -->
+<div class="titlepage">
+
+<h1>ARGweaver-D: Sampling ancestral recombination graphs conditional on a demographic model</h1>
+
+<h2>Documentation for ARGweaver-D</h2>
+
+<h3>
+Updated: June, 2019
+</h3>
+
+<b>Author:</b> Melissa J. Hubisz (<a href="mailto:mjhubisz@cornell.edu">mjhubisz@cornell.edu</a><br>
+<b>Software website:</b> <a href="http://github.com/CshlSiepelLab/argweaver/">http://github.com/CshlSiepelLab/argweaver/</a>
+
+<br><br>
+
+<b>citation:</b>
+<a href="http://arxiv.org/abs/1306.5110">
+  Melissa J. Hubisz, Amy L. Williams, Adam Siepel. Mapping gene flow between ancient hominins
+  through demography-aware inference of the ancestral recombination graph.
+</a>
+
+<br><br>
+
+<hr>
+
+<br><br>
+
+</div>
+
+
+<h2>Introduction</h2>
+
+<p>
+  ARGweaver-D is an extension of ARGweaver that allows ARGs to
+  be sampled conditional on a user-defined demographic model that
+  includes population splits and migration events. The ARGweaver-D
+  code is built into the ARGweaver software base, and only requires
+  extra options to the command-line programs to invoke. It is
+  recommended that you first <a href=argweaver-manual.html>familiarize yourself</a>
+  with basic ARGweaver usage before reading this manual. However, note
+  that ARGweaver-D has only been added to the C++ component of the ARGweaver
+  codebase, and has not been incorporated into ARGweaver's python library.
+</p>
+
+
+
+<a name="sec-prog"></a>
+<h2>Sampling an ARG under ARGweaver-D using arg-sample</h2>
+
+<p>
+  Demography-aware ARGs can be sampled with the command <tt>arg-sample</tt>.
+  Here, we document the options specific to ARGweaver-D:
+
+<h4>Overview</h4>
+
+
+<div class="code">
+  -h,--help<br>
+  -d,--help-popmodel <br>
+  -P,--pop-tree-file &lt;poptree file&gt; <br>
+  --pop-file &lt;population assignment file&gt;<br>
+  --max-migs &lt;max_migs&gt; (default: 1)<br>
+  --start-mig &lt;iter&gt; (default: 0)<br>
+</div>
+
+
+<h4>Getting help</h4>
+Most ARGweaver options can be described by invoking <tt>arg-sample --help</tt>. <br>
+Options specific to ARGweaver-D can be described by invoking <tt>arg-sample --help-popmodel</tt>.
+
+<h4>Specifying a population tree</h4>
+The population tree is specified using <tt>--pop-tree-file &lt;file&gt;</tt>. 
+An example pop-tree file and explanation of the format is given below: 
+
+<a name="figure-poptree"></a>
+<div class="figure">
+
+<div class="code"><pre>
+npop 5
+
+## Neanderthal(1)/Denisova(2) div at 415kya
+div 14310 2 1
+
+## Archaic(1)/African(0) div at 575kya
+div 19827 1 0
+
+## Super-archaic(3)/Hominin(0) div at 1.0mya
+div 34483 3 0
+
+## Hominin(0)/Chimp(4) div at 11Mya
+div 379310 4 0
+
+## Afr-Nea migration @ 250kya
+mig 8621 1 0 0.01
+mig 8621 2 0 0.01
+
+## Super-archaic migrations @ 250kya
+mig 8621 0 3 0.01
+mig 8621 1 3 0.01
+mig 8621 2 3 0.01
+</pre>
+</div>
+
+<div class="figcaption">
+  <span class="figtitle">Figure: Example population tree file.</span>
+  The first line starts with the tag "npop" and is followed by the number of populations at present time. The populations are numbered 0,...,(npop-1).
+  
+  <p>Each "div" line specifies a population divergence time. It takes three arguments: a time (in generations), and two population numbers. Looking backwards in time, the second population merges with the first population at this time. If there are n populations, there must be n-1 "div" lines, specified in such a way so that only one population remains by the final discrete time in the ARGweaver model (see <tt>arg-sample --maxtime</tt> or <tt>arg-sample --times-file</tt>).</p>
+  
+  <p>Migrations are optionally specified with "mig" lines. They have the same format as the "div" lines, but with an additional probability parameter at the end, specifying the probability that a lineage sampled from the receiving population just after the migration event came from the donor population. Looking backwards in time, individuals from the first population move to the second population with the specified probability at the specified time.</p>
+
+  <p>Comment lines (starting with #) are allowed.</p>
+  
+  <p>One important note is that all times in this file will be rounded to the nearest half-time in the discretized ARGweaver model.</p>
+
+</div>
+</div>
+
+
+<h4>Specifying population assignments</h4>
+It is also necessary to specify which individuals belong to which populations. This is done with the <tt>--pop-file &lt;file&gt;</tt> option. An example population file is below.
+
+
+<a name="figure-popfile"></a>
+<div class="figure">
+
+<div class="code"><pre>
+chimp	4
+Mandenka_2F	0
+Khomani_San_1F	0
+Vindija	1
+Altai	1
+Denisova	2
+</pre>
+</div>
+
+<div class="figcaption">
+  <span class="figtitle">Figure: Example population file.</span>
+  The population file is simply a tab-delimited file with two columns: an individual name and a population assignment. The population assignment numbers correspond to the numbers in the population tree file (described above). The first column can give the names of haploid lineages (as used in SITES file format). Or, they can be diploid names, if VCF file input was used, or if the haploid lineages are named with the convention ind_1 ind_2, where "ind" is the name of the diploid individual.
+</div>
+</div>
+
+
+<h4>Other arg-sample options</h4>
+
+The other relevant options are:
+
+<div class="code">
+  --max-migs &lt;num&gt;
+</div>
+
+This specifies the maximum number of migrations allowed per local tree, and has a default of 1. This means only one lineage in a local tree can take a migration path, and is recommended to help avoid mixing problems, especially if the population model has many potential migration events. However in some circumstances with reasonably simple demographic models, it might make sense to change this default and allow multiple migration events.
+
+
+<div class="code">
+  --start-mig &lt;num&gt;
+</div>
+
+This specifies the starting MCMC iterations when migration events are allowed. The default is zero (always allow migrations), but we have found that convergence may improve when ARGweaver is first allowed to build a basic ARG without migrations for some initial iterations, especially if working with unphased samples. We often use the value of 100.
+
+
+<h3>Parsing demographic ARGs with arg-summarize</h3>
+
+Once ARGs are created with <tt>arg-sample</tt>, the program <tt>arg-summarize</tt> can be used to analyze migration regions of the args. The relevant options are:
+
+<div class="code">
+  --mig-file &lt;mig_file&gt;<br>
+  --hap-mig-file &lt;hap_mig_file&gt;
+</div>
+
+The first option takes a "migration file" like this:
+<a name="figure-migfile"></a>
+<div class="figure">
+
+<div class="code"><pre>
+hToN 1 0 8621
+hToD 2 0 8621
+sToH 0 3 8621
+sToN 1 3 8621
+sToD 2 3 8621
+</pre>
+</div>
+
+<div class="figcaption">
+  <span class="figtitle">Figure: Example migration file for <tt>--mig-file</tt> option to <tt>arg-summarize</t></span>
+Each row describes a migration event that we want to summarize. The first column names the event; this name will be used in the <tt>arg-summarize</tt> output file. The next three columns give the receiving population, the source population, and the time (in generations) of the event.
+</div>
+</div>
+
+<pp>Using the <tt>--mig-file</tt> option, arg-summarize will generate a bed file that includes a column for each migration event in the file, with 1/0 indicating whether any lineage that type of migrant in the local tree. By combining this option with either the <tt>--mean</tt> or <tt>--quantile</tt> options, you can get averages/quantiles across MCMC iterations across the genomic locations spanned by the ARG.</pp>
+
+<p>A slight variant of this option is <tt>--hap-mig-file</tt>, which takes a slightly different intput file, described below:
+<a name="figure-hapmigfile"></a>
+<div class="figure">
+
+<div class="code"><pre>
+hToN.alt_1 1 0 8621 Altai_1 
+hToN.alt_2 1 0 8621 Altai_2
+hToN.vin_1 1 0 8621 Vindija_1
+hToN.vin_2 1 0 8621 Vindija_2
+hToD.den_1 2 0 8621 Denisova_1
+hToD.den_2 2 0 8621 Denisova_2
+sToA.afr1_1 0 3 8621 Khomani_San_1F_1
+sToA.afr1_2 0 3 8621 Khomani_San_1F_2
+sToA.afr2_1 0 3 8621 Mandenka_2F_1
+sToA.afr2_2 0 3 8621 Mandenka_2F_2
+sToN.alt_1 1 3 8621 Altai_1
+sToN.alt_2 1 3 8621 Altai_2
+sToN.vin_1 1 3 8621 Vindija_1
+sToN.vin_2 1 3 8621 Vindija_2
+sToD.den_1 2 3 8621 Denisova_1
+sToD.den_2 2 3 8621 Denisova_2
+</pre>
+</div>
+<div class="figcaption">
+  <span class="figtitle">Figure: Example migration file for <tt>--hap-mig-file</tt> option to <tt>arg-summarize</t></span>
+The format here is the same as for <tt>--mig-file</tt>, except for a final column which gives a haploid lineage name. With this option, the output bed file will include a column for each row in this file, indicating whether a lineage ancestral to the named haploid sample undergoes the particular migration event.
+</div>
+</div>
+
+Once bed files have been generated with <tt>arg-summarize --hap-mig-file<tt>, it is straightforward to use command-line tools such as <tt>awk</tt> to generate probabilities that a diploid individual is heterozygously or homozygously introgressed, by combining the results from their two haploid lineages.
+
+</body>
+</html>

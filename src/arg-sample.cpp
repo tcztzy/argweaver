@@ -163,6 +163,9 @@ public:
         config.add(new ConfigParam<double>
                    ("", "--randomize-phase", "<frac_random>", &randomize_phase,
                     0.0, "randomize phasings at start", ADVANCED_OPT));
+        config.add(new ConfigParam<double>
+                   ("", "--add-switch-errors", "<switch_error_rate>", &switch_error_rate,
+                    0.0, "add switch errors at this rate", ADVANCED_OPT));
         config.add(new ConfigSwitch
                    ("", "--no-sample-phase", &no_sample_phase,
                     "Do not sample phase. Otherwise, if data is unphased, phase"
@@ -283,17 +286,26 @@ public:
                     " the first row having t=0.\n"
                     " If using the multiple population model, a third colum indicates"
                     "   the population number, with the first population numbered zero"));
-        // note the following two are ConfigSwitch with default value=true,
-        // so that providing the switch makes the variable false
+
         config.add(new ConfigSwitch
-                   ("", "--smc-orig", &model.smc_prime,
-                    "Use non-prime SMC model instead of SMC-prime", 0, true));
+                   ("", "--smc-prime", &model.smc_prime,
+                    "Use SMC' model (this option is generally slower"
+                    " but represents a more accurate model). It is"
+                    " recommended with the --pop-tree-file option, or for"
+                    " ARGs with small numbers of highly diverged samples"));
+        // note that --invisible-recombs has value=true,
+        // so that providing the switch makes the variable false
         config.add(new ConfigSwitch
                    ("", "--invisible-recombs", &invisible_recombs,
                     "Output invisible recombinations which do not affect tree"
                     " topology (this will provide more accurate count of"
                     " recombination events, but may increase the runtime",
                     ADVANCED_OPT, false));
+        config.add(new ConfigSwitch
+                   ("", "--smc-orig", &do_nothing,
+                    "This option is deprecated and does nothing; it is kept"
+                    " for backwards compatibility. The original SMC model is the"
+                    " default; see --smc-prime", ADVANCED_OPT));
 
         // Population model options
         config.add(new ConfigParam<string>
@@ -302,21 +314,23 @@ public:
                     POPMODEL_OPT));
         config.add(new ConfigParam<string>
                    ("-P", "--pop-tree-file", "<population file>", &pop_tree_file,
-                    "", "File describing population tree (for multiple populations)",
+                    "", "File describing population tree (for multiple populations)"
+                    " (Note --smc-prime is recommended with this option)",
                     POPMODEL_OPT));
-        /*        config.add(new ConfigParam<int>
+        config.add(new ConfigParam<int>
                    ("", "--max-migs", "<max_migs>", &max_migrations,
-                    -1, "For use with --pop-tree-file, do not thread lineages with more"
-                    " than this many migrations. The default of -1 implies no maximum."
-                    " Setting this value may reduce runtime significantly.",
-                    POPMODEL_OPT));*/
+                    1, "For use with --pop-tree-file, do not thread lineages with more"
+                    " than this many migrations. Setting this to any value other"
+                    " than one is experimental, and may significantly increase"
+                    " run-time and cause issues with MCMC mixing",
+                    POPMODEL_OPT));
         config.add(new ConfigSwitch
                    ("", "--no-resample-mig", &no_resample_mig,
                     "Do not perform migration-specific resampling",
                     POPMODEL_OPT));
         config.add(new ConfigParam<int>
                    ("", "--start-mig", "<start_mig>", &start_mig_iter,
-                    0, "Do not allow migration events until after iteration"
+                    0, "Start allowing migration events at this MCMC iteration"
                     " <start_mig>", POPMODEL_OPT));
 
 
@@ -431,7 +445,13 @@ public:
                     "Write sites (after all masking options) to <outroot>.sites.gz"));
         config.add(new ConfigSwitch
                    ("", "--write-sites-only", &write_sites_only,
-                    "Same as --write-sites, but exit after reading and writing sites\n"));
+                    "Same as --write-sites, but exit after reading and writing sites"));
+        config.add(new ConfigSwitch
+                   ("", "--include-masked-sites", &write_masked_sites,
+                    "Relevant for --write-sites, --write-sites-only, or when sampling phase:"
+                    " include sites that are masked in all samples in the output. By default"
+                    " these are not included, but the set of masked sites is written to a"
+                    " bed file named <outroot>.masked_sites.bed"));
 
         // advanced options
         config.add(new ConfigParamComment("Advanced Options", ADVANCED_OPT));
@@ -479,9 +499,8 @@ public:
                     "display help information about experimental options",
                     ADVANCED_OPT));
         config.add(new ConfigSwitch
-                   ("", "--help-popmodel", &help_popmodel,
-                    "display help information for population-based models"
-                    " (advanced usage)", ADVANCED_OPT));
+                   ("-d", "--help-popmodel", &help_popmodel,
+                    "display help information for population-based models (ARGweaver-D)"));
     }
 
     int parse_args(int argc, char **argv)
@@ -566,7 +585,7 @@ public:
     // model parameters
     string popsize_str;
     string pop_tree_file;
-    //    int max_migrations;
+    int max_migrations;
     string pop_file;
     double mu;
     double rho;
@@ -627,11 +646,13 @@ public:
     string unphased_file;
     bool phased_vcf;
     double randomize_phase;
+    double switch_error_rate;
     bool no_sample_phase;
     int sample_phase_step;
     bool all_masked;
     bool write_sites;
     bool write_sites_only;
+    bool write_masked_sites;
 
     // help/information
     bool quiet;
@@ -641,6 +662,7 @@ public:
     bool help_advanced;
     bool help_experimental;
     bool help_popmodel;
+    bool do_nothing;
 
     // logging
     FILE *stats_file;
@@ -879,7 +901,7 @@ bool log_sequences(string chrom, const Sequences *sequences,
         printError("cannot write '%s'", out_sites_file.c_str());
         return false;
     }
-    write_sites(stream.stream, &sites);
+    write_sites(stream.stream, &sites, config->write_masked_sites);
     return true;
 }
 
@@ -1166,8 +1188,11 @@ void resample_arg_all(ArgModel *model, Sequences *sequences, LocalTrees *trees,
         printLog(LOG_LOW, "sample %d\n", i);
         Timer timer;
         double heat = model->mc3.heat;
-        if (model->pop_tree != NULL && i >= config->start_mig_iter)
-            model->pop_tree->max_migrations = 1;
+        if (model->pop_tree != NULL && i >= config->start_mig_iter) {
+            if (model->pop_tree->max_migrations != config->max_migrations)
+                printLog(LOG_LOW, "Changing max_migrations to %i\n", config->max_migrations);
+            model->pop_tree->max_migrations = config->max_migrations;
+        }
 
 #ifndef ARGWEAVER_MPI
         do_leaf[i] = ( frand() < frac_leaf );
@@ -1493,7 +1518,7 @@ int main(int argc, char **argv)
     // setup logging
     set_up_logging(c, c.verbose, (c.resume ? "a" : "w"));
 
-        // try to resume a previous run
+    // try to resume a previous run
     if (!setup_resume(c)) {
         printError("resume failed.");
         if (c.overwrite) {
@@ -1810,6 +1835,27 @@ int main(int argc, char **argv)
     if (nmasked == (int)sequences.length())
         c.all_masked=true;
 
+    // setup phasing options
+    if (c.unphased_file != "") {
+        if (c.vcf_file != "" || c.vcf_list_file != "")
+            printError("Cannot use --unphased-file with VCF input");
+        c.model.unphased_file = c.unphased_file;
+        c.unphased = true;
+    }
+    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
+        c.model.unphased = true;
+    if (c.model.unphased)
+        sequences.set_pairs(&c.model);
+    if (c.randomize_phase > 0.0) {
+        sequences.randomize_phase(c.randomize_phase);
+    }
+    if (c.switch_error_rate > 0.0)
+        sequences.add_switch_errors(c.switch_error_rate);
+    if (c.no_sample_phase)
+        c.sample_phase_step=0;
+    else if (c.sample_phase_step == 0 && c.model.unphased)
+        c.sample_phase_step = c.sample_step;
+
     if (c.write_sites || c.write_sites_only) {
         log_sequences(sites.chrom, &sequences, &c, sites_mapping, -1);
         printLog(LOG_LOW, "Wrote sites\n");
@@ -1829,6 +1875,10 @@ int main(int argc, char **argv)
         c.model.pop_tree->max_migrations = ( c.start_mig_iter <= 0 ? 1 : 0 );
         if (c.pop_file != "") {
             sequences.set_pops_from_file(c.pop_file);
+        }
+        if (c.model.num_pops() != 1 && !c.model.smc_prime) {
+            printLog(LOG_LOW, "Warning: Using original SMC model. --smc-prime option "
+                     "is recommended for multiple population models\n");
         }
     }
 

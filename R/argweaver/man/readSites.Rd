@@ -4,15 +4,17 @@
 \alias{readSites}
 \title{Read an ARGweaver sites file}
 \usage{
-readSites(file)
+readSites(file, readProbs = FALSE)
 }
 \arguments{
 \item{file}{Sites file (may be gzipped. may NOT be streamed)}
+
+\item{readProbs}{If TRUE, return genotype probabilities as well (if they are in encoded in the file)}
 }
 \value{
 a list with two elements: one describing the region, and the
 other a data frame with a column for each haploid genome and a row
-for each variant site
+for each variant site. A third element "probs" will be added if readProbs=TRUE
 }
 \description{
 Read an ARGweaver sites file

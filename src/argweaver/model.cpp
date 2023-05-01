@@ -523,7 +523,8 @@ void ArgModel::read_population_sizes(string popsize_file) {
         } else if (splitStr.size() == 3) {
             pop = atoi(splitStr[2].c_str());
             if (pop < 0 || pop >= num_pops())
-                exitError("Error parsing population in popsize file\n");
+                exitError("Error parsing population %s in popsize file (%s)\n",
+                          splitStr[2].c_str(), popsize_file.c_str());
             curr_time = atof(splitStr[0].c_str());
             curr_size = atof(splitStr[1].c_str());
         } else {
@@ -601,6 +602,14 @@ bool ArgModel::paths_equal(int path1, int path2, int t1, int t2) const {
     return pop_tree->paths_equal(path1, path2, t1, t2);
 }
 
+
+bool ArgModel::paths_equal(int path1, int path2, double t1, double t2) const {
+    if (pop_tree == NULL || path1==path2) return true;
+    int t1d = discretize_time(t1);
+    int t2d = discretize_time(t2);
+    return pop_tree->paths_equal(path1, path2, t1d, t2d);
+}
+
 int ArgModel::max_matching_path(int path1, int path2, int t) const {
     if (pop_tree == NULL) return ntimes-1;
     return pop_tree->max_matching_path(path1, path2, t);
@@ -649,6 +658,12 @@ ArgModel::ArgModel(const char *logfilename) {
             if (str_starts_with(line, "----------")) break;
             if (str_starts_with(line, "  mu = "))
                 assert(1 == sscanf(line, "  mu = %le", &mu));
+            if (str_starts_with(line, "  smc_prime = true")) {
+                smc_prime = true;
+            }
+            if (str_starts_with(line, "  smc_prime = false")) {
+                smc_prime = false;
+            }
             if (str_starts_with(line, "  rho = "))
                 assert(1 == sscanf(line, "  rho = %le", &rho));
             if (str_starts_with(line, "  ntimes = ")) {
@@ -804,6 +819,7 @@ void ArgModel::log_model() const {
     printLog(LOG_LOW, "model: \n");
     printLog(LOG_LOW, "  mu = %e\n", mu);
     printLog(LOG_LOW, "  rho = %e\n", rho);
+    printLog(LOG_LOW, "  smc_prime = %s\n", smc_prime ? "true" : "false");
     printLog(LOG_LOW, "  ntimes = %d\n", ntimes);
     printLog(LOG_LOW, "  times = [");
     for (int i=0; i<ntimes-1; i++)

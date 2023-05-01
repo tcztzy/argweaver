@@ -723,7 +723,7 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
                      col="black", leafCol=col, leafLabels=NULL, timeScale=1,
                      drawSpr=FALSE, sites=NULL, chromStart=NULL, chromEnd=NULL,
                      ylab="Generations", logScale=FALSE, ylim=NULL, add=FALSE,
-                     mar=c(8,4,1,1), mod=NULL, ...) {
+                     mar=c(8,4,1,1), mod=NULL, cex.leafname=0.8, ...) {
     if (!is.null(mar)) {
         if (length(mar) != 4)
             stop("mar should be numeric vector of length 4")
@@ -734,13 +734,13 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
         if (!logScale) {
             plot(c(1), c(1), ylim=ylim, xaxt="n", xlab="", yaxs="i", bty="n",type="n", ylab=ylab, ...)
         } else {
-            if (ylim[1] == 0) yilm[1] <- 1
+            if (ylim[1] == 0) ylim[1] <- 1
             plot(c(1), c(1), ylim=ylim, xaxt="n", xlab="", yaxs="i", bty="n",type="n", log="y", ylab=ylab, ...)
         }
     }
     if (!is.null(prune)) tree <- pruneTree(tree, seqs=prune, all.but=FALSE)
     if (!is.null(keepSeqs)) tree <- pruneTree(tree, seqs=keepSeqs, all.but=TRUE)
-    rv <- drawTree(tree, call.plotSpr=drawSpr, col=col, leafCol=leafCol, cex.leafname=0.8,
+    rv <- drawTree(tree, call.plotSpr=drawSpr, col=col, leafCol=leafCol, cex.leafname=cex.leafname,
                    leafLabels=leafLabels, timeScale=timeScale,  mod=mod)
 
     if (!is.null(sites)) {
@@ -763,12 +763,16 @@ plotTree <- function(tree, prune=NULL, keepSeqs=NULL,
 ##' (1=bottom, 2=left, 3=top, 4=right, anything else = don't print)
 ##' @param regionLine Print region of eaach tree on this line of the margin
 ## #' @param ... Passed to plotTree function
+##' @param popwidth If mod is not null, popwidth can be a numeric vector
+##' of length equal to the number of populations, giving relative width
+##' of each
+##' @param xlab Label for x axis
 ##' @note This creates a new plot for each tree. If plotting to the screen, probably
 ##' want to call par(ask=TRUE) first.
 ##' @export
 plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
                       col="black", leafCol=col, leafLabels=NULL, timeScale=1,
-                      drawSpr=FALSE, ylab="Generations", logScale=FALSE, ylim=NULL, add=FALSE,
+                      drawSpr=FALSE, ylab="Generations", xlab="", logScale=FALSE, ylim=NULL, add=FALSE,
                       mar=c(8,4,1,1),
 #                      sites=NULL,
                       regionSide=1, regionLine=4, mod=NULL, popwidth=NULL, ...) {
@@ -780,7 +784,7 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
     if (add == FALSE && !is.null(mod)) add <- TRUE
     mod2 <- NULL
     for (i in 1:length(trees)) {
-        if (!is.null(mod)) mod2 <- drawPopModel(mod, popwidth=popwidth, timescale=timeScale, ylim=ylim)
+        if (!is.null(mod)) mod2 <- drawPopModel(mod, popwidth=popwidth, timescale=timeScale, ylim=ylim, ylab=ylab, xlab=xlab)
         rv[[i]] <- plotTree(trees[i], prune=prune, keepSeqs=keepSeqs, col=col, leafCol=leafCol,
                  leafLabels=leafLabels, timeScale=timeScale, drawSpr=drawSpr, ylab=ylab,
                  logScale=logScale, ylim=ylim, add=add, mar=mar, mod=mod2, ...)
@@ -805,6 +809,8 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
 ##' (1=bottom, 2=left, 3=top, 4=right, anything else = don't print)
 ##' @param regionLine Print region of each tree on this line of the margin
 ##' @param regionRep If TRUE, include MCMC rep in region string
+##' @param xlab label for x axis
+##' @param popwidth If mod is not NULL, relative widths for each population
 ##' @note If the input file is bgzipp'ed and tabixed (which is done automatically when
 ##' created with the script smc2bed-all), then tabix can be used to read in the file. This
 ##' will be much more efficient if the region chrom:start-end covers a subset of the region
@@ -815,7 +821,7 @@ plotTrees <- function(trees, prune=NULL, keepSeqs=NULL, treeInfo=NULL,
 plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1,
                              prune=NULL, keepSeqs=NULL, col="black", leafCol=col, 
                              leafLabels=NULL, interval=1, timeScale=1, drawSpr=FALSE,
-                             ylab="Generations", logScale=FALSE, ylim=NULL, mar=c(8,4,1,1),
+                             ylab="Generations", xlab="", logScale=FALSE, ylim=NULL, mar=c(8,4,1,1),
                              add=FALSE,  #sitesFile=NULL,
                              regionSide=1, regionLine=4, regionRep=TRUE,
                              treeInfo=NULL, mod=NULL, popwidth=NULL,
@@ -875,7 +881,7 @@ plotTreesFromBed <- function(file=NULL, iter="max", chrom=NULL, start=-1, end=-1
               treeInfo=treeInfo,
               col=col, leafCol=leafCol, leafLabels=leafLabels, timeScale=timeScale,
               drawSpr=drawSpr,
-              ylab=ylab, logScale=logScale, ylim=ylim, add=add, mar=mar,
+              ylab=ylab, logScale=logScale, ylim=ylim, add=add, mar=mar, xlab=xlab,
 #              sites=if(is.null(sites)) {NULL} else {sites[sites$chromStart > x[,2] & sites$chromEnd < x[,3],]},
               regionSide=regionSide, regionLine=regionLine, mod=mod, popwidth=popwidth,
               ...)

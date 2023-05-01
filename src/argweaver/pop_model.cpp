@@ -499,6 +499,7 @@ int PopulationTree::path_to_root(const spidir::Node *node, double time) const {
     if (parent == NULL) return path;
     double orig_age = (time < 0 ? node->age : time);
     assert(orig_age+1.0 >= node->age); // leave some room for rounding/input error
+    assert(orig_age <= parent->age);
     while (true) {
         path = consistent_path(path,
                                parent->pop_path,

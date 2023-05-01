@@ -222,7 +222,7 @@ public:
     void apply_spr(NodeSpr *spr, NodeMap *node_map=NULL, const ArgModel *model=NULL);
     void update_spr(char *newick, const vector<double>& times = vector<double>());
     void update_spr_pruned(Tree *orig_tree);
-    NodeMap prune(set<string> leafs, bool allBut=false);
+    NodeMap prune(set<string> leafs, bool allBut=false, const ArgModel *model=NULL);
 
     // Gets leaf names of the nodes of a tree
     // Internal nodes are often named "" (empty string)
@@ -333,6 +333,7 @@ public:
     double cluster_test(const set<string> &cluster_group,
                         double *cluster_time) const;
     set<Node*> lca(set<Node*> derived);
+    bool haveMig(int p[2], int t[2], const ArgModel *model, const string hap);
     bool haveMig(int p[2], int t[2], const ArgModel *model);
 
     double maxCoalRate(const ArgModel *model);

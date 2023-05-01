@@ -14,7 +14,14 @@
 ##' @param ylab label for y-axis
 ##' @param xlab label for x-axis
 ##' @param ylim limits for y-axis. If not given will use range(y)
+##' @param fill if TRUE, fill in area under curve from y to y-coordinate designated by fillBottom
+##' @param fillBottom if fill is TRUE, fill area
+##' @param chromLabel if TRUE and multiple chromosomes are being plotted, print chrom names
+##' on x-axis
+##' @param chromBreakLty If multiple chromosomes plotted, this line type used in vertical
+##' lines dividing them
 ##' @param ... Other arguments to be passed to plot functions
+##' @return Invisibly returns the x-coordinates of the center of each chromosome plotted
 ##'
 ##' If y0 and y1 are given, then will shade in regions between y0 and y1 in the same
 ##' color as the line drawn, but made transparent by factor "alpha'
@@ -22,13 +29,15 @@
 ##' @export
 plotBw <- function(x, y, y0=NULL, y1=NULL, col="black", alpha=0.2,
                    add=FALSE, xlim=NULL, chrom=NULL, ylab="Generations",
-                   xlab="Coordinate", ylim=NULL, ...) {
+                   xlab="Coordinate", ylim=NULL, fill=FALSE, fillBottom=0,
+                   chromLabel=TRUE, chromBreakLty=3, xaxt="s", ...) {
     if (!is.null(y0) || !is.null(y1)) {
         if (is.null(y0) || is.null(y1))
             stop("plotBw: need to supply both y0 and y1, or neither")
         if (length(y0) != length(y) || length(y1) != length(y))
             stop("plotBw: y0 and y1 length should match y length")
     }
+    transCol <- makeTransparent(col, alpha)
     x$chrom <- as.character(x$chrom)
     if (!is.null(chrom)) {
         f <- is.element(x$chrom, chrom)
@@ -61,18 +70,22 @@ plotBw <- function(x, y, y0=NULL, y1=NULL, col="black", alpha=0.2,
         midChrom[i] <- mean(c(min(x[f,"chromStart"]), max(x[f,"chromEnd"])))
         if (!is.null(y0))
             rect(xleft=x$chromStart[f], xright=x$chromEnd[f],
-                 ybottom=y0[f], ytop=y1[f], col=makeTransparent(col, alpha),
+                 ybottom=y0[f], ytop=y1[f], col=transCol,
                  border=NA)
         segments(x0=x$chromStart[f], x1=x$chromEnd[f], y0=y[f], col=col, ...)
-        segments(x0=x[f,]$chromStart[-1], y0=y[f][-1], y1=y[f][-nrow(x)], col=col, ...)
+        segments(x0=x[f,]$chromStart[-1], y0=y[f][-1], y1=y[f][-sum(f)], col=col, ...)
+        if (fill)
+            rect(xleft=x$chromStart[f], xright=x$chromEnd[f], ytop=y[f], ybottom=fillBottom, col=transCol, border=NA)
     }
     if (!add) {
         if (numChrom >= 2) {
             for (i in 2:numChrom) {
-                abline(v=sum(chromLen[1:(i-1)]), lty=3)
+                abline(v=sum(chromLen[1:(i-1)]), lty=chromBreakLty)
             }
-            mtext(allChroms, side=1, line=0.5, at=midChrom, cex=0.7, las=2)
-        } else axis(1)
+            if (chromLabel) {
+                mtext(allChroms, side=1, line=0.5, at=midChrom, cex=0.7, las=2)
+            }
+        } else if (xaxt != "n") axis(1)
     }
-    invisible(NULL)
+    invisible(midChrom)
 }

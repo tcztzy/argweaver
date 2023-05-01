@@ -382,6 +382,7 @@ public:
     }
 
     void randomize_phase(double frac);
+    void add_switch_errors(double rate);
 
     // set vector to true for each snp which has frequency > 1
     bool get_non_singleton_snp(vector<bool> &nonsing);

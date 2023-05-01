@@ -12,10 +12,12 @@
 ##' @return A data frame containing the arg-summarize results
 ##' @export
 readArgSummary <- function(file, burnin=NULL) {
-    if (length(file) != 1)
-        stop("readSummary can currently only read single file")
-    if (!file.exists(file))
-        stop(file, " does not exist")
+    if (!is.element("pipe", class(file))) {
+        if (length(file) != 1)
+            stop("readSummary can currently only read single file")
+        if (!file.exists(file))
+            stop(file, " does not exist")
+    }
     x <- read.table(file, header=TRUE, skip=2, comment.char="")
     names(x)[1] <- "chrom"
     if (!is.null(burnin)) {

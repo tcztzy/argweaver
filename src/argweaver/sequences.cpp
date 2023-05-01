@@ -1685,6 +1685,29 @@ void Sequences::randomize_phase(double frac) {
              (double)count/(double)total);
 }
 
+void Sequences::add_switch_errors(double rate) {
+    printLog(LOG_LOW, "Adding phase switch errors at rate %.2g\n", rate);
+    int num_switches = 0, num_pairs=0;
+    for (int i1=0; i1 < (int)seqs.size(); i1++) {
+        int i2=pairs[i1];
+        if (i2 < i1) continue;
+        bool switch_state = false;
+        num_pairs++;
+        for (int j=0; j < seqlen; j++) {
+            if (seqs[i1][j] == seqs[i2][j])
+                continue;
+            if (seqs[i1][j] != 'N' && seqs[i2][j] != 'N') {
+                if (frand() < rate) {
+                    switch_state = !switch_state;
+                    num_switches++;
+                }
+            }
+            if (switch_state)
+                switch_alleles(j, i1, i2);
+        }
+    }
+    printLog(LOG_LOW, "introduced %i switches to %i haploid pairs\n", num_switches, num_pairs);
+}
 
 void Sequences::set_age() {
     int nseqs = names.size();
@@ -1952,16 +1975,23 @@ TrackNullValue unmask_ind(Sites *sites, int ind) {
     int numind = sites->get_num_seqs();
     for (int i=0; i < sites->get_num_sites(); i++) {
         if (sites->cols[i][ind] == 'N') {
+            bool variant=false;
             char c='N';
-            for (int j=0; j < numind; j++)
+            for (int j=0; j < numind; j++) {
                 if (sites->cols[i][j] != 'N') {
-                    c = sites->cols[i][j];
-                    break;
+                    if (c == 'N')
+                        c = sites->cols[i][j];
+                    else if (c != sites->cols[i][j]) {
+                        variant=true;
+                    }
                 }
-            sites->cols[i][ind] = c;
-            masked.push_back(RegionNullValue(sites->chrom,
-                                             sites->positions[i],
-                                             sites->positions[i]+1, ' '));
+            }
+            if (!variant) {
+                sites->cols[i][ind] = c;
+                masked.push_back(RegionNullValue(sites->chrom,
+                                                 sites->positions[i],
+                                                 sites->positions[i]+1, ' '));
+            }
         }
     }
     masked.merge();

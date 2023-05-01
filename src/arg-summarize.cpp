@@ -52,11 +52,14 @@ vector<string> ind_dist_leaf2;
 set<string> cluster_group;
 
 const int EXIT_ERROR = 1;
-const int EXPERIMENTAL_OPT = 3;
+const int POPMODEL_OPT = 3;
+const int EXPERIMENTAL_OPT = 4;
+
 
 class MigStat {
 public:
-    MigStat(string name, int p0[2], double dt, const ArgModel *model) : name(name) {
+    MigStat(string name, int p0[2], double dt, const ArgModel *model,
+            const string hap="") : name(name),hap(hap){
         bool found=false;
         // ensure that t[0] < t[1]
         p[0] = p0[0];
@@ -75,6 +78,7 @@ public:
     string name;
     int p[2];
     int t[2];
+    string hap;
 };
 
 
@@ -161,12 +165,20 @@ public:
         config.add(new ConfigParam<string>
                   ("-m", "--mig-file", "<migfile.txt>", &migfile,
                    "Report statistics on migrations listed in this file. Format is:\n"
-                   "statName pop1 pop2 t\n"
-                   "will return a boolean statistic named statName indicating existance"
-                   "of a lineage that is in pop1 at the time interval immediately"
-                   "after time t and pop2 at the time interval before time t2"
-                   "(indicating move from pop1 to pop2 looking backwards in time)",
-                   EXPERIMENTAL_OPT));
+                   " statName pop1 pop2 t\n"
+                   " will return a boolean statistic named statName indicating existance"
+                   " of a lineage that is in pop1 at the time interval immediately"
+                   " after time t and pop2 at the time interval before time t2"
+                   " (indicating move from pop1 to pop2 looking backwards in time)",
+		   POPMODEL_OPT));
+        config.add(new ConfigParam<string>
+                   ("", "--hap-mig-file", "<migfile.txt>", &hapmigfile,
+                    "Similar to --mig-file, but migfile.txt has five columns:\n"
+                    " statName pop1 pop2 t hap\n"
+                    " where hap is one of the haploid lineages of the ARG, will"
+                    " report whether the lineage whose descendent is hap goes from\n"
+                    " pop1 to pop2 at time t (looking backwards)",
+		    POPMODEL_OPT));
 
         config.add(new ConfigParamComment("Statistics to retrieve"));
         config.add(new ConfigSwitch
@@ -342,8 +354,10 @@ public:
                    ("-v", "--version", &version, "display version information"));
         config.add(new ConfigSwitch
                    ("-h", "--help", &help, "display help information"));
+	config.add(new ConfigSwitch
+		   ("-d", "--help-popmodel", &help_popmodel, "display help information specific to ARGweaver-D (population model)"));
         config.add(new ConfigSwitch
-                   ("-h", "--help-advanced", &help_advanced,
+                   ("", "--help-advanced", &help_advanced,
                     "display help information for experimental/advanced options"));
     }
 
@@ -355,6 +369,10 @@ public:
         }
         if (help) {
             config.printHelp();
+            return EXIT_ERROR;
+        }
+	if (help_popmodel) {
+            config.printHelp(stderr, POPMODEL_OPT);
             return EXIT_ERROR;
         }
         if (help_advanced) {
@@ -381,6 +399,7 @@ public:
     string coalgroup_file;
     string spr_leaf_names;
     string migfile;
+    string hapmigfile;
     int sample_num;
 
     bool rawtrees;
@@ -420,6 +439,7 @@ public:
     bool quiet;
     bool version;
     bool help;
+    bool help_popmodel;
     bool help_advanced;
 };
 
@@ -622,7 +642,7 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
             for (int j=0; j < tree->nnodes; j++) {
                 if (tree->nodes[j] == tree->root) continue;
                 int age1 = model->discretize_time(tree->nodes[j]->age);
-                int age2 = model->discretize_time(tree->nodes[j]->age);
+                int age2 = model->discretize_time(tree->nodes[j]->parent->age);
                 for (int k=age1; k < age2; k++) {
                     line->stats[i + k] += (model->times[k + 1] - model->times[k]);
                 }
@@ -711,7 +731,8 @@ void scoreBedLine(BedLine *line, vector<string> &statname,
                 if (statname[i] == data.migstat[j].name) {
                     line->stats[i] = (int)tree->haveMig(data.migstat[j].p,
                                                         data.migstat[j].t,
-                                                        data.model);
+                                                        data.model,
+                                                        data.migstat[j].hap);
                 }
             }
         }
@@ -848,6 +869,7 @@ public:
     SnpStream(TabixStream *snp_in) : snp_in(snp_in) {
         char tmp[1000], c;
         string str;
+        // first string should be NAMES or #NAMES
         assert(1==fscanf(snp_in->stream, "%s", tmp));
         done=0;
         while ('\n' != (c=fgetc(snp_in->stream)) && c!=EOF) {
@@ -930,6 +952,11 @@ public:
 	}
         // go to next line if this line is invariant
         if (count[allele1_val] == 0) return readNext();
+        moreThanTwoAlleles=false;
+        for (int i=0; i < 4; i++) {
+            if (i == allele1_val || i == allele2_val) continue;
+            if (count[i] > 0) moreThanTwoAlleles=true;
+        }
 	allele1 = int2dna[allele1_val];
 	allele2 = int2dna[allele2_val];
 	allele1_inds = allele_inds[allele1_val];
@@ -994,20 +1021,23 @@ public:
         }
         double age=0.0;
         double minage=0.0;
-        for (set<Node*>::iterator it4=lca.begin(); it4 != lca.end(); ++it4) {
-            Node *n = *it4;
-            assert(n != t->root);
-            double tempage = n->age + (n->parent->age - n->age)/2;  //midpoint
-            minage = n->age;
-            if (tempage > age) age = tempage;
+        if (!moreThanTwoAlleles) {
+            for (set<Node*>::iterator it4=lca.begin(); it4 != lca.end(); ++it4) {
+                Node *n = *it4;
+                assert(n != t->root);
+                double tempage = n->age + (n->parent->age - n->age)/2;  //midpoint
+                minage = n->age;
+                if (tempage > age) age = tempage;
+            }
         }
-        if (num_derived == 0 || total-num_derived == 0) age = -1;
+        if (moreThanTwoAlleles || num_derived == 0 || total-num_derived == 0)
+            age = -1;
         scoreBedLine(l, statname, data, age, minage, lca.size()==1);
         l->derAllele = (major_is_derived ? allele2 : allele1);
         l->otherAllele = (major_is_derived ? allele1 : allele2);
         l->derFreq = (major_is_derived ? total-num_derived : num_derived);
         l->otherFreq = (major_is_derived ? num_derived : total - num_derived);
-        l->infSites = (lca.size() == 1);
+        l->infSites = (lca.size() == 1 && !moreThanTwoAlleles);
 
         if (t2 != NULL) delete t2;
     }
@@ -1022,6 +1052,7 @@ public:
     int done;
     bool isBed;
     bool firstLine;
+    bool moreThanTwoAlleles;
 };
 
 
@@ -1091,7 +1122,9 @@ int summarizeRegionBySnp(Config *config, const char *region,
                         chrom, &start, &end, &sample)) return 0;
         assert('\t' == fgetc(infile.stream));
         newick = fgetline(infile.stream);
-        if (sample >= config->burnin && (config->sample_num == 0 || config->sample_num == sample)) break;
+        if (sample >= config->burnin && (config->sample_num == 0 ||
+                                         config->sample_num == sample))
+            break;
         delete [] newick;
     }
     chomp(newick);
@@ -1469,10 +1502,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: must specify argfile\n");
         return 1;
     }
-    if (c.logfile.empty()) {
-        fprintf(stderr, "Error: must specify logfile\n");
-    }
-    data.model = new ArgModel(c.logfile.c_str());
+    if (!c.logfile.empty()) {
+        data.model = new ArgModel(c.logfile.c_str());
+    } else data.model = NULL;
     if (c.html) {
         html=true;
         printf("<html>\n");
@@ -1529,8 +1561,13 @@ int main(int argc, char *argv[]) {
         statname.push_back(string("rth"));
     if (c.popsize)
         statname.push_back(string("popsize"));
-    if (c.max_coal_rate)
+    if (c.max_coal_rate) {
+        if (data.model == NULL) {
+            fprintf(stderr, "--log-file required for --max-coalrate\n");
+            return 1;
+        }
         statname.push_back(string("max_coal_rate"));
+    }
     if (c.allele_age) {
         statname.push_back(string("allele_age"));
         statname.push_back(string("inf_sites"));
@@ -1620,7 +1657,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.coalcounts) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --coalcounts\n");
             return 1;
         }
@@ -1631,7 +1668,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.coalcounts_cluster) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --coalcounts-cluster\n");
             return 1;
         }
@@ -1642,7 +1679,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.recombs_per_time) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --recombs-per-time\n");
             return 1;
         }
@@ -1652,8 +1689,8 @@ int main(int argc, char *argv[]) {
             statname.push_back(string(tmp));
         }
     }
-    if (c.recombs_per_time) {
-        if (c.logfile.empty()) {
+    if (c.invis_recombs_per_time) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --invis-recombs-per-time\n");
             return 1;
         }
@@ -1664,7 +1701,7 @@ int main(int argc, char *argv[]) {
         }
     }
     if (c.branchlen_per_time) {
-        if (c.logfile.empty()) {
+        if (data.model == NULL) {
             fprintf(stderr, "Error: --log-file required with --branchlen-per-time\n");
             return 1;
         }
@@ -1802,6 +1839,26 @@ int main(int argc, char *argv[]) {
         while (EOF != fscanf(infile, "%s %i %i %lf", migname, &p[0], &p[1],
                              &dt)) {
             data.migstat.push_back(MigStat(string(migname), p, dt, data.model));
+            statname.push_back(string(migname));
+        }
+        fclose(infile);
+    }
+    if (!c.hapmigfile.empty()) {
+        if (data.model == NULL) {
+            fprintf(stderr, "--log-file required with --hap-mig-file\n");
+            exit(1);
+        }
+        FILE *infile = fopen(c.hapmigfile.c_str(), "r");
+        if (infile == NULL) {
+            fprintf(stderr, "Error opening %s\n", c.migfile.c_str());
+            exit(1);
+        }
+        char migname[1000], hap[1000];
+        int p[2];
+        double dt;
+        while (EOF != fscanf(infile, "%s %i %i %lf %s", migname, &p[0], &p[1],
+                             &dt, hap)) {
+            data.migstat.push_back(MigStat(string(migname), p, dt, data.model, string(hap)));
             statname.push_back(string(migname));
         }
         fclose(infile);

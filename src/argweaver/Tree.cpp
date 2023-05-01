@@ -236,20 +236,29 @@ string Tree::format_newick_recur(Node *node, bool internal_names,
         sprintf(tmp, branch_format_str, node->dist);
         rv.append(tmp);
     }
-    if (spr != NULL && ( node == spr->recomb_node || node == spr->coal_node)) {
+    if ((spr != NULL && ( node == spr->recomb_node || node == spr->coal_node)) ||
+        (node->pop_path != 0)) {
         rv.append("[&&NHX");
-        /*        if (have_pops) {
-            sprintf(tmp, ":pop_path=%i", node->pop_path);
+        char nhxChar=':';
+        if (node->pop_path != 0) {
+            sprintf(tmp, "%cpop_path=%i", nhxChar, node->pop_path);
             rv.append(tmp);
-            }*/
+            nhxChar=',';
+        }
         if (spr != NULL) {
             if (node == spr->recomb_node) {
-                sprintf(tmp, ":recomb_time=%.1f", spr->recomb_time);
+                sprintf(tmp, "%crecomb_time=%.1f", nhxChar, spr->recomb_time);
                 rv.append(tmp);
+                nhxChar=',';
+                if (spr->pop_path != 0) {
+                    sprintf(tmp, "%cspr_pop_path=%i", nhxChar, spr->pop_path);
+                    rv.append(tmp);
+                }
             }
             if (node == spr->coal_node) {
-                sprintf(tmp, ":coal_time=%.1f", spr->coal_time);
+                sprintf(tmp, "%ccoal_time=%.1f", nhxChar, spr->coal_time);
                 rv.append(tmp);
+                nhxChar=',';
             }
         }
         rv.append("]");
@@ -463,11 +472,15 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     if (recomb_node == NULL) return;
     if (recomb_node == root)  assert(coal_node == root);
     if (recomb_node == coal_node) {
-        recomb_node->pop_path = model->consistent_path(recomb_node->pop_path,
-                                                       spr->pop_path,
-                                                       recomb_node->age, spr->recomb_time,
-                                                       ( recomb_node == root ? -1.0 :
-                                                         recomb_node->parent->age));
+        if (model == NULL) {
+            recomb_node->pop_path = 0;
+        } else {
+            recomb_node->pop_path = model->consistent_path(recomb_node->pop_path,
+                                                           spr->pop_path,
+                                                           recomb_node->age, spr->recomb_time,
+                                                           ( recomb_node == root ? -1.0 :
+                                                             recomb_node->parent->age));
+        }
         return;
     }
 
@@ -486,7 +499,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     //special case; topology doesn't change; just adjust branch lengths/ages
     if (coal_parent == recomb_parent) {
         assert(coal_node == recomb_sibling);
-        if (model->pop_tree != NULL) {
+        if (model != NULL && model->pop_tree != NULL) {
             recomb_parent->pop_path =
                 model->consistent_path(recomb_sibling->pop_path,
                                        coal_parent->pop_path,
@@ -510,7 +523,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     }
     // similar other special case
     if (coal_node == recomb_parent) {
-        if (model->pop_tree != NULL) {
+        if (model != NULL && model->pop_tree != NULL) {
             recomb_node->pop_path =
                 model->consistent_path(recomb_node->pop_path,
                                        spr->pop_path,
@@ -533,7 +546,7 @@ void Tree::apply_spr(NodeSpr *spr, NodeMap *node_map, const ArgModel *model) {
     }
 
     //now apply SPR
-    if (model->pop_tree != NULL) {
+    if (model != NULL && model->pop_tree != NULL) {
         recomb_node->pop_path =
             model->consistent_path(recomb_node->pop_path,
                                    spr->pop_path,
@@ -650,7 +663,7 @@ void SprPruned::update_spr_pruned(const ArgModel *model) {
         return;
     }
     int num=node_map.nm[orig_spr.recomb_node->name];
-    if (num == -1 || pruned_tree->nodes[num] == pruned_tree->root) {
+    if (num == -1) {
         pruned_spr.recomb_node = pruned_spr.coal_node = NULL;
     } else {
         assert(num>=0);
@@ -682,7 +695,11 @@ void SprPruned::update_spr_pruned(const ArgModel *model) {
             pruned_spr.coal_node = pruned_tree->nodes[num];
             pruned_spr.coal_time = orig_spr.coal_time;
         }
-        if (pruned_spr.recomb_node == pruned_spr.coal_node) {
+        if (pruned_spr.recomb_node == pruned_spr.coal_node &&
+            ( model == NULL ||
+              model->paths_equal(pruned_spr.recomb_node->pop_path,
+                                 pruned_spr.pop_path, (double)pruned_spr.recomb_time,
+                                 (double)pruned_spr.coal_time))) {
             pruned_spr.recomb_node = pruned_spr.coal_node = NULL;
         }
     }
@@ -711,6 +728,7 @@ bool NodeSpr::is_invisible() const {
 
 void SprPruned::update(char *newick, const ArgModel *model) {
     //in this first case need to parse newick tree again
+    //    update_slow(newick, model); return;
     if (orig_spr.recomb_node == NULL) {
         // this should only happen at the end of regions analyzed
         // by arg-sample, there will be no SPR there, so need to
@@ -731,7 +749,7 @@ void SprPruned::update(char *newick, const ArgModel *model) {
 }
 
 
-NodeMap Tree::prune(set<string> leafs, bool allBut) {
+NodeMap Tree::prune(set<string> leafs, bool allBut, const ArgModel *model) {
     ExtendArray<Node*> newnodes = ExtendArray<Node*>(0);
     map<int,int> node_map;  //maps original nodes to new nodes
     ExtendArray<Node*> postnodes;
@@ -782,6 +800,13 @@ NodeMap Tree::prune(set<string> leafs, bool allBut) {
                 newnodes.append(postnodes[i]);
             }
         } else if (postnodes[i]->nchildren == 1) {
+            if (model != NULL)
+                postnodes[i]->children[0]->pop_path =
+                    model->consistent_path(postnodes[i]->children[0]->pop_path,
+                                           postnodes[i]->pop_path,
+                                           (double)postnodes[i]->children[0]->age,
+                                           (double)postnodes[i]->age,
+                                           -1.0);
             if (postnodes[i] == root) {
                 node_map[postnodes[i]->name] =
                     node_map[postnodes[i]->children[0]->name];
@@ -845,7 +870,7 @@ void SprPruned::update_slow(char *newick, const ArgModel *model) {
     if (inds.size() > 0) {
         pruned_tree = orig_tree->copy();
         pruned_spr = orig_spr;
-        node_map = pruned_tree->prune(inds, true);
+        node_map = pruned_tree->prune(inds, true, model);
         update_spr_pruned(model);
     } else pruned_tree = NULL;
 }
@@ -1755,7 +1780,7 @@ set<Node*> Tree::lca(set<Node*> derived) {
     set<Node*>::iterator it;
     set<Node*> rv;
 
-    if (derived.size() == 1) return derived;
+    if (derived.size() <= 1) return derived;
     ExtendArray<Node*> postnodes;
     getTreePostOrder(this, &postnodes);
     for (int i=0; i < postnodes.size(); i++) {
@@ -1787,6 +1812,32 @@ set<Node*> Tree::lca(set<Node*> derived) {
     fprintf(stderr, "got to end of LCA\n"); fflush(stderr);
     return rv;
 }
+
+bool Tree::haveMig(int p[2], int t[2], const ArgModel *model, string hap) {
+    if (hap == "")
+        return haveMig(p, t, model);
+    map<string,int>::iterator it = nodename_map.find(hap);
+    if (it == nodename_map.end()) {
+        printf("Error finding hap %s in tree\n", hap.c_str());
+        assert(0);
+    }
+    double dt[2];
+    dt[0] = model->times[t[0]];
+    dt[1] = model->times[t[1]];
+    Node *node = nodes[it->second];
+    while (true) {
+        if (node->age-2 > dt[0]) return false;
+        if (node->parent == NULL ||
+            node->parent->age+2 >= dt[1]) {
+            return (model->get_pop(node->pop_path, t[0])==p[0] &&
+                    model->get_pop(node->pop_path, t[1])==p[1]);
+        }
+        node = node->parent;
+    }
+    assert(0);
+    return false;
+}
+
 
 bool Tree::haveMig(int p[2], int t[2], const ArgModel *model) {
     assert(t[0] < t[1]);

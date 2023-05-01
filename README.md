@@ -1,29 +1,38 @@
-ARGweaver
+ARGweaver and ARGweaver-D
 =========
 
 *Sampling and manipulating genome-wide ancestral recombination graphs (ARGs).*  
 
-The ARGweaver software package contains programs and libraries for
+The ARGweaver/ARGweaver-D software package contains programs and libraries for
 sampling and manipulating ancestral recombination graphs (ARGs). An ARG
 is a rich data structure for representing the ancestry of DNA
-sequences undergoing coalescence and recombination.
+sequences undergoing coalescence and recombination. ARGweaver-D is an extension
+built into the ARGweaver code that samples ARGs conditional on a demographic
+model with population splits and migrations.
 
 *ARGweaver citation:*
-[Matthew D. Rasmussen, Adam Siepel. Genome-wide inference of ancestral
-recombination graphs. 2013. arXiv:1306.5110 [q-bio.PE]](http://arxiv.org/abs/1306.5110)
+[Matthew D. Rasmussen, Melissa J. Hubisz, Ilan Gronau, Adam Siepel. Genome-wide
+inference of ancestral recombination graphs. PLoS Genetics 2014.](https://doi.org/10.1371/journal.pgen.1004342)
 
+
+*ARGweaver-D citation:*
+Melissa J. Hubisz, Amy L. Williams, Adam Siepel. Mapping gene flow between ancient
+hominins through demography-aware inference of the ancestral recombination graph.
+Biorxiv 2019
 
 ## Download
 
 ARGweaver can be [downloaded](http://mdrasmus.github.io/argweaver) or 
-[forked](https://github.com/mdrasmus/argweaver/) from GitHub.
+[forked](https://github.com/CshlSiepelLab/argweaver/) from GitHub.
 
 
 ## Documentation
 
-See the [manual](http://mdrasmus.github.io/argweaver/doc/)
+See the [manual](http://compgen.cshl.edu/ARGweaver/doc/argweaver-manual.html)
 for documentation on the programs and file formats associated with ARGweaver.
 
+For ARGweaver-D, see additional documentation here:
+[ARGweaver-D manual](http://compgen.cshl.edu/ARGweaver/doc/argweaver-d-manual.html)
 
 ## Requirements
 

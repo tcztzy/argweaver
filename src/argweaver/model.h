@@ -97,6 +97,7 @@ class PopsizeConfig
     numsample(1),
     neighbor_prior(false),
     config_buildup(0),
+    epsilon(0.01),
     pseudocount(0)
   {
       if (sample) {
@@ -306,6 +307,13 @@ class ArgModel
     int get_removed_root_time() const {
         return ntimes + 1;
     }
+
+
+    double get_mintime(int t) const {
+        if (t == 0) return coal_time_steps[0]*0.5;
+        return (coal_time_steps[2*t-1] + coal_time_steps[2*t])*0.5;
+    }
+
 
     double get_mintime() const {
         return times[1] * .1;
@@ -534,6 +542,7 @@ class ArgModel
     int num_pop_paths() const;
     double path_prob(int path, int t1, int t2) const;
     bool paths_equal(int path1, int path2, int t1, int t2) const;
+    bool paths_equal(int path1, int path2, double t1, double t2) const;
     int max_matching_path(int path1, int path2, int t) const;
     int path_to_root(const LocalNode *nodes, int node, int time) const;
     int path_to_root(const spidir::Node *node, double time) const;

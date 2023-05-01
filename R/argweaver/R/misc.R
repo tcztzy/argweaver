@@ -45,3 +45,36 @@ probCoalCounts <- function(tOver2N, a, b) {
     s*C
 }
 
+
+
+## same as above but using translation of C code
+probCoalCounts2 <- function(tOver2N, a, b) {
+    lnC1 <-  0.0
+    lnC2 <- 0.0
+    C3 <- 1.0;
+
+    for (y in 0:(b-1))
+        lnC1 = lnC1 + log((b+y)*(a-y)/(a+y))
+    s <-  -b*(b-1)*t/2.0/n;
+
+    for (k in (b+1):a) {
+        k1 = (k - 1);
+        lnC2 <- lnC2 +  log((b+k1)*(a-k1)/(a+k1)/(k-b))
+        C3 <- C3 * -1.0
+        val <- -k*k1*t/2.0/n + lnC2 + log((2.0*k-1)/(k1+b))
+        if (TRUE) {
+            loga = s;
+            logc = val;
+            if (logc > loga) {
+                tmp = logc;
+                logc = loga;
+                loga = tmp;
+            }
+            s = loga + log(1.0 + C3*exp(logc - loga));
+        }
+    }
+
+    for (i in 2:b)
+        s = s - log(i);
+    return(s + lnC1)
+}
