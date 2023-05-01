@@ -145,6 +145,13 @@ public:
         config.add(new ConfigSwitch
                    ("", "--unphased", &unphased,
                     "data is unphased (will integrate over phasings)."));
+        config.add(new ConfigSwitch
+                   ("", "--phased-vcf", &phased_vcf,
+                    "Treat data as phased even with VCF input (warning: there is no"
+                    " support to read phasing information from VCF. This option is"
+                    " for special case where VCF input is for inbred individuals"
+                    " and the redundant haplotype for each individiual is removed"
+                    " with --subsites"));
         config.add(new ConfigParam<string>
                    ("", "--unphased-file", "<filename>", &unphased_file, "",
                     "use this file to identify haplotype pairs (file should"
@@ -618,6 +625,7 @@ public:
     bool infsites;
     bool unphased;
     string unphased_file;
+    bool phased_vcf;
     double randomize_phase;
     bool no_sample_phase;
     int sample_phase_step;
@@ -1847,7 +1855,7 @@ int main(int argc, char **argv)
             printError("Cannot use --unphased-file with VCF input");
         c.model.unphased_file = c.unphased_file;
     }
-    if (c.unphased || c.vcf_file != "" || c.vcf_list_file != "")
+    if (c.unphased || (!c.phased_vcf && (c.vcf_file != "" || c.vcf_list_file != "")))
         c.model.unphased = true;
     if (c.model.unphased)
         sequences.set_pairs(&c.model);
