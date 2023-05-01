@@ -578,32 +578,51 @@ bool read_vcf(FILE *infile, Sites *sites, double min_qual,
         if (ploidy.size() == 0) {
             nseqs = 0;
             for (int i=0; i < nsample; i++) {
-                if (keep_inds.size() > 0 && keep_inds.find(sample_names[i]) == keep_inds.end()) {
-                    keep_ind.push_back(false);
-                }
-                keep_ind.push_back(true);
                 split(fields[9+i].c_str(), ":", seqfields);
                 gtstr = seqfields[gt_idx];
                 if (gtstr.length() == 1) {
                     ploidy.push_back(1);
-                    if (keep_ind[i]) {
-                        nseqs++;
-                        sites->names.push_back(sample_names[i]);
-                    }
                 } else if (gtstr.length() == 3) {
                     ploidy.push_back(2);
-                    if (keep_ind[i]) {
-                        nseqs += 2;
+                } else {
+                    printError("Bad genotype on line %i of VCF", lineno);
+                    return false;
+                }
+                if (keep_inds.size() ==  0 || keep_inds.find(sample_names[i]) != keep_inds.end()) {
+                  keep_ind.push_back(true);
+                } else {
+                    int foundhap=0;
+                    if (ploidy[i] == 2) {
+                        // if ploidy is 2, keep_inds may indicate to keep one or both haps. For now we keep
+                        // both if either is needed, the usual subsites function (used for other input formats)
+                        // will remove the other. Removing here is just for efficiency of not loading all sequences.
+                        for (int j=0; j < 2; j++) {
+                            char tmp[sample_names[i].length()+3];
+                            sprintf(tmp, "%s_%i", sample_names[i].c_str(), j+1);
+                            if (keep_inds.find((string)tmp) != keep_inds.end()) {
+                                foundhap=1;
+                                keep_ind.push_back(true);
+                                break;
+                            }
+                        }
+                    }
+                    if (foundhap==0) {
+                        keep_ind.push_back(false);
+                    }
+                }
+                if (keep_ind[i]) {
+                    nseqs += ploidy[i];
+                    if (ploidy[i] == 2) {
                         for (int j=0; j < 2; j++) {
                             char tmp[sample_names[i].length()+3];
                             sprintf(tmp, "%s_%i", sample_names[i].c_str(), j+1);
                             sites->names.push_back(string(tmp));
                         }
+                    } else {
+                        sites->names.push_back(sample_names[i]);
                     }
-                } else {
-                    printError("Bad genotype on line %i of VCF", lineno);
-                    return false;
                 }
+                
             }
             if (add_ref) {
                 sites->names.push_back("REF");
@@ -991,17 +1010,31 @@ int Sites::subset(vector<int> keep) {
 int Sites::subset(set<string> names_to_keep) {
     vector<int> keep;
     for (unsigned int i=0; i < names.size(); i++) {
-        if (names_to_keep.find(names[i]) != names_to_keep.end())
+      if (names_to_keep.find(names[i]) != names_to_keep.end())
             keep.push_back(i);
     }
     if (keep.size() > 0) {
         if (keep.size() != names_to_keep.size()) {
             fprintf(stderr, "Error in subset: not all names found in sites\n");
+            fprintf(stderr, "keep.size=%i names_to_keep.size=%i\n", (int)keep.size(), (int)names_to_keep.size());
+            set<string>::iterator itr;
+            for (itr = names_to_keep.begin(); itr != names_to_keep.end(); itr++) {
+                int found=0;
+                for (unsigned int j=0; j < names.size(); j++) {
+                    if (*itr == names[j]) {
+                        found=1;
+                        break;
+                    }
+                }
+                if (found == 0) {
+                    fprintf(stderr, "  %s not found\n", itr->c_str());
+                }
+            }
             return 1;
         }
         return subset(keep);
     }
-
+    
     // if nothing found, these may be individual names rather than haploid
     // names
     set<string> hapkeep;
@@ -1489,6 +1522,8 @@ bool Sequences::set_pairs_by_name() {
             continue;
         }
         for (unsigned int j=i+1; j < names.size(); j++) {
+            if ((int)names[j].length() != len)
+                continue;
             if (names[i].substr(0, len-2) == basename &&
                 names[j].substr(len-2, 2) == target_ext) {
                 pairs[i] = j;
