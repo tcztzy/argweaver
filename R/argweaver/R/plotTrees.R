@@ -358,7 +358,7 @@ getTreeDepth <- function(tree, idx=-1) {
         if (!requireNamespace("ape", quietly=TRUE)) {
             stop("ape package is required for getTreeDepth")
         }
-        tree <- ape::read.tree(text=tree)
+        tree <- ape::read.tree(text=as.character(tree))
     }
     if (idx==-1) {
         node <- unique(tree$edge[,1][which(!is.element(tree$edge[,1], tree$edge[,2]))])
@@ -404,7 +404,7 @@ drawTree <- function(tree, col="black", lwd=1, timeScale=1,
     haveMod <- !is.null(mod)
     if (haveMod && timeScale != 1) mod <- scalePopModel(mod, timeScale)
     if (haveMod) maxtime <- mod$times[mod$ntimes] else maxtime <- par("usr")[4]
-    apeTree <- ape::read.tree(text=tree)
+    apeTree <- ape::read.tree(text=as.character(tree))
     nleaf <- length(apeTree$tip.label)
     rootage <- getTreeDepth(apeTree)*timeScale
     rootPath <- getOuterPopPath(tree)
