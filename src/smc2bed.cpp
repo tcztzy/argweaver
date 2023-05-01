@@ -45,7 +45,9 @@ bool guess_log_file(char *smc_file, char *log_file) {
         while (pos >= 0 && smc_file[pos] != '.') pos--;
         if (pos < 0) return false;
         log_file[pos]='\0';
-        sprintf(log_file, "%s%s", log_file, ".log");
+        char tmp_log_file[1000];
+        strncpy(tmp_log_file, log_file, 999);
+        sprintf(log_file, "%s%s", tmp_log_file, ".log");
         return true;
     }
     return false;
