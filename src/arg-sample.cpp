@@ -846,11 +846,11 @@ string get_out_arg_file(const Config &config, int iter)
 
 string get_out_sites_file(const Config &config, int iter)
 {
-    char iterstr[10];
+    char iterstr[12];
     if (iter < 0) {
         iterstr[0]='\0';
     } else {
-        snprintf(iterstr, 10, ".%d", iter);
+        snprintf(iterstr, 12, ".%d", iter);
     }
     string sitesfile = config.out_prefix + config.mcmcmc_prefix + iterstr + SITES_SUFFIX;
     if (!config.no_compress_output)
@@ -1554,7 +1554,7 @@ int main(int argc, char **argv)
     Sites sites;
     Sequences sequences;
     SitesMapping *sites_mapping = NULL;
-    auto_ptr<SitesMapping> sites_mapping_ptr;
+    unique_ptr<SitesMapping> sites_mapping_ptr;
     Region seq_region;
     Region seq_region_compress;
 
@@ -1760,7 +1760,7 @@ int main(int argc, char **argv)
     // first remove any sites that fall under mask
 
     sites_mapping = new SitesMapping();
-    sites_mapping_ptr = auto_ptr<SitesMapping>(sites_mapping);
+    sites_mapping_ptr = unique_ptr<SitesMapping>(sites_mapping);
 
     if (!find_compress_cols(&sites, c.compress_seq, sites_mapping)) {
         printError("unable to compress sequences at given compression level"
@@ -1882,7 +1882,6 @@ int main(int argc, char **argv)
         }
         c.model.popsize_config.numsample = c.sample_popsize_num;
         c.model.popsize_config.neighbor_prior = c.popsize_prior_neighbor;
-	c.model.popsize_config.epsilon = c.epsilon;
 	c.model.popsize_config.pseudocount = c.pseudocount;
     }
 #ifdef ARGWEAVER_MPI
@@ -1927,12 +1926,12 @@ int main(int argc, char **argv)
 
     // setup init ARG
     LocalTrees *trees = NULL;
-    auto_ptr<LocalTrees> trees_ptr;
+    unique_ptr<LocalTrees> trees_ptr;
     if (c.arg_file != "") { // || c.cr_file != "") {
         // init ARG from file
 
         trees = new LocalTrees();
-        trees_ptr = auto_ptr<LocalTrees>(trees);
+        trees_ptr = unique_ptr<LocalTrees>(trees);
         vector<string> seqnames;
         /*        if (c.cr_file != "") {
             if (c.arg_file != "") {
@@ -1981,7 +1980,7 @@ int main(int argc, char **argv)
         trees = new LocalTrees(seq_region_compress.start,
                                seq_region_compress.end);
         trees->chrom = seq_region.chrom;
-        trees_ptr = auto_ptr<LocalTrees>(trees);
+        trees_ptr = unique_ptr<LocalTrees>(trees);
     }
 
 

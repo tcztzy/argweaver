@@ -1133,8 +1133,8 @@ void write_newick_tree(FILE *out, const LocalTree *tree,
     if (names == NULL) {
         default_names = new char* [tree->nnodes];
         for (int i=0; i<tree->nnodes; i++) {
-            default_names[i] = new char [11];
-            snprintf(default_names[i], 10, "%d", i);
+            default_names[i] = new char [13];
+            snprintf(default_names[i], 12, "%d", i);
         }
         names2 = default_names;
     }
@@ -2207,7 +2207,7 @@ bool assert_spr(const LocalTree *last_tree, const LocalTree *tree,
             int last_subtree_root = last_nodes[last_tree->root].child[0];
             if (i2 == -1 && (i != last_subtree_root || !pruned_internal)) {
                 int recomb_parent = last_nodes[spr->recomb_node].parent;
-                assert(i = recomb_parent);
+                assert(i == recomb_parent);
                 if (last_nodes[spr->coal_node].parent == recomb_parent) {
                     assert(mapping[spr->recomb_node] != -1);
                     int mapped_node = nodes[mapping[spr->recomb_node]].parent;

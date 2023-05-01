@@ -439,9 +439,10 @@ int PopulationTree::consistent_path(int path1, int path2,
     int p1 = all_paths[path1].get(t1);
     int p2 = all_paths[path1].get(t2);
     if (p2 != all_paths[path2].get(t2)) {
-        if (require_exists)
+        if (require_exists) {
             assert(0);
             exitError("No consistent path found\n");
+        }
         return -1;
     }
     SubPath *possible_paths = &sub_paths[t1][t2][p1][p2];
@@ -498,7 +499,6 @@ int PopulationTree::path_to_root(const spidir::Node *node, double time) const {
     if (parent == NULL) return path;
     double orig_age = (time < 0 ? node->age : time);
     assert(orig_age+1.0 >= node->age); // leave some room for rounding/input error
-    if (parent >= 0) assert(orig_age <= parent->age);
     while (true) {
         path = consistent_path(path,
                                parent->pop_path,

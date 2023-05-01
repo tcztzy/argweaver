@@ -990,7 +990,7 @@ void Tree::reroot(Node *newroot, bool onBranch)
 
     // renumber nodes
     // - all leaves don't change numbers
-    assert(root->name = nnodes-1);
+    assert(root->name == nnodes-1);
 }
 
 

@@ -650,14 +650,14 @@ int main(int argc, char **argv)
 
     // setup init ARG
     LocalTrees *trees = NULL;
-    auto_ptr<LocalTrees> trees_ptr;
+    unique_ptr<LocalTrees> trees_ptr;
     if (c.arg_file == "") {
         printError("Error: --arg-file required\n");
         return EXIT_ERROR;
     }
     // init ARG from file
     trees = new LocalTrees();
-    trees_ptr = auto_ptr<LocalTrees>(trees);
+    trees_ptr = unique_ptr<LocalTrees>(trees);
     vector<string> seqnames;
     vector<int> invisible_recomb_pos;
     vector<Spr> invisible_recombs;
