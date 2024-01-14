@@ -1,0 +1,22 @@
+[package]
+name = "argweaver"
+version = "0.8.1"
+edition = "2021"
+authors = ["Tang Ziya <tcztzy@gmail.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "argweaver"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+autocxx = "0.26.0"
+cxx = "1.0.115"
+pyo3 = { version = "0.19", features = ["abi3-py38", "extension-module", "multiple-pymethods"] }
+
+[build-dependencies]
+autocxx-build = "0.26.0"
+cmake = "0.1"
+glob = "0.3.1"
+miette = { version = "5.10.0", features = ["fancy"] }
+pyo3-build-config = { version = "0.20.2", features = ["abi3-py38"] }

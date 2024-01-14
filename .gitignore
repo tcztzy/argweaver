@@ -1,2 +1,33 @@
-*.pyc
-*.o
+# C++ binary files
+/bin/arg-likelihood
+/bin/arg-sample
+/bin/arg-summarize
+/bin/smc2bed
+
+# clangd files
+/.cache/
+
+# CMake files
+/build/
+
+# Python files
+__pycache__/
+*.py[cod]
+
+# used by several tools, such as rye, pyenv
+/.python-version
+
+# rye
+/dist/
+/requirements.lock
+/requirements-dev.lock
+
+# maturin
+/argweaver/*.so
+
+# test coverage
+/.coverage
+
+# Rust files
+/Cargo.lock
+/target/

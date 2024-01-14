@@ -1,0 +1,55 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "argweaver"
+description = "Ancestral recombination graph sampling method"
+license = "MIT"
+authors = [
+    {name = "Matt Rasmussen", email = "matt.rasmus@gmail.com"},
+    { name = "Melissa Hubisz", email = "mjhubisz@gmail.com" },
+]
+maintainers = [{name = "Tang Ziya", email = "tcztzy@gmail.com"}]
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: C++",
+    "Programming Language :: R",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dynamic = ["version"]
+dependencies = [
+    "scipy>=1.10.1",
+    "numpy>=1.24.4",
+]
+
+[tool.rye]
+dev-dependencies = [
+    "pip>=23.3.2",
+    "pre-commit>=3.5.0",
+    "pytest>=7.4.4",
+    "pytest-cov>=4.1.0",
+]
+[tool.rye.scripts]
+cov-report = { chain = ["htmlcov", "htmlcov-serve"] }
+htmlcov = "pytest --cov-report=html"
+htmlcov-serve = "python -m http.server --directory htmlcov"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "argweaver.s"
+
+[tool.ruff]
+extend-select = ["I"]
+target-version = "py38"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = ["--cov=argweaver"]
