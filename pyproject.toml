@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.4,<2.0"]
+requires = ["maturin>=1.4,<2.0", "cmake>=3.15"]
 build-backend = "maturin"
 
 [project]
@@ -30,6 +30,13 @@ dependencies = [
     "numpy>=1.24.4",
 ]
 
+[project.scripts]
+arg-likelihood = "argweaver.bin:arg_likelihood"
+arg-sample = "argweaver.bin:arg_sample"
+arg-summarize = "argweaver.bin:arg_summarize"
+smc2bed = "argweaver.bin:smc2bed"
+smc2bed-all = "argweaver.scripts.smc2bed_all:main"
+
 [tool.rye]
 dev-dependencies = [
     "pip>=23.3.2",
@@ -45,6 +52,7 @@ htmlcov-serve = "python -m http.server --directory htmlcov"
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "argweaver.s"
+include = ["bin/*"]
 
 [tool.ruff]
 extend-select = ["I"]
@@ -53,3 +61,8 @@ target-version = "py38"
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = ["--cov=argweaver"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if (typing\\.)?TYPE_CHECKING",
+]
