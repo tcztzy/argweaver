@@ -3,7 +3,7 @@ requires = ["maturin>=1.4,<2.0", "cmake>=3.15"]
 build-backend = "maturin"
 
 [project]
-name = "argweaver"
+name = "argweavers"
 description = "Ancestral recombination graph sampling method"
 license = "MIT"
 authors = [

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser};
 
-use argweaver::{
+use argweavers::{
     ser::{StatsRecord, StatsStage, StatsWriter},
     Result,
 };

@@ -1,12 +1,12 @@
 [package]
-name = "argweaver"
+name = "argweavers"
 version = "0.8.1"
 edition = "2021"
 authors = ["Tang Ziya <tcztzy@gmail.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "argweaver"
+name = "argweavers"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
