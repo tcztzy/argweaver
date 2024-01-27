@@ -13,6 +13,9 @@ pub mod ffi {
     }
     pub use ffi::argweaver::*;
 }
+pub mod ser;
+
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// Ancestral recombination graph sampling method
 #[pymodule]
