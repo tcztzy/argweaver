@@ -1,6 +1,7 @@
 use miette::IntoDiagnostic;
 
 fn main() -> miette::Result<()> {
+    #[cfg(feature = "extension-module")]
     pyo3_build_config::add_extension_module_link_args();
     cmake::build(".");
     let path = std::path::PathBuf::from("src");
@@ -10,6 +11,7 @@ fn main() -> miette::Result<()> {
         .map(|p| p.unwrap());
     b.flag_if_supported("-std=c++14")
         .files(source_files)
+        .flag("-w")
         .compile("argweavers");
     println!("cargo:rerun-if-changed=src/lib.rs");
     Ok(())

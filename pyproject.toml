@@ -23,11 +23,13 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
 ]
 dynamic = ["version"]
 dependencies = [
     "scipy>=1.10.1",
     "numpy>=1.24.4",
+    "polars>=0.20.6",
 ]
 
 [project.scripts]
@@ -50,7 +52,7 @@ htmlcov = "pytest --cov-report=html"
 htmlcov-serve = "python -m http.server --directory htmlcov"
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["extension-module"]
 module-name = "argweaver.s"
 include = ["bin/*"]
 
