@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "argweavers"
 description = "Ancestral recombination graph sampling method"
-license = "MIT"
+license = { file = "LICENSE" }
 authors = [
     {name = "Matt Rasmussen", email = "matt.rasmus@gmail.com"},
     { name = "Melissa Hubisz", email = "mjhubisz@gmail.com" },
@@ -30,6 +30,7 @@ dependencies = [
     "scipy>=1.10.1",
     "numpy>=1.24.4",
     "polars>=0.20.6",
+    "tajimas-d>=2.0.0",
 ]
 
 [project.scripts]
