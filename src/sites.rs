@@ -16,7 +16,7 @@ use polars::{
     series::{IntoSeries, Series},
 };
 #[cfg(feature = "extension-module")]
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyIndexError, prelude::*, types::PySlice};
 #[cfg(feature = "extension-module")]
 use pyo3_polars::PyDataFrame;
 
@@ -43,11 +43,56 @@ pub struct Sites {
 }
 
 #[cfg(feature = "extension-module")]
+#[derive(FromPyObject)]
+enum SliceOrIsize<'a> {
+    Slice(&'a PySlice),
+    Isize(isize),
+}
+
+#[cfg(feature = "extension-module")]
 #[pymethods]
 impl Sites {
+    #[new]
+    fn new(chrom: String, start: usize, end: usize, data: PyDataFrame) -> Self {
+        Self {
+            chrom,
+            start,
+            end,
+            data: data.0,
+        }
+    }
     #[getter]
-    pub fn data(&self) -> PyResult<PyDataFrame> {
+    fn data(&self) -> PyResult<PyDataFrame> {
         Ok(PyDataFrame(self.data.clone()))
+    }
+
+    fn __getitem__(&self, idx: SliceOrIsize) -> PyResult<Self> {
+        use polars::prelude::{col, lit, IntoLazy};
+        let (df, start, end) = match idx {
+            SliceOrIsize::Slice(slice) => {
+                let indices = slice.indices(self.end as i64)?;
+                let start = indices.start;
+                let stop = indices.stop;
+                if indices.step != 1 {
+                    return Err(PyIndexError::new_err("step must be 1"));
+                }
+                let df = self.data.clone().lazy().filter(
+                    col("pos")
+                        .gt_eq(lit(start as u32))
+                        .and(col("pos").lt_eq(lit(stop as u32))),
+                );
+                (df.collect().unwrap(), start as usize, stop as usize)
+            }
+            SliceOrIsize::Isize(_) => {
+                return Err(PyIndexError::new_err("not supported yet"));
+            }
+        };
+        Ok(Self {
+            chrom: self.chrom.clone(),
+            start,
+            end,
+            data: df,
+        })
     }
 }
 
