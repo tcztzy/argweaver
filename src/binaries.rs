@@ -23,7 +23,7 @@ fn get_model_times(log_file: &PathBuf) -> Result<Vec<f64>> {
     Ok(Vec::new())
 }
 
-pub fn smc2bed(args: Option<Vec<&str>>) -> Result<()> {
+pub fn smc2bed(args: Option<Vec<String>>) -> Result<()> {
     let cmd = command!()
         .arg(arg!(
             ["smc-file"] "smc-file can be gzipped"

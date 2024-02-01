@@ -44,8 +44,9 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cfg(feature = "extension-module")]
 #[pyfunction]
-fn smc2bed(args: Option<Vec<&str>>) -> PyResult<()> {
-    binaries::smc2bed(args).unwrap();
+fn smc2bed(args: Option<Vec<String>>) -> PyResult<()> {
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    binaries::smc2bed(Some(args.unwrap_or(argv))).unwrap();
     Ok(())
 }
 
