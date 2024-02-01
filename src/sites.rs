@@ -20,7 +20,7 @@ use pyo3::{exceptions::PyIndexError, prelude::*, types::PySlice};
 #[cfg(feature = "extension-module")]
 use pyo3_polars::PyDataFrame;
 
-use crate::{ffi, Result};
+use crate::{de::parse_names, ffi, Result};
 
 #[cfg(not(feature = "extension-module"))]
 pub struct Sites {
@@ -159,21 +159,6 @@ impl std::string::ToString for Sites {
         }
         s
     }
-}
-
-fn parse_names(input: &str) -> IResult<&str, Vec<&str>> {
-    delimited(
-        terminated(tag("NAMES"), tab),
-        separated_list1(tab, alphanumeric1),
-        newline,
-    )(input)
-}
-
-#[test]
-fn test_parse_names() {
-    let input = "NAMES\tA\tB\tC\n";
-    let res = parse_names(input);
-    assert_eq!(res, Ok(("", vec!["A", "B", "C"])));
 }
 
 fn parse_usize(input: &str) -> IResult<&str, usize> {
