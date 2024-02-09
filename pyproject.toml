@@ -37,7 +37,7 @@ dependencies = [
 arg-likelihood = "argweaver.bin:arg_likelihood"
 arg-sample = "argweaver.bin:arg_sample"
 arg-summarize = "argweaver.bin:arg_summarize"
-smc2bed = "argweaver.s:smc2bed"
+smc2bed = "argweaver.scripts.smc2bed:main"
 smc2bed-all = "argweaver.scripts.smc2bed_all:main"
 
 [tool.rye]

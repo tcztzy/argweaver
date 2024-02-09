@@ -1,6 +1,7 @@
+use std::io::Write;
 use std::path::PathBuf;
 
-use crate::{de::parse_names, ffi, fs::read_to_string, Result};
+use crate::{de::parse_names, ffi, fs::read_to_string, io::Stdout, Result};
 use autocxx::prelude::*;
 use clap::{arg, command, value_parser};
 use nom::{
@@ -83,11 +84,16 @@ pub fn smc2bed(args: Option<Vec<String>>) -> Result<()> {
         ffi::vector_push_double(times.pin_mut(), time);
     }
     let trees = ffi::read_local_trees(smc_file.to_str().unwrap(), times.pin_mut());
+    let tmpf = tempfile::NamedTempFile::new()?;
     ffi::write_local_trees_as_bed(
+        tmpf.path().to_str().unwrap(),
         trees,
         seqnames,
         model,
         c_int(matches.get_one::<i32>("sample").unwrap().to_owned()),
     );
+    let mut stdout = Stdout;
+    let content = std::fs::read_to_string(tmpf.path())?;
+    write!(stdout, "{}", content)?;
     Ok(())
 }

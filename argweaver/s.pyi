@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import List, Optional, Union
 
 import polars as pl
 
@@ -38,3 +38,4 @@ class Sites:
     def __getitem__(self, s: slice) -> Sites: ...
 
 def read_sites(filename: Union[str, Path]) -> Sites: ...
+def smc2bed(args: Optional[List[str]]) -> None: ...

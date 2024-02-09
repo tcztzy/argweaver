@@ -35,10 +35,13 @@ read_local_trees(string filename, vector<double> &times) {
   instream.close();
   return trees;
 }
-inline void write_local_trees_as_bed(unique_ptr<argweaver::LocalTrees> trees,
+inline void write_local_trees_as_bed(string filename,
+                                     unique_ptr<argweaver::LocalTrees> trees,
                                      vector<string> seqnames,
                                      unique_ptr<argweaver::ArgModel> model,
                                      int sample) {
-  write_local_trees_as_bed(stdout, trees.get(), seqnames, model.get(), sample);
+  FILE *outfile = fopen(filename.c_str(), "w");
+  write_local_trees_as_bed(outfile, trees.get(), seqnames, model.get(), sample);
+  fclose(outfile);
 }
 #endif // ARGWEAVER_FFI_H

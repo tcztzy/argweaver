@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from argweaver.bin import smc2bed
+from argweaver.scripts.smc2bed import main as smc2bed
 from argweaver.scripts.smc2bed_all import main as smc2bed_all
 
 examples_dir = pathlib.Path(__file__).parent.parent / "examples"
@@ -27,13 +27,12 @@ def sha256sum(path):
 
 
 def test_smc2bed(sim1_sample):
-    p = smc2bed(
+    out = smc2bed(
         ["--sample", "0", sim1_sample / "out.0.smc.gz"],
         capture_output=True,
-        return_process=True,
     )
     sha256 = "8fbf2326c4ed37e7232c77b882e41964d75d617031cd81021d842c9cbe33eaf3"
-    assert hashlib.sha256(p.stdout).hexdigest() == sha256
+    assert hashlib.sha256(out).hexdigest() == sha256
 
 
 def test_smc2bed_all(sim1_sample):

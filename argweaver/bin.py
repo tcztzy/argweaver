@@ -16,13 +16,12 @@ if typing.TYPE_CHECKING:
             ...
 
 
-_binaries = ["arg_likelihood", "arg_sample", "arg_summarize", "smc2bed"]
+_binaries = ["arg_likelihood", "arg_sample", "arg_summarize"]
 __all__ = _binaries + ["require_executable"]
 
 arg_likelihood: "_BinaryWrapper"
 arg_sample: "_BinaryWrapper"
 arg_summarize: "_BinaryWrapper"
-smc2bed: "_BinaryWrapper"
 
 _bin_dir = pathlib.Path(__file__).parent.parent / "bin"
 

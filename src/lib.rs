@@ -35,6 +35,7 @@ pub mod ffi {
     pub use ffi::{argweaver::*, spidir::*, *};
 }
 pub mod fs;
+pub mod io;
 pub mod ser;
 pub mod sites;
 #[cfg(test)]

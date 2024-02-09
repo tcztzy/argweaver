@@ -3,7 +3,8 @@ import os
 import sys
 from itertools import count
 
-from argweaver.bin import require_executable, smc2bed
+from argweaver.bin import require_executable
+from argweaver.scripts.smc2bed import main as smc2bed
 
 
 class MetavarFormatter(argparse.HelpFormatter):
@@ -93,12 +94,10 @@ def main(argv=None):
             break
         sys.stderr.write(f"{num} {file}\n")
         print(os.stat(file).st_size)
-        p = smc2bed(
+        out += smc2bed(
             ["--sample", str(num), *regionarg, file],
             capture_output=True,
-            return_process=True,
         )
-        out += p.stdout
         print(len(out))
         num += interval
     out = sort_bed(["-"], input=out, capture_output=True).stdout
