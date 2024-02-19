@@ -2,7 +2,6 @@
 /bin/arg-likelihood
 /bin/arg-sample
 /bin/arg-summarize
-/bin/smc2bed
 
 # clangd files
 /.cache/
