@@ -9,6 +9,11 @@
 
 The original ARGweaver is written in C++ and Python, and the ARGweaver-D is written in C++ and R. This project is aimed to rewrite the entire code from C++ to Rust, and to provide a more time-efficient and user-friendly tool for the community.
 
+# Architecture
+
+```{graphviz} architecture.dot
+```
+
 # Indices and tables
 
 * {ref}`genindex`

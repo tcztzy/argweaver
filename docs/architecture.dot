@@ -1,0 +1,15 @@
+digraph architecture {
+    subgraph legacy {
+        "C++"; R;
+        label = "Legacy Codes";
+    }
+    subgraph new {
+        Rust; Python;
+        label = "New Codes";
+        color = blue;
+    }
+    "C++" -> R
+    R -> Python [label="rpy2"]
+    Rust -> Python [label="PyO3"]
+    "C++" -> Rust [label="autocxx"]
+}
