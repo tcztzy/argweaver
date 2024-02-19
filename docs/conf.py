@@ -14,7 +14,6 @@ author = "Tang Ziya"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "breathe",
     "myst_parser",
     "autodoc2",
     "sphinx.ext.graphviz",
@@ -25,7 +24,6 @@ autodoc2_packages = [
     "../argweaver",
 ]
 autodoc2_render_plugin = "myst"
-breathe_projects = {"argweaver": "../"}
 graphviz_output_format = "svg"
 
 templates_path = ["_templates"]
