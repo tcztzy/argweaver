@@ -1,3 +1,4 @@
+"""Wrapper for compiled binaries."""
 import pathlib
 import shutil
 import subprocess

@@ -13,7 +13,20 @@ author = "Tang Ziya"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["myst_parser", "sphinx.ext.graphviz"]
+extensions = [
+    "breathe",
+    "myst_parser",
+    "autodoc2",
+    "sphinx.ext.graphviz",
+    "sphinx.ext.napoleon",
+]
+
+autodoc2_packages = [
+    "../argweaver",
+]
+autodoc2_render_plugin = "myst"
+breathe_projects = {"argweaver": "../"}
+graphviz_output_format = "svg"
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

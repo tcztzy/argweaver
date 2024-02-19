@@ -1,7 +1,14 @@
-from rpy2.robjects.packages import importr
+"""Plotting functions for ARGweavers."""
+from argweaver.r import plotTreesFromBed
 
-argweaver = importr("argweaver")
 
+def plot_trees(bedfile: str):
+    """Plot trees from a bed file.
 
-def plot_tree(bedfile):
-    argweaver.plotTreesFromBed(bedfile)
+    Parameters
+    ----------
+
+    bedfile : {py:obj}`str` or {py:obj}`pathlib.Path`
+        Path to the bed file.
+    """
+    plotTreesFromBed(str(bedfile))
