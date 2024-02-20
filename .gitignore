@@ -30,3 +30,6 @@ __pycache__/
 # Rust files
 /Cargo.lock
 /target/
+
+# renv
+/renv.lock

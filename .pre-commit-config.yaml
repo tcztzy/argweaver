@@ -5,6 +5,7 @@ repos:
     rev: v4.5.0
     hooks:
     -   id: trailing-whitespace
+        exclude: .*\.R
     -   id: end-of-file-fixer
     -   id: check-toml
     -   id: check-yaml
