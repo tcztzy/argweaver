@@ -20,6 +20,9 @@ extensions = [
     "sphinx.ext.napoleon",
 ]
 
+autodoc2_module_all_regexes = [
+    r"argweaver\..*",
+]
 autodoc2_packages = [
     "../argweaver",
 ]

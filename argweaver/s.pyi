@@ -3,6 +3,8 @@ from typing import List, Optional, Union
 
 import polars as pl
 
+__all__: list = ["Sites", "read_sites", "smc2bed"]
+
 class Sites:
     """A class to represent a set of sites in a region.
 

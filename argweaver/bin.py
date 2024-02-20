@@ -21,8 +21,11 @@ _binaries = ["arg_likelihood", "arg_sample", "arg_summarize"]
 __all__ = _binaries + ["require_executable"]
 
 arg_likelihood: "_BinaryWrapper"
+"Sampler for large ancestral recombination graphs"
 arg_sample: "_BinaryWrapper"
+"Sampler for large ancestral recombination graphs"
 arg_summarize: "_BinaryWrapper"
+"Summarize the output of ARGweaver."
 
 _bin_dir = pathlib.Path(__file__).parent.parent / "bin"
 
@@ -50,6 +53,21 @@ for _ in _binaries:
 
 
 def require_executable(executable: str, additional_message: str = "", **kwargs):
+    """Require an executable to be available and return a wrapper for it.
+
+    Parameters
+    ----------
+    executable : {py:obj}`str`
+        Name of the executable.
+
+    additional_message : {py:obj}`str`, optional
+        Additional message to include in the exception.
+
+    return_process : {py:obj}`bool`, optional
+        Whether to return the process. Default is {py:obj}`True`.
+
+    **kwargs
+        Additional keyword arguments to pass to the {py:func}`subprocess.run`."""
     exe = shutil.which(executable)
     if exe is None:
         raise FileNotFoundError(

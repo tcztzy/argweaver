@@ -32,6 +32,7 @@ dependencies = [
     "polars>=0.20.9",
     "pyarrow>=15.0.0",
     "rpy2>=3.5.15",
+    "pandas>=2.0.3",
 ]
 
 [project.scripts]
@@ -73,4 +74,6 @@ addopts = ["--cov=argweaver"]
 [tool.coverage.report]
 exclude_also = [
     "if (typing\\.)?TYPE_CHECKING",
+    "if __name__ == \"__main__\"",
+    "class \\w+\\((argparse\\.)?HelpFormatter\\)",
 ]
