@@ -34,6 +34,7 @@ def subset_bed(data, region):
     ----------
     bedfile : {py:obj}`str`
         Path to the bed file.
+
     region : {py:obj}`str`
         Subset of the file, in format {chrom}:{start}-{end}
 
