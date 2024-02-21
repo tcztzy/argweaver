@@ -1,10 +1,10 @@
-import pytest
+import matplotlib.pyplot as plt
+from matplotlib.testing.decorators import image_comparison
 
-from argweaver.plot import plot_trees
+from argweaver.plot import plot_tree
 
 
-def test_plot_trees(bedfile):
-    with pytest.raises(ValueError):
-        plot_trees(bedfile, s="not valid")
-    rv = plot_trees(bedfile, s="chr:1000-2000")
-    assert len(rv[0]) == len(rv[1])
+@image_comparison(baseline_images=["test_plot_tree"], extensions=["png"])
+def test_plot_tree():
+    fig, ax = plt.subplots()
+    plot_tree("((A:1,B:1):1,C:2);", name="Test Plot", axes=ax, do_show=False)

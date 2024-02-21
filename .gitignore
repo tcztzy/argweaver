@@ -33,3 +33,6 @@ __pycache__/
 
 # renv
 /renv.lock
+
+# matplotlib
+/result_images/
