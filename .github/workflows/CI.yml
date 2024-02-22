@@ -43,8 +43,9 @@ jobs:
           manylinux: '2014'
           container: ghcr.io/rust-cross/manylinux2014-cross:${{ matrix.target }}
         env:
-          CC: clang
-          CXX: clang++
+          # Set the C and C++ compilers to clang on manylinux
+          CC_${{ matrix.target }}-unknown-linux-gnu: clang
+          CXX_${{ matrix.target }}-unknown-linux-gnu: clang++
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
