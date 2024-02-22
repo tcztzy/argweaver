@@ -31,24 +31,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Set up Clang
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          sudo apt-get install -y llvm-dev libclang-dev clang
-          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
-          sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
-      - name: Set up LIBCLANG_PATH
-        run: |
-          echo "LIBCLANG_PATH=$(llvm-config --libdir)" >> $GITHUB_ENV
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v1
+        if: ${{ startsWith(matrix.os, 'ubuntu') && matrix.target == 'aarch64' }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
-        env:
-          LIBCLANG_PATH: ${{ env.LIBCLANG_PATH }}
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: 'true'
-          manylinux: auto
+          manylinux: '2014'
+          container: ghcr.io/rust-cross/manylinux2014-cross:${{ matrix.target }}
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
