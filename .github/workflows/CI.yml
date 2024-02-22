@@ -19,11 +19,10 @@ permissions:
   contents: read
 
 jobs:
-  wheel:
-    runs-on: ${{ matrix.os }}
+  macos:
+    runs-on: macos-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
         target: [x86_64, aarch64]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     steps:
@@ -31,21 +30,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v1
-        if: ${{ startsWith(matrix.os, 'ubuntu') && matrix.target == 'aarch64' }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release --out dist --find-interpreter
           sccache: 'true'
-          manylinux: '2014'
-          container: ghcr.io/rust-cross/manylinux2014-cross:${{ matrix.target }}
-        env:
-          # Set the C and C++ compilers to clang on manylinux
-          CC_${{ matrix.target }}-unknown-linux-gnu: clang
-          CXX_${{ matrix.target }}-unknown-linux-gnu: clang++
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -71,7 +61,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [wheel, sdist]
+    needs: [macos, sdist]
     steps:
       - uses: actions/download-artifact@v3
         with:
