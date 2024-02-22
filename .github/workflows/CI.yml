@@ -42,6 +42,9 @@ jobs:
           sccache: 'true'
           manylinux: '2014'
           container: ghcr.io/rust-cross/manylinux2014-cross:${{ matrix.target }}
+          before-script-linux: |
+            sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
+            sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
