@@ -1,6 +1,15 @@
 name: documentation
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - 'argweaver/**'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'argweaver/**'
+  workflow_dispatch:
 
 permissions:
   contents: write

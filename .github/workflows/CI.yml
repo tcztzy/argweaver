@@ -19,60 +19,11 @@ permissions:
   contents: read
 
 jobs:
-  linux:
+  wheel:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist
-          sccache: 'true'
-          before-script-linux: |
-            sudo apt-get install -y libatomic1
-          manylinux: auto
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-
-  # windows:
-  #   runs-on: windows-latest
-  #   strategy:
-  #     matrix:
-  #       target: [x64, x86]
-  #       python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - uses: actions/setup-python@v4
-  #       with:
-  #         python-version: ${{ matrix.python-version }}
-  #         architecture: ${{ matrix.target }}
-  #     - name: Build wheels
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         target: ${{ matrix.target }}
-  #         args: --release --out dist
-  #         sccache: 'true'
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         name: wheels
-  #         path: dist
-
-  macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
+        os: [ubuntu-latest, macos-latest]
         target: [x86_64, aarch64]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     steps:
@@ -80,12 +31,18 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up Clang
+        uses: egor-tensin/setup-clang@v1
+        if: startsWith(matrix.os, 'ubuntu')
+        with:
+          platform: ${{ matrix.target == 'x86_64' && 'x64' || matrix.target }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: 'true'
+          manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -110,8 +67,8 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [linux, macos, sdist]
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [wheel, sdist]
     steps:
       - uses: actions/download-artifact@v3
         with:
