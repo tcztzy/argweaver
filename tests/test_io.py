@@ -1,4 +1,4 @@
-from argweaver.io import read_bed, subset_bed
+from argweavers.io import read_bed, subset_bed
 
 
 def test_read_bed(bedfile):

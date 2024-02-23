@@ -21,10 +21,10 @@ extensions = [
 ]
 
 autodoc2_module_all_regexes = [
-    r"argweaver\..*",
+    r"argweavers\..*",
 ]
 autodoc2_packages = [
-    "../argweaver",
+    "../argweavers",
 ]
 autodoc2_render_plugin = "myst"
 graphviz_output_format = "svg"

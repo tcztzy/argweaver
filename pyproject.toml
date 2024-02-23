@@ -38,11 +38,11 @@ dependencies = [
 ]
 
 [project.scripts]
-arg-likelihood = "argweaver.bin:arg_likelihood"
-arg-sample = "argweaver.bin:arg_sample"
-arg-summarize = "argweaver.bin:arg_summarize"
-smc2bed = "argweaver.scripts.smc2bed:main"
-smc2bed-all = "argweaver.scripts.smc2bed_all:main"
+arg-likelihood = "argweavers.bin:arg_likelihood"
+arg-sample = "argweavers.bin:arg_sample"
+arg-summarize = "argweavers.bin:arg_summarize"
+smc2bed = "argweavers.scripts.smc2bed:main"
+smc2bed-all = "argweavers.scripts.smc2bed_all:main"
 
 [tool.rye]
 dev-dependencies = [
@@ -55,6 +55,7 @@ dev-dependencies = [
     "myst-parser>=2.0.0",
     "sphinx-autodoc2>=0.5.0",
     "ipykernel>=6.29.2",
+    "cibuildwheel>=2.16.5",
 ]
 [tool.rye.scripts]
 cov-report = { chain = ["htmlcov", "htmlcov-serve"] }
@@ -63,7 +64,6 @@ htmlcov-serve = "python -m http.server --directory htmlcov"
 
 [tool.maturin]
 features = ["extension-module"]
-module-name = "argweaver.s"
 include = ["bin/*"]
 
 [[tool.mypy.overrides]]
@@ -78,7 +78,7 @@ target-version = "py38"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = ["--cov=argweaver"]
+addopts = ["--cov=argweavers"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -86,3 +86,6 @@ exclude_also = [
     "if __name__ == \"__main__\"",
     "class \\w+\\((argparse\\.)?HelpFormatter\\)",
 ]
+
+[tool.cibuildwheel]
+skip = "pp*"

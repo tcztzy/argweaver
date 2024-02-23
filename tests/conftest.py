@@ -3,7 +3,7 @@ import shutil
 
 import pytest
 
-from argweaver.scripts.smc2bed_all import main as smc2bed_all
+from argweavers.scripts.smc2bed_all import main as smc2bed_all
 
 examples_dir = pathlib.Path(__file__).parent.parent / "examples"
 

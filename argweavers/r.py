@@ -5,7 +5,7 @@ import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 
-from argweaver.utils import parse_region
+from argweavers.utils import parse_region
 
 if typing.TYPE_CHECKING:
     from os import PathLike

@@ -22,7 +22,7 @@ __pycache__/
 /requirements-dev.lock
 
 # maturin
-/argweaver/*.so
+/argweavers/*.so
 
 # test coverage
 /.coverage

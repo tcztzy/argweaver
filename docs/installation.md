@@ -3,19 +3,18 @@
 ## Pre-requisites
 
 1. [rustup](https://rustup.rs/)
-2. (Optional) [samtools](http://www.htslib.org/) and
-   [bedops](https://bedops.readthedocs.io/en/latest/) for executing `smc2bed-all`
+2. (Optional) [samtools](http://www.htslib.org/) for executing `smc2bed-all`
 3. (Optional) R for plotting
 
 ```bash
 # Install rustup
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-# If you are using macOS, you can install samtools and bedops using homebrew
-brew install samtools bedops
-# Otherwise, install miniconda for samtools and bedops
+# If you are using macOS, you can install samtools using homebrew
+brew install samtools
+# Otherwise, install miniconda for samtools
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
-conda install -c bioconda samtools bedops
+conda install -c bioconda samtools
 # Install R
 sudo apt-get install r-base
 # Or

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from argweaver.utils import parse_region
+from argweavers.utils import parse_region
 
 __all__ = ["read_bed"]
 

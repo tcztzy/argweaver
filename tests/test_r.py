@@ -1,6 +1,6 @@
 import pytest
 
-from argweaver.r import plotTreesFromBed
+from argweavers.r import plotTreesFromBed
 
 
 def test_plot_trees(bedfile):

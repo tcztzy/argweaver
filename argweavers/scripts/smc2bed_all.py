@@ -1,10 +1,13 @@
 import argparse
 import os
 import sys
+from io import BytesIO
 from itertools import count
 
-from argweaver.bin import require_executable
-from argweaver.scripts.smc2bed import main as smc2bed
+import pandas as pd
+
+from argweavers.bin import require_executable
+from argweavers.scripts.smc2bed import main as smc2bed
 
 
 class MetavarFormatter(argparse.HelpFormatter):
@@ -16,7 +19,6 @@ class MetavarFormatter(argparse.HelpFormatter):
 
 
 def main(argv=None):
-    sort_bed = require_executable("sort-bed", "It is included in `bedops`")
     bgzip = require_executable("bgzip", "It is included in `samtools`")
     tabix = require_executable("tabix", "It is included in `samtools`")
     parser = argparse.ArgumentParser(
@@ -93,14 +95,16 @@ def main(argv=None):
             sys.stderr.write(f"ended at sample={num}\n")
             break
         sys.stderr.write(f"{num} {file}\n")
-        print(os.stat(file).st_size)
         out += smc2bed(
             ["--sample", str(num), *regionarg, file],
             capture_output=True,
         )
-        print(len(out))
         num += interval
-    out = sort_bed(["-"], input=out, capture_output=True).stdout
+    bed = pd.read_table(
+        BytesIO(out), header=None, names=["chrom", "start", "end", "iter", "tree"]
+    )
+    bed = bed.sort_values(["chrom", "start", "end", "iter"])
+    out = bed.to_csv(index=False, header=False, sep="\t").encode("utf-8")
     with open(f"{baseout}.bed.gz", "wb") as f:
         bgzip(["-"], input=out, stdout=f)
     tabix(["-p", "bed", f"{baseout}.bed.gz"])

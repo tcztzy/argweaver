@@ -1,5 +1,5 @@
-import argweaver
+import argweavers
 
 
 def test_basic():
-    assert argweaver.__version__ == "0.9.0"
+    assert argweavers.__version__ == "0.9.0"

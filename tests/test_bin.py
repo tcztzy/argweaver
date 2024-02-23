@@ -1,6 +1,6 @@
 import pytest
 
-from argweaver.bin import require_executable
+from argweavers.bin import require_executable
 
 
 def test_require_executable():

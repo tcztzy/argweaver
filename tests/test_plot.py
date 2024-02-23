@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.testing.decorators import image_comparison
 
-from argweaver.plot import plot_tree
+from argweavers.plot import plot_tree
 
 
 @image_comparison(baseline_images=["test_plot_tree"], extensions=["png"])

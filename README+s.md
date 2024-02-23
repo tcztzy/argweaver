@@ -5,8 +5,7 @@
 1. [rustup](https://rustup.rs/)
 2. [CMake](https://cmake.org/) with any modern C++ compiler
 3. [rye](https://rye-up.com) or [maturin](https://maturin.rs) for Python binding
-4. [samtools](http://www.htslib.org/) and
-   [bedops](https://bedops.readthedocs.io/en/latest/) for `smc2bed-all`
+4. [samtools](http://www.htslib.org/) for `smc2bed-all`
 
 ## Install
 

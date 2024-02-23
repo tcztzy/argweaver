@@ -54,7 +54,7 @@ fn smc2bed(args: Option<Vec<String>>) -> PyResult<()> {
 #[cfg(feature = "extension-module")]
 /// Ancestral recombination graph sampling method
 #[pymodule]
-fn s(_py: Python, m: &PyModule) -> PyResult<()> {
+fn argweavers(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<sites::Sites>()?;
     m.add_function(wrap_pyfunction!(sites::read_sites, m)?)?;
     m.add_function(wrap_pyfunction!(smc2bed, m)?)?;

@@ -1,4 +1,4 @@
-from argweaver import read_sites
+from argweavers import read_sites
 
 
 def test_read_sites():

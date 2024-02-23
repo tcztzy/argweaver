@@ -1,6 +1,6 @@
 import hashlib
 
-from argweaver.scripts.smc2bed import main as smc2bed
+from argweavers.scripts.smc2bed import main as smc2bed
 
 
 def sha256sum(path):
@@ -18,5 +18,5 @@ def test_smc2bed(sim1_sample):
 
 
 def test_smc2bed_all(bedfile):
-    sha256 = "577951a303869a2ab3aaf99e500ff29ce5613c27ac1a7cbef7dbfa63524136c3"
+    sha256 = "94012cc3ecadddaf19f823ec361a72ac9b8073fe33dc75c1f731498c789d7023"
     assert sha256sum(bedfile) == sha256

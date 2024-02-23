@@ -1,6 +1,6 @@
 import pytest
 
-from argweaver.utils import parse_region
+from argweavers.utils import parse_region
 
 
 def test_parse_region():

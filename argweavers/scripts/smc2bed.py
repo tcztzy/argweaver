@@ -2,7 +2,7 @@ import io
 import sys
 from contextlib import redirect_stdout
 
-from argweaver.s import smc2bed
+from argweavers import smc2bed
 
 
 def main(args=None, capture_output=False):
