@@ -1,5 +1,3 @@
-extern crate test;
-
 use std::fs::read_to_string;
 use std::os::unix::ffi::OsStrExt;
 
@@ -26,10 +24,6 @@ fn test_ffi_read_sites() {
     assert!(ok);
 }
 
-#[bench]
-fn bench_ffi_read_sites(b: &mut test::Bencher) {
-    b.iter(test_ffi_read_sites);
-}
 #[test]
 fn test_from_path() {
     let path = std::path::PathBuf::from("examples/sim1/sim1.sites");
@@ -60,9 +54,4 @@ fn test_try_into_ffi_sites() {
     assert_eq!(num_seq, 8);
     let num_sites: i32 = ffi_sites.get_num_sites().into();
     assert_eq!(num_sites, 170);
-}
-
-#[bench]
-fn bench_from_path(b: &mut test::Bencher) {
-    b.iter(test_from_path);
 }

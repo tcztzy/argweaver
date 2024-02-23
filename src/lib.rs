@@ -1,4 +1,3 @@
-#![feature(test)]
 #[cfg(feature = "extension-module")]
 use pyo3::prelude::*;
 
