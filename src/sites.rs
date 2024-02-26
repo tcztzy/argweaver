@@ -207,6 +207,23 @@ fn parse_locs(input: &str) -> IResult<&str, (Vec<u32>, Vec<Vec<u32>>)> {
     Ok((input, (pos, seqs)))
 }
 
+impl TryInto<UniquePtr<ffi::Sequences>> for Sites {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_into(self) -> Result<UniquePtr<ffi::Sequences>> {
+        let mut sites: UniquePtr<ffi::Sites> = self.try_into()?;
+        let mut sequences = ffi::Sequences::new(c_int(0)).within_unique_ptr();
+        unsafe {
+            ffi::make_sequences_from_sites(
+                std::pin::Pin::<&mut ffi::Sites>::into_inner_unchecked(sites.pin_mut()),
+                std::pin::Pin::<&mut ffi::Sequences>::into_inner_unchecked(sequences.pin_mut()),
+                'A' as i8,
+            )
+        };
+        Ok(sequences)
+    }
+}
+
 impl Sites {
     pub fn from_path(path: &std::path::PathBuf) -> Result<Self> {
         let content = read_to_string(path)?;
@@ -350,6 +367,10 @@ impl Sites {
             .map(|s| s.to_owned())
             .collect();
         self.data.hstack_mut(&columns).unwrap();
+    }
+
+    pub fn set_samples(&mut self, samples: &[&str]) {
+        self.data = self.data.select(&samples.to_vec()).unwrap();
     }
 }
 

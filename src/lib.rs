@@ -27,9 +27,11 @@ pub mod ffi {
         // model.h
         generate!("argweaver::ArgModel")
         // sequences.h
+        generate!("argweaver::Sequences")
         generate!("argweaver::Sites")
         generate!("argweaver::read_sites")
         generate!("argweaver::read_sites1")
+        generate!("argweaver::make_sequences_from_sites")
     }
     pub use ffi::{argweaver::*, spidir::*, *};
 }
