@@ -23,7 +23,7 @@ fn ffi_read_sites() {
 
 fn read_sites() {
     let path = std::path::PathBuf::from("examples/sim1/sim1.sites");
-    let _sites = Sites::from_path(path).unwrap();
+    let _sites = Sites::from_path(&path).unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

@@ -1,5 +1,4 @@
 """Wrapper for compiled binaries."""
-import pathlib
 import shutil
 import subprocess
 import sys
@@ -17,8 +16,7 @@ if typing.TYPE_CHECKING:
             ...
 
 
-_binaries = ["arg_likelihood", "arg_sample", "arg_summarize"]
-__all__ = _binaries + ["require_executable"]
+__all__ = ["require_executable"]
 
 arg_likelihood: "_BinaryWrapper"
 "Sampler for large ancestral recombination graphs"
@@ -26,8 +24,6 @@ arg_sample: "_BinaryWrapper"
 "Sampler for large ancestral recombination graphs"
 arg_summarize: "_BinaryWrapper"
 "Summarize the output of ARGweaver."
-
-_bin_dir = pathlib.Path(__file__).parent.parent / "bin"
 
 
 def _bin_wrapper(path: "Union[Path, str]", **kwargs) -> "_BinaryWrapper":
@@ -43,13 +39,6 @@ def _bin_wrapper(path: "Union[Path, str]", **kwargs) -> "_BinaryWrapper":
             return p
 
     return f
-
-
-for _ in _binaries:
-    _bin = _bin_dir / _.replace("_", "-")
-    if not _bin.exists():
-        raise RuntimeError(f"Missing binary: {_bin}")
-    globals()[_] = _bin_wrapper(_bin, capture_output=False, return_process=False)
 
 
 def require_executable(executable: str, additional_message: str = "", **kwargs):

@@ -1,5 +1,9 @@
 """R interface for argweaver."""
+import importlib.util
 import typing
+
+if importlib.util.find_spec("rpy2") is None:
+    raise ImportError("rpy2 not installed, please install this package with `r` extra.")
 
 import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri

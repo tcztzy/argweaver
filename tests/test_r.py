@@ -1,6 +1,11 @@
+import importlib.util
+
 import pytest
 
-from argweavers.r import plotTreesFromBed
+if importlib.util.find_spec("rpy2") is None:
+    pytestmark = pytest.mark.skip(reason="rpy2 not installed")
+else:
+    from argweavers.r import plotTreesFromBed
 
 
 def test_plot_trees(bedfile):
