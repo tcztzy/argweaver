@@ -26,7 +26,7 @@ This repository provides Python wrappers for the following programs:
 
 And rewrite of the following programs:
 
-- [smc2bed-all](./argweaver/scripts/smc2bed_all.py)
+- [smc2bed-all](./argweavers/scripts/smc2bed_all.py)
 
 ## Usage
 

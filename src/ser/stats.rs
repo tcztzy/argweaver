@@ -1,7 +1,7 @@
 use crate::Result;
 use csv::WriterBuilder;
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StatsStage {
     Resample,
@@ -10,7 +10,7 @@ pub enum StatsStage {
     Climb,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct StatsRecord {
     pub stage: StatsStage,
     pub iter: usize,

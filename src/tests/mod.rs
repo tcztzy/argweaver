@@ -27,7 +27,7 @@ fn test_ffi_read_sites() {
 #[test]
 fn test_from_path() {
     let path = std::path::PathBuf::from("examples/sim1/sim1.sites");
-    let sites = Sites::from_path(path).unwrap();
+    let sites = Sites::from_path(&path).unwrap();
     assert_eq!(sites.chrom, "chr");
     assert_eq!(sites.start, 1);
     assert_eq!(sites.end, 100000);
@@ -37,7 +37,7 @@ fn test_from_path() {
 #[test]
 fn test_from_path_and_to_string() {
     let path = std::path::PathBuf::from("examples/sim1/sim1.sites");
-    let sites = Sites::from_path(path).unwrap();
+    let sites = Sites::from_path(&path).unwrap();
     let s = sites.to_string();
     assert_eq!(
         s.to_string(),
@@ -48,7 +48,7 @@ fn test_from_path_and_to_string() {
 #[test]
 fn test_try_into_ffi_sites() {
     let path = std::path::PathBuf::from("examples/sim1/sim1.sites");
-    let sites = Sites::from_path(path).unwrap();
+    let sites = Sites::from_path(&path).unwrap();
     let ffi_sites: UniquePtr<ffi::Sites> = sites.try_into().unwrap();
     let num_seq: i32 = ffi_sites.get_num_seqs().into();
     assert_eq!(num_seq, 8);

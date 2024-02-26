@@ -2,6 +2,7 @@ use std::convert::TryInto;
 use std::fs::read_to_string;
 
 use autocxx::prelude::{c_int, UniquePtr, WithinUniquePtr};
+use bio::{bio_types::genome::AbstractLocus, io::fasta};
 use nom::{
     bytes::complete::tag,
     character::complete::{alphanumeric1, digit1, newline, one_of, tab},
@@ -19,6 +20,7 @@ use polars::{
 use pyo3::{exceptions::PyIndexError, prelude::*, types::PySlice};
 #[cfg(feature = "extension-module")]
 use pyo3_polars::PyDataFrame;
+use rust_htslib::bcf::{self, Read};
 
 use crate::{de::parse_names, ffi, Result};
 
@@ -194,7 +196,7 @@ fn parse_locs(input: &str) -> IResult<&str, (Vec<u32>, Vec<Vec<u32>>)> {
         separated_pair(
             parse_u32,
             tab,
-            map_res(many1(one_of("ACGT")), |r| {
+            map_res(many1(one_of("ACGTN-")), |r| {
                 Ok::<Vec<_>, nom::error::Error<&str>>(
                     r.into_iter().map(|c| c as u32).collect::<Vec<u32>>(),
                 )
@@ -206,7 +208,7 @@ fn parse_locs(input: &str) -> IResult<&str, (Vec<u32>, Vec<Vec<u32>>)> {
 }
 
 impl Sites {
-    pub fn from_path(path: std::path::PathBuf) -> Result<Self> {
+    pub fn from_path(path: &std::path::PathBuf) -> Result<Self> {
         let content = read_to_string(path)?;
         let (input, names) = parse_names(&content).map_err(|e| e.map_input(|s| s.to_owned()))?;
         let num_of_cols = names.len();
@@ -241,11 +243,119 @@ impl Sites {
             end,
         })
     }
+    /// Read a sites file from a multi-sequence alignment FASTA file.
+    /// All sequences must be the same length.
+    pub fn from_msa(path: &std::path::PathBuf) -> Result<Self> {
+        let reader = fasta::Reader::from_file(path)?;
+        let mut records = reader.records();
+        let first = records.next().unwrap()?;
+        let seq = first.seq();
+        let len = seq.len();
+        let mut seqs = vec![Series::from_iter(seq.iter().map(|b| *b as u32)).with_name(first.id())];
+        for record in records {
+            let record = record?;
+            let seq = record.seq();
+            assert_eq!(seq.len(), len);
+            seqs.push(Series::from_iter(seq.iter().map(|b| *b as u32)).with_name(record.id()));
+        }
+        let pos = Series::from_iter(1..=len as u32).with_name("pos");
+        Ok(Self {
+            data: DataFrame::new(std::iter::once(pos).chain(seqs).collect())?,
+            chrom: "chr".to_string(),
+            start: 1,
+            end: len,
+        })
+    }
+
+    pub fn from_vcf(path: &std::path::PathBuf) -> Result<Self> {
+        let mut reader = bcf::Reader::from_path(path)?;
+        let header = reader.header();
+        let names: Vec<String> = header
+            .samples()
+            .into_iter()
+            .map(|s| std::str::from_utf8(s).unwrap().to_owned())
+            .collect();
+        let samples = names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| {
+                let col = reader
+                    .records()
+                    .into_iter()
+                    .map(|r| {
+                        let r = r.unwrap();
+                        let allele = std::str::from_utf8(r.alleles()[i + 1]).unwrap();
+                        assert!(
+                            allele.len() == 1,
+                            "allele {} has length {}",
+                            allele,
+                            allele.len()
+                        );
+                        allele.chars().next().unwrap() as u32
+                    })
+                    .collect::<Vec<_>>();
+                let series = ChunkedArray::<polars::datatypes::UInt32Type>::from_vec(&name, col)
+                    .into_series();
+                series
+            })
+            .collect::<Vec<Series>>();
+        let pos = ChunkedArray::<polars::datatypes::UInt32Type>::from_vec(
+            "pos",
+            reader
+                .records()
+                .into_iter()
+                .map(|r| r.unwrap().pos() as u32)
+                .collect::<Vec<u32>>(),
+        )
+        .into_series();
+        let chrom = reader
+            .records()
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap()
+            .contig()
+            .to_string();
+        Ok(Self {
+            data: DataFrame::new(std::iter::once(pos).chain(samples).collect())?,
+            chrom,
+            start: 1,
+            end: 100000,
+        })
+    }
+
+    pub fn from_vcfs(paths: &[std::path::PathBuf]) -> Result<Self> {
+        let mut sites = Self::from_vcf(&paths[0])?;
+        for path in &paths[1..] {
+            let other = Self::from_vcf(path)?;
+            sites.hstack_mut(&other);
+        }
+        Ok(sites)
+    }
+
+    fn hstack_mut(&mut self, other: &Self) {
+        let self_names = self.data.get_column_names();
+        let names: Vec<&str> = other
+            .data
+            .get_column_names()
+            .iter()
+            .filter(|&&c| !self_names.contains(&c))
+            .map(|&c| c)
+            .collect();
+        let columns: Vec<Series> = other
+            .data
+            .columns(names)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.to_owned())
+            .collect();
+        self.data.hstack_mut(&columns).unwrap();
+    }
 }
 
 #[cfg(feature = "extension-module")]
 #[pyfunction]
 pub fn read_sites(path: std::path::PathBuf) -> PyResult<Sites> {
-    let sites = Sites::from_path(std::path::PathBuf::from(path)).unwrap();
+    let sites = Sites::from_path(&path).unwrap();
     Ok(sites)
 }
