@@ -63,6 +63,14 @@ dev-dependencies = [
 cov-report = { chain = ["htmlcov", "htmlcov-serve"] }
 htmlcov = "pytest --cov-report=html"
 htmlcov-serve = "python -m http.server --directory htmlcov"
+"restore:argweaver" = { cmd = ["R", "-e", "renv::install('./R/argweaver')"] }
+"restore:renv" = { cmd = ["R", "-e", "renv::restore()"] }
+restore-r = { chain = ["restore:renv", "restore:argweaver"] }
+test = { chain = ["test:py", "test:rs"] }
+"test:py" = { chain = ["dev", "pytest"] }
+"test:rs" = "cargo test"
+build = "maturin build"
+dev = "maturin develop --skip-install"
 
 [tool.maturin]
 features = ["extension-module"]
@@ -85,6 +93,7 @@ addopts = ["--cov=argweavers"]
 exclude_also = [
     "if (typing\\.)?TYPE_CHECKING",
     "if __name__ == \"__main__\"",
+    "raise ImportError",
     "class \\w+\\((argparse\\.)?HelpFormatter\\)",
 ]
 

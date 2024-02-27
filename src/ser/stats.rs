@@ -22,9 +22,16 @@ pub struct StatsWriter {
 }
 
 impl StatsWriter {
-    pub fn from_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
-        let file = std::fs::File::create(path)?;
-        let writer = WriterBuilder::new().delimiter(b'\t').from_writer(file);
+    pub fn from_path<P: AsRef<std::path::Path>>(path: P, resume: bool) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(resume)
+            .open(path)?;
+        let writer = WriterBuilder::new()
+            .has_headers(!resume)
+            .delimiter(b'\t')
+            .from_writer(file);
         Ok(Self { _writer: writer })
     }
     pub fn serialize(&mut self, stats: &StatsRecord) -> Result<()> {

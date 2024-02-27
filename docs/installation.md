@@ -23,8 +23,8 @@ brew install r
 R -e "renv::restore()"
 R -e "renv::install('./R/argweaver')"
 # And then, install
-pip install argweavers+git://github.com/tcztzy/argweaver
-# OR from pypi
+pip install argweavers+git://github.com/tcztzy/argweavers
+# OR from pypi in the future
 pip install argweavers
 ```
 

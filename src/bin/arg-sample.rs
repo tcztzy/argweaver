@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{builder::ArgAction, Args, Parser};
+use cxx::UniquePtr;
 use log::{error, info, warn, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
@@ -11,6 +12,7 @@ use log4rs::filter::threshold::ThresholdFilter;
 use polars::prelude::*;
 
 use argweavers::{
+    ffi,
     ser::{StatsRecord, StatsStage, StatsWriter},
     sites::Sites,
     Result,
@@ -75,6 +77,10 @@ struct IOArgs {
     out_prefix: PathBuf,
     #[command(flatten)]
     input_options: InputOptions,
+
+    /// mask map file (optional)
+    #[arg(long = "mask", visible_alias = "maskmap", value_name = "sites mask")]
+    mask_file: Option<PathBuf>,
 
     /// Used to rename sequences (usually from cryptic names in VCF files to
     /// more meaningful names). The file should contain two columns, with the
@@ -241,7 +247,7 @@ fn setup_resume(config: &mut Config) -> Result<()> {
         config.out_postfix(),
     ));
     if sites_file.exists() {
-        let test_sites = Sites::from_path(&sites_file)?;
+        let _test_sites = Sites::from_path(&sites_file)?;
         info!(
             "Detected phased output sites file. Using %s as input {} and assuming data is unphased",
             &sites_file.display()
@@ -252,8 +258,14 @@ fn setup_resume(config: &mut Config) -> Result<()> {
             .io_args
             .out_prefix
             .with_extension("masked_regions.bed");
+        if mask_file.exists() {
+            info!(
+                "Using mask file {} output from previous run",
+                mask_file.display()
+            );
+            config.io_args.mask_file = Some(mask_file);
+        }
     }
-    let sites = config.io_args.input_options.sites()?;
     info!(
         "resuming at stage={}, iter={}, arg={}",
         "resample",
@@ -310,23 +322,15 @@ fn main() -> Result<()> {
     unsafe {
         libc::srand(seed as _);
     }
+    let mut sites = config.io_args.input_options.sites()?;
     if let Some(keep_ids) = config.io_args.keep_ids {
         if keep_ids.len() == 1 && PathBuf::from(&keep_ids[0]).exists() {
             let keep_ids = std::fs::read_to_string(&keep_ids[0])?;
-            config.io_args.keep_ids =
-                Some(keep_ids.split_whitespace().map(|s| s.to_string()).collect());
+            let keep_ids: Vec<&str> = keep_ids.split_whitespace().collect();
+            sites.set_samples(&keep_ids);
         }
     }
-    let mut writer = StatsWriter::from_path(stats_filename)?;
-    writer.serialize(&StatsRecord {
-        stage: StatsStage::Resample,
-        iter: 0,
-        prior: 0.0,
-    })?;
-    writer.serialize(&StatsRecord {
-        stage: StatsStage::Resample,
-        iter: 1,
-        prior: 0.0,
-    })?;
+    let mut sequences: UniquePtr<ffi::Sequences> = sites.try_into()?;
+    let mut writer = StatsWriter::from_path(stats_filename, config.sampling_args.resume)?;
     Ok(())
 }

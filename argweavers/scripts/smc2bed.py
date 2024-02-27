@@ -9,10 +9,7 @@ def main(args=None, capture_output=False):
     if args is not None:
         args = [str(arg) for arg in args]
         args = ["smc2bed"] + args
-    if capture_output:
-        buf = io.TextIOWrapper(io.BytesIO())
-    else:
-        buf = sys.stdout
+    buf = io.TextIOWrapper(io.BytesIO()) if capture_output else sys.stdout
     with redirect_stdout(buf):
         smc2bed(args)
     if capture_output:

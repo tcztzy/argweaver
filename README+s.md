@@ -10,7 +10,7 @@
 ## Install
 
 ```console
-foo@bar:~$ pip install argweaver+git://github.com/tcztzy/argweaver
+foo@bar:~$ pip install argweaver+git://github.com/tcztzy/argweavers
 ```
 
 After install the Python package, you don't need any additional steps to use the
@@ -22,10 +22,10 @@ This repository provides Python wrappers for the following programs:
 - [arg-likelihood](./src/arg-likelihood.cpp)
 - [arg-sample](./src/arg-sample.cpp)
 - [arg-summarize](./src/arg-summarize.cpp)
-- [smc2bed](./src/smc2bed.cpp)
 
 And rewrite of the following programs:
 
+- [smc2bed](./argweavers/scripts/smc2bed.py) and [rust version](./src/bin/smc2bed.rs)
 - [smc2bed-all](./argweavers/scripts/smc2bed_all.py)
 
 ## Usage
