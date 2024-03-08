@@ -14,7 +14,7 @@ class ARG:
 
     @property
     def sequence_length(self) -> int:
-        return self.G["sequence_length"]
+        return self.G.graph["sequence_length"]
 
     @classmethod
     def from_path(cls, path):
@@ -49,7 +49,7 @@ class ARG:
             # Make an nx DiGraph so we can do a topological sort.
             G = nx.DiGraph()
             assert int(mo.group(1)) == 0
-            G["sequence_length"] = int(mo.group(2))
+            G.graph["sequence_length"] = int(mo.group(2))
             for child, row in df.iterrows():
                 try:
                     child = int(child)
